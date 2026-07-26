@@ -33,6 +33,7 @@ export async function init(): Promise<void> {
       name          TEXT NOT NULL,
       type          TEXT NOT NULL,
       version       TEXT DEFAULT '',
+      "group"       TEXT DEFAULT '',
       host          TEXT DEFAULT '',
       port          INTEGER DEFAULT 0,
       "user"        TEXT DEFAULT '',
@@ -44,6 +45,9 @@ export async function init(): Promise<void> {
       updated_at    INTEGER NOT NULL
     )
   `);
+
+  // 升级旧表：添加 group 列（如果不存在）
+  try { db.run('ALTER TABLE connections ADD COLUMN "group" TEXT DEFAULT ""'); } catch { /* 已存在 */ }
 
   // 初始化日志配置表
   setDb(db);
@@ -112,9 +116,9 @@ function addConnectionInternal(conn: DbConnection): void {
   const d = ensureDb();
   const now = Date.now();
   d.run(
-    `INSERT INTO connections (id, name, type, version, host, port, "user", password, database_name, path, notes, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [conn.id, conn.name, conn.type, conn.version||'', conn.host||'', conn.port||0,
+    `INSERT INTO connections (id, name, type, version, "group", host, port, "user", password, database_name, path, notes, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [conn.id, conn.name, conn.type, conn.version||'', conn.group||'', conn.host||'', conn.port||0,
      conn.user||'', conn.password||'', conn.database||'', conn.path||'', conn.notes||'', now, now],
   );
   save();
@@ -132,9 +136,9 @@ export function updateConnection(id: string, updates: Partial<DbConnection>): Db
   const merged = { ...existing, ...updates, id };
   const d = ensureDb();
   d.run(
-    `UPDATE connections SET name=?, type=?, version=?, host=?, port=?, "user"=?,
+    `UPDATE connections SET name=?, type=?, version=?, "group"=?, host=?, port=?, "user"=?,
      password=?, database_name=?, path=?, notes=?, updated_at=? WHERE id=?`,
-    [merged.name, merged.type, merged.version||'', merged.host||'', merged.port||0,
+    [merged.name, merged.type, merged.version||'', merged.group||'', merged.host||'', merged.port||0,
      merged.user||'', merged.password||'', merged.database||'', merged.path||'',
      merged.notes||'', Date.now(), id],
   );
@@ -165,6 +169,7 @@ function rowToConnection(row: Record<string, unknown>): DbConnection {
     name: row.name as string,
     type: row.type as DbConnection['type'],
     version: (row.version as string) || '',
+    group: (row.group as string) || undefined,
     host: (row.host as string) || undefined,
     port: (row.port as number) || undefined,
     user: (row.user as string) || undefined,

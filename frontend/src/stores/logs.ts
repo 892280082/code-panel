@@ -15,6 +15,7 @@ export const useLogStore = defineStore('logs', () => {
   const activityMap = ref<Record<string, number>>({})
   const autoScroll = ref<Record<string, boolean>>({})
   const portStatusMap = ref<Record<number, boolean>>({})
+  const newContentMap = ref<Record<string, boolean>>({})   // per-file new content flag
   const ansiMode = ref<'strip' | 'raw' | 'color'>(
     (localStorage.getItem('log-ansi') as any) || 'strip'
   )
@@ -38,8 +39,14 @@ export const useLogStore = defineStore('logs', () => {
 
   onLog(msg => {
     activityMap.value[msg.file] = msg.timestamp || Date.now()
-    if (msg.content && tabs.value[msg.file]) {
-      appendContent(msg.file, msg.content)
+    if (msg.content) {
+      // changed=true 才是真正的增量新日志，初始加载的 content 不触发 T 图标
+      if (msg.changed) {
+        newContentMap.value[msg.file] = true
+      }
+      if (tabs.value[msg.file]) {
+        appendContent(msg.file, msg.content)
+      }
     }
   })
 
@@ -79,6 +86,8 @@ export const useLogStore = defineStore('logs', () => {
   }
 
   async function openFile(fp: string, name: string) {
+    // Clear new-content flag when user opens the file
+    newContentMap.value[fp] = false
     if (tabs.value[fp]) {
       activeFile.value = fp
       return
@@ -111,10 +120,18 @@ export const useLogStore = defineStore('logs', () => {
     tabs.value[fp].lines = (tabs.value[fp].content.match(/\n/g) || []).length
   }
 
-  function clearLog(fp: string) {
-    if (!tabs.value[fp]) return
-    tabs.value[fp].content = ''
-    tabs.value[fp].lines = 0
+  async function clearLog(fp: string) {
+    try {
+      await fetch('/api/log/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: fp }),
+      })
+    } catch { /* */ }
+    if (tabs.value[fp]) {
+      tabs.value[fp].content = ''
+      tabs.value[fp].lines = 0
+    }
   }
 
   async function reloadContent(fp: string) {
@@ -142,6 +159,10 @@ export const useLogStore = defineStore('logs', () => {
     showConfig.value = false
   }
 
+  function clearNewContent(fp: string) {
+    newContentMap.value[fp] = false
+  }
+
   function cycleAnsi() {
     const modes: Array<'strip' | 'raw' | 'color'> = ['strip', 'raw', 'color']
     const idx = modes.indexOf(ansiMode.value)
@@ -153,10 +174,10 @@ export const useLogStore = defineStore('logs', () => {
 
   return {
     config, sortedLogs, currentGroup, tabs, activeFile, activityMap,
-    autoScroll, portStatusMap, ansiMode, showConfig,
+    autoScroll, portStatusMap, newContentMap, ansiMode, showConfig,
     groups, groupNames, currentLogs, filteredLogs, hasTabs, connected,
     loadConfig, loadSortedLogs, setGroup, openFile, closeTab,
     appendContent, clearLog, reloadContent, refreshAll, saveConfig,
-    cycleAnsi,
+    clearNewContent, cycleAnsi,
   }
 })

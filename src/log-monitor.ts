@@ -188,6 +188,11 @@ export function getPortStatus(port: number): boolean {
   return portStatusCache.get(port)?.alive ?? false;
 }
 
+/** 清空文件状态缓存（文件被 truncate 后调用） */
+export function clearFileState(fp: string): void {
+  delete fileState[fp];
+}
+
 /** 按活跃度排序的日志列表（供 API 使用） */
 export async function getLogsSorted(): Promise<Array<LogEntry & { exists: boolean; size: number; active: boolean; alive: boolean }>> {
   const now = Date.now();

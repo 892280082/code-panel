@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, watch, ref, computed } from 'vue'
+import { onMounted, watch, ref, computed, nextTick } from 'vue'
 import { useLogStore } from '@/stores/logs'
 import { ansiToHtml, ansiStrip } from '@/composables/useAnsi'
 import Sidebar from '@/components/Sidebar.vue'
@@ -8,6 +8,7 @@ import ConfigModal from '@/components/ConfigModal.vue'
 
 const store = useLogStore()
 const ansiLabels: Record<string, string> = { strip: '🎨 strip', raw: '🔤 raw', color: '🌈 color' }
+const logEl = ref<HTMLElement | null>(null)
 
 onMounted(() => {
   store.loadConfig().then(() => store.loadSortedLogs())
@@ -25,6 +26,10 @@ function renderContent(text: string): string {
 }
 
 function getLogStatus(log: any) {
+  // SSE 实时端口状态优先（比 /api/logs 的初始 alive 字段更新）
+  if (log.port && store.portStatusMap[log.port] !== undefined) {
+    return store.portStatusMap[log.port] ? 'alive' : 'dead'
+  }
   if (log.alive) return 'alive'
   if (log.port) return 'dead'
   if (!log.exists) return 'missing'
@@ -57,6 +62,15 @@ const isAutoScroll = computed(() => {
   if (!store.activeFile) return true
   return store.autoScroll[store.activeFile] !== false
 })
+
+// Auto-scroll to bottom when content changes
+watch(currentContent, () => {
+  if (store.activeFile && isAutoScroll.value) {
+    nextTick(() => {
+      if (logEl.value) logEl.value.scrollTop = logEl.value.scrollHeight
+    })
+  }
+})
 </script>
 
 <template>
@@ -84,7 +98,8 @@ const isAutoScroll = computed(() => {
         >
           <StatusDot :status="getLogStatus(log)" />
           <span class="name">{{ log.name }}</span>
-          <span v-if="isActive(log.file)" class="blink">⚡</span>
+          <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
+          <span v-if="log.port" class="port-tag" :class="{ alive: log.alive }">{{ log.port }}</span>
         </div>
       </div>
     </Sidebar>
@@ -122,7 +137,7 @@ const isAutoScroll = computed(() => {
         <div v-if="!store.activeFile" class="empty-state">
           <span class="icon">◈</span>
           <span>Select a log file from the sidebar</span>
-          <span class="hint">● 端口存活 &nbsp; ⚡ 有新日志输出</span>
+          <span class="hint">● 端口存活 &nbsp; 3003 端口号 &nbsp; <b class="txt-blink-hint">T</b> 新日志写入</span>
         </div>
 
         <!-- Log Panel -->
@@ -237,6 +252,10 @@ const isAutoScroll = computed(() => {
 }
 .empty-state .icon { font-size: 48px; opacity: 0.3; margin-bottom: 8px; }
 .empty-state .hint { font-size: 10px; color: var(--text-dim); }
+.empty-state .hint .txt-blink-hint {
+  font-weight: 800; color: var(--glow);
+  animation: blink 0.5s ease-in-out infinite alternate;
+}
 
 .log-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .log-content {
@@ -267,6 +286,30 @@ const isAutoScroll = computed(() => {
 .log-controls button:hover { color: var(--text); border-color: var(--glow-dim); }
 .log-controls button.on { color: var(--glow); border-color: var(--glow-dim); background: rgba(34,238,102,0.06); }
 .line-count { margin-left: auto; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+.port-tag {
+  font-size: 10px; font-weight: 600;
+  padding: 1px 5px; border-radius: 3px;
+  background: var(--surface); color: var(--text-dim);
+  border: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.port-tag.alive {
+  color: var(--glow);
+  border-color: var(--glow-dim);
+  background: rgba(34,238,102,0.08);
+}
+
+.txt-blink {
+  font-size: 10px; font-weight: 800;
+  color: var(--glow);
+  margin-left: 2px;
+  animation: blink 0.5s ease-in-out infinite alternate;
+}
+@keyframes blink {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0.2; transform: scale(1.3); }
+}
 
 .blink {
   display: inline-block; font-size: 9px; color: var(--warn);

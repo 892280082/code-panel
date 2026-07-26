@@ -1,23 +1,23 @@
-# read-log v3
-
-日志查看 + 数据库 SQL 执行面板，同一端口 3088。前端使用 Vue 3 + Pinia + Vue Router。
-
-触发词：查看日志、看日志、追踪日志、tail 日志、查数据库、执行 SQL、数据库查询、配置数据库、添加日志
-
+---
+name: code-panel
+description: >-
+  日志查看 + 数据库 SQL 执行面板，提供实时日志追踪、SQL 查询/审批、多数据库连接管理。
+  用户说"查看日志、看日志、追踪日志、tail 日志、查数据库、执行 SQL、数据库查询、配置数据库、添加日志文件"时触发。
+  启动端口 3008。前端 Vue 3 + Pinia + Vue Router。
 ---
 
 ## 启动
 
 ```bash
-bash ~/.claude/skills/read-log/read-log.sh
+bash ~/.claude/skills/code-panel/read-log.sh
 ```
 
-## 面板
+## 访问面板
 
 | 路径 | 用途 |
 |------|------|
-| `http://localhost:3088/log` | 日志查看器（实时追踪 + 分组管理） |
-| `http://localhost:3088/sql` | SQL 评审面板（审批/拒绝 + DB 状态） |
+| `http://localhost:3008/log` | 日志查看器（实时追踪 + 分组管理） |
+| `http://localhost:3008/sql` | SQL 评审面板（审批/拒绝 + DB 存活状态） |
 
 ---
 
@@ -27,9 +27,9 @@ bash ~/.claude/skills/read-log/read-log.sh
 
 | 方法 | 路径 | 请求体 | 响应 |
 |------|------|--------|------|
-| **GET** | `/api/db` | — | `[{id, name, type, version, host?, port?, user?, database?, path?, notes?, hasPassword, alive, lastCheck, serverVersion, healthError}]` |
-| **POST** | `/api/db` | `{id, name, type, version, host?, port?, user?, password?, database?, path?, notes?}` | `{ok:true}` |
-| **PUT** | `/api/db/:id` | 部分字段 | `{ok:true}` |
+| **GET** | `/api/db` | — | `[{id, name, type, version, group?, host?, port?, user?, database?, path?, notes?, hasPassword, alive, lastCheck, serverVersion, healthError}]` |
+| **POST** | `/api/db` | `{id, name, type, version, group?, host?, port?, user?, password?, database?, path?, notes?}` | `{ok:true}` |
+| **PUT** | `/api/db/:id` | 部分字段（含 group） | `{ok:true}` |
 | **DELETE** | `/api/db/:id` | — | `{ok:true}` |
 | **POST** | `/api/db/test` | `{type, host?, port?, user?, password?, database?, path?}` | `{ok:bool, serverVersion?, error?}` |
 | **POST** | `/api/db/refresh` | — | `{ok:true, elapsed, databases:[{id,name,alive,serverVersion,healthError,lastCheck}]}` |
@@ -60,16 +60,17 @@ bash ~/.claude/skills/read-log/read-log.sh
 | **POST** | `/api/log-config` | `{key, name, logs?:[{name,file}]}` | `{ok:true}` |
 | **PUT** | `/api/log-config/:key` | `{name}` | `{ok:true}` |
 | **DELETE** | `/api/log-config/:key` | — | `{ok:true}`（级联删除所有条目） |
-| **POST** | `/api/log-config/:key/logs` | `{name, file}` | `{ok:true, id}` |
-| **PUT** | `/api/log-config/:key/logs/:id` | `{name?, file?}` | `{ok:true}` |
+| **POST** | `/api/log-config/:key/logs` | `{name, file, port?}` | `{ok:true, id}` |
+| **PUT** | `/api/log-config/:key/logs/:id` | `{name?, file?, port?}` | `{ok:true}` |
 | **DELETE** | `/api/log-config/:key/logs/:id` | — | `{ok:true}` |
 
 ### 日志查看
 
 | 方法 | 路径 | 请求体 | 响应 |
 |------|------|--------|------|
-| **GET** | `/api/logs` | — | `[{name, file, groupKey, groupName, exists, size, active}]`（按活跃度排序） |
+| **GET** | `/api/logs` | — | `[{name, file, groupKey, groupName, exists, size, active, port?, alive}]`（按活跃度排序） |
 | **GET** | `/api/log/content` | `?file=<path>` | `{content, size}` |
+| **POST** | `/api/log/clear` | `{file}` | `{ok:true}` — 清空日志文件（类似 `: > file`） |
 | **GET** | `/api/stream` | — | SSE 流，实时推送日志变更 |
 
 ### 全局配置
@@ -86,7 +87,7 @@ bash ~/.claude/skills/read-log/read-log.sh
 ### 查数据（SELECT）
 
 ```bash
-curl -s -X POST http://localhost:3088/api/sql/query \
+curl -s -X POST http://localhost:3008/api/sql/query \
   -H 'Content-Type: application/json' \
   -d '{"sql":"SELECT * FROM users LIMIT 10", "dbId":"mydb"}'
 ```
@@ -95,41 +96,43 @@ curl -s -X POST http://localhost:3088/api/sql/query \
 
 ```bash
 # 提交 → 告诉用户去 /sql 审批 → 轮询
-curl -s -X POST http://localhost:3088/api/sql/submit \
+curl -s -X POST http://localhost:3008/api/sql/submit \
   -H 'Content-Type: application/json' \
   -d '{"sql":"UPDATE users SET status=1", "reason":"用户申请解封", "dbId":"mydb"}'
 
-curl -s http://localhost:3088/api/sql/status/<id>
+curl -s http://localhost:3008/api/sql/status/<id>
 ```
 
 ### 写数据（静默，无需审批）
 
 ```bash
-curl -s -X POST http://localhost:3088/api/sql/review-mode -H 'Content-Type: application/json' -d '{"enabled":false}'
+curl -s -X POST http://localhost:3008/api/sql/review-mode \
+  -H 'Content-Type: application/json' \
+  -d '{"enabled":false}'
 # ... 执行写操作 ...
-curl -s -X POST http://localhost:3088/api/sql/review-mode -H 'Content-Type: application/json' -d '{"enabled":true}'
+curl -s -X POST http://localhost:3008/api/sql/review-mode \
+  -H 'Content-Type: application/json' \
+  -d '{"enabled":true}'
 ```
 
 ### 管理数据库连接
 
 ```bash
-curl -s http://localhost:3088/api/db                          # 列表
-curl -s -X POST http://localhost:3088/api/db -H ... -d '{...}'  # 新增
-curl -s -X PUT http://localhost:3088/api/db/:id -H ... -d '{...}'  # 修改
-curl -s -X DELETE http://localhost:3088/api/db/:id              # 删除
-curl -s -X POST http://localhost:3088/api/db/refresh            # 刷新存活状态
+curl -s http://localhost:3008/api/db                          # 列表
+curl -s -X POST http://localhost:3008/api/db -H ... -d '{...}'  # 新增
+curl -s -X PUT http://localhost:3008/api/db/:id -H ... -d '{...}'  # 修改
+curl -s -X DELETE http://localhost:3008/api/db/:id              # 删除
+curl -s -X POST http://localhost:3008/api/db/refresh            # 刷新存活状态
 ```
 
 ### 管理日志分组
 
 ```bash
-curl -s http://localhost:3088/api/log-config                              # 列表
-curl -s -X POST http://localhost:3088/api/log-config -H ... -d '{...}'     # 新增分组
-curl -s -X PUT http://localhost:3088/api/log-config/:key -H ... -d '{...}' # 改名
-curl -s -X DELETE http://localhost:3088/api/log-config/:key                # 删除分组
-curl -s -X POST http://localhost:3088/api/log-config/:key/logs -H ... -d '{...}'  # 加日志文件
-curl -s -X PUT http://localhost:3088/api/log-config/:key/logs/:id -H ... -d '{...}'  # 改日志
-curl -s -X DELETE http://localhost:3088/api/log-config/:key/logs/:id        # 删日志
+curl -s http://localhost:3008/api/log-config                                         # 列表
+curl -s -X POST http://localhost:3008/api/log-config -H ... -d '{...}'                # 新增分组
+curl -s -X PUT http://localhost:3008/api/log-config/:key -H ... -d '{...}'            # 改名
+curl -s -X DELETE http://localhost:3008/api/log-config/:key                           # 删除分组
+curl -s -X POST http://localhost:3008/api/log-config/:key/logs -H ... -d '{"name":"应用日志","file":"/var/log/app.log","port":3003}'  # 加日志文件（含端口）
 ```
 
 ### 决策流程
@@ -149,13 +152,13 @@ SELECT → POST /api/sql/query → 直接返回
 
 ### 存储
 
-数据库连接 + 日志分组均存储在 SQLite（`data/db-config.sqlite`）。
+数据库连接 + 日志分组均存储在 `data/db-config.sqlite`。
 首次启动自动从 `config.json` 迁移，之后 `config.json` 仅保留 `reviewMode`。
 
 ### 健康检查
 
 启动时检查一次，之后每 60 秒自动检查。`/api/db` 响应含 `alive` / `lastCheck` / `serverVersion`。
-前端面板显示 ● alive / ○ dead / ◌ unknown。
+前端面板用 ● alive / ○ dead / ◌ unknown 展示。
 
 ### config.json
 

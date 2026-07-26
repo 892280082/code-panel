@@ -27,6 +27,7 @@ export interface DbConnection {
   name: string
   type: 'mysql' | 'sqlite'
   version: string
+  group?: string
   host?: string
   port?: number
   database?: string

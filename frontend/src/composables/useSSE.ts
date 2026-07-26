@@ -1,6 +1,6 @@
 // ── SSE connection composable ─────────────────────────────
 
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref } from 'vue'
 import type { SseMessage, PortStatusMessage } from '@/types'
 
 export function useSSE() {
@@ -40,8 +40,9 @@ export function useSSE() {
     }
   }
 
-  onMounted(connect)
-  onUnmounted(() => { es?.close() })
+  // Connect immediately instead of waiting for onMounted
+  // (this composable is called inside a Pinia store, not a component)
+  connect()
 
   return { connected, onLog, onPortStatus }
 }

@@ -1,7 +1,8 @@
 // ── Log viewing routes ──────────────────────────────────
 
 import { Router, Request, Response } from 'express';
-import { addClient, removeClient, getLogsSorted, readFileContent } from '../log-monitor';
+import fs from 'fs';
+import { addClient, removeClient, getLogsSorted, readFileContent, clearFileState } from '../log-monitor';
 
 const router = Router();
 
@@ -28,6 +29,20 @@ router.get('/api/log/content', (req: Request, res: Response) => {
   if (!fp) return res.status(400).json({ error: 'missing file' });
   const result = readFileContent(fp);
   res.json(result);
+});
+
+// 清空日志文件（truncate，类似 : > file）
+router.post('/api/log/clear', (req: Request, res: Response) => {
+  const fp = typeof req.body.file === 'string' ? req.body.file : '';
+  if (!fp) return res.status(400).json({ error: 'missing file' });
+  try {
+    fs.writeFileSync(fp, '', 'utf8');
+    // 重置文件状态缓存，下次 poll 会重新从头读取
+    clearFileState(fp);
+    res.json({ ok: true });
+  } catch (e: unknown) {
+    res.status(500).json({ ok: false, error: (e as Error).message });
+  }
 });
 
 export default router;

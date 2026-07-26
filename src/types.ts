@@ -9,6 +9,7 @@ export interface DbConnection {
   name: string;         // 显示名称，如 "生产数据库"
   type: DbType;
   version: string;      // 版本号，如 "8.0" / "3"
+  group?: string;       // 所属分组，如 "线上环境" / "测试环境"
   // MySQL 字段
   host?: string;
   port?: number;
