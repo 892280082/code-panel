@@ -206,14 +206,7 @@ export async function getLogsSorted(): Promise<Array<LogEntry & { exists: boolea
     const port = log.port ?? undefined;
     const alive = port ? getPortStatus(port) : false;
     return { ...log, exists, size, active, port, alive };
-  }).sort((a, b) => {
-    // alive 排最前
-    if (a.alive !== b.alive) return a.alive ? -1 : 1;
-    if (a.active !== b.active) return a.active ? -1 : 1;
-    const sa = fileState[a.file];
-    const sb = fileState[b.file];
-    return (sb?.lastActive || 0) - (sa?.lastActive || 0);
-  });
+  }).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // ── SSE 连接管理 ─────────────────────────────────────────

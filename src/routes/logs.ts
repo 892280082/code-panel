@@ -18,7 +18,7 @@ router.get('/api/stream', (req: Request, res: Response) => {
   req.on('close', () => removeClient(res));
 });
 
-// 日志列表（按 alive + active 排序）
+// 日志列表（按名称排序）
 router.get('/api/logs', async (_req: Request, res: Response) => {
   res.json(await getLogsSorted());
 });
