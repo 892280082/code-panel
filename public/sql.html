@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SQL Review — read-log v2</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <h2>▸ SQL Review</h2>
+    <div class="sidebar-nav">
+      <a class="nav-tab" href="/log" target="_blank">Logs</a>
+      <a class="nav-tab active" href="/sql">SQL</a>
+    </div>
+  </div>
+
+  <!-- DB Selector + status -->
+  <div style="padding:8px 12px;display:flex;gap:6px;align-items:center;">
+    <span style="font-size:10px;color:var(--text-dim);">筛选↓</span>
+    <select class="db-select" id="dbSelect" style="flex:1;">
+      <option value="">All Databases</option>
+    </select>
+    <button id="btnDbRefresh" style="font-family:var(--font);font-size:10px;padding:5px 8px;background:transparent;color:var(--text-dim);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;white-space:nowrap;" title="Refresh DB status">↻</button>
+  </div>
+
+  <!-- Database health list -->
+  <div style="flex:1;overflow-y:auto;min-height:0;padding:0 12px 8px;border-bottom:1px solid var(--border);" id="dbHealthList"></div>
+
+  <!-- Section tabs -->
+  <div class="section-tabs">
+    <div class="section-tab active" data-section="pending">
+      PENDING<span class="badge warn" id="badgePending" style="display:none">0</span>
+    </div>
+    <div class="section-tab" data-section="executed">DONE</div>
+    <div class="section-tab" data-section="rejected">REJECTED</div>
+    <div class="section-tab" data-section="failed">FAILED</div>
+  </div>
+
+  <!-- Job list -->
+  <div class="scroll-list" id="jobList"></div>
+</aside>
+
+<!-- ═══════════════ MAIN ═══════════════ -->
+<main class="main">
+  <div class="toolbar">
+    <button id="btnReviewMode" class="on">🛡 Review Mode: ON</button>
+    <button id="btnRefresh">↻ Refresh</button>
+    <span style="font-size:10px;color:var(--warn);padding:4px 8px;background:rgba(240,160,48,0.1);border:1px solid var(--warn);border-radius:var(--radius);font-family:var(--font);" id="tokenDisplay">Token: ???</span>
+    <span class="status" id="statusBar"></span>
+  </div>
+
+  <!-- SQL Detail -->
+  <div class="sql-panel" id="sqlPanel">
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:12px;">
+      <span>Select a SQL job from the sidebar</span>
+    </div>
+  </div>
+</main>
+</div>
+
+<!-- ═══════════════ REJECT MODAL ═══════════════ -->
+<div class="modal-overlay" id="rejectModal">
+  <div class="modal" style="width:420px;">
+    <div class="modal-header">
+      <span>Reject SQL</span>
+      <button onclick="closeRejectModal()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:16px;">
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;">Reason (optional):</div>
+      <textarea id="rejectReason" style="width:100%;height:80px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:10px;font-family:var(--font);font-size:11px;resize:none;outline:none;" placeholder="为什么拒绝这条 SQL..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeRejectModal()">Cancel</button>
+      <button class="btn-reject" id="btnConfirmReject" style="background:var(--danger);color:#fff;border:none;">✗ Reject</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────
+const $ = s => document.querySelector(s);
+let reviewMode = true;
+let reviewToken = '';
+let currentSection = 'pending';
+let selectedJob = null;
+let jobs = [];
+let databases = [];
+
+// ── API ──────────────────────────────────────────────────
+async function api(url, opts = {}) {
+  const res = await fetch(url, opts);
+  return res.json();
+}
+
+// ── Init ─────────────────────────────────────────────────
+async function init() {
+  // 读取令牌 + 评审模式
+  try {
+    const info = await api('/api/sql/review-mode');
+    reviewMode = info.reviewMode;
+    reviewToken = info.token || '';
+    $('#tokenDisplay').textContent = 'Token: ' + reviewToken;
+    updateReviewModeBtn();
+  } catch {}
+
+  await loadDatabases();
+  await loadJobs();
+  setInterval(loadJobs, 3000);
+
+  // Section tabs
+  document.querySelectorAll('.section-tab').forEach(tab => {
+    tab.onclick = () => {
+      document.querySelectorAll('.section-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentSection = tab.dataset.section;
+      renderJobList();
+    };
+  });
+
+  // Review mode toggle（需令牌）
+  $('#btnReviewMode').onclick = async () => {
+    reviewMode = !reviewMode;
+    const result = await api('/api/sql/review-mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: reviewMode, token: reviewToken }),
+    });
+    if (result.ok) { updateReviewModeBtn(); }
+    else { alert('切换失败: ' + (result.error || '令牌错误')); reviewMode = !reviewMode; }
+  };
+
+  // Reject modal
+  $('#btnConfirmReject').onclick = () => { if (rejectTargetId) rejectJob(rejectTargetId); };
+  $('#rejectModal').onclick = (e) => { if (e.target === $('#rejectModal')) closeRejectModal(); };
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && rejectTargetId) closeRejectModal();
+  });
+
+  // 恢复上次选中的数据库筛选
+  const savedDb = localStorage.getItem('sql-db-filter');
+  if (savedDb) $('#dbSelect').value = savedDb;
+
+  $('#btnRefresh').onclick = loadJobs;
+  $('#dbSelect').onchange = () => { localStorage.setItem('sql-db-filter', $('#dbSelect').value); renderJobList(); };
+  $('#btnDbRefresh').onclick = refreshDatabases;
+}
+
+async function loadDatabases() {
+  try { databases = await api('/api/db'); } catch { databases = []; }
+  const sel = $('#dbSelect');
+  sel.innerHTML = '<option value="">All Databases</option>';
+  databases.forEach(db => {
+    const o = document.createElement('option');
+    o.value = db.id;
+    o.textContent = `${db.name}`;
+    sel.appendChild(o);
+  });
+  renderDbHealth();
+}
+
+function renderDbHealth() {
+  const el = $('#dbHealthList');
+  if (!databases.length) { el.innerHTML = '<div style="font-size:10px;color:var(--text-dim);padding:4px 0;">No databases</div>'; return; }
+
+  // ★ 统计每个 DB 的 pending 数量
+  const pendingCounts = {};
+  jobs.forEach(j => {
+    if (j.status === 'pending' && j.dbId) {
+      pendingCounts[j.dbId] = (pendingCounts[j.dbId] || 0) + 1;
+    }
+  });
+
+  el.innerHTML = databases.map(db => {
+    const dot = db.alive ? '<span style="color:var(--glow);">●</span>' :
+                db.lastCheck ? '<span style="color:var(--danger);">○</span>' :
+                '<span style="color:var(--text-dim);">◌</span>';
+    const ver = db.serverVersion ? ` <span style="color:var(--text-dim);font-size:9px;">v${escHtml(db.serverVersion)}</span>` : '';
+    const info = db.alive ? '' : (db.healthError ? ` <span style="color:var(--danger);font-size:9px;">${escHtml(db.healthError.slice(0,30))}</span>` : '');
+    const pending = pendingCounts[db.id] || 0;
+    const badge = pending > 0
+      ? `<span style="background:var(--warn);color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:auto;">${pending}</span>`
+      : '';
+    return `<div style="display:flex;align-items:center;gap:6px;padding:6px 4px;font-size:12px;cursor:pointer;border-radius:var(--radius);" onclick="$('#dbSelect').value='${escHtml(db.id)}';renderJobList();">
+      ${dot} <span style="color:var(--text);">${escHtml(db.name)}</span> <span style="color:var(--text-dim);">${db.type}</span>${ver}${info}${badge}
+    </div>`;
+  }).join('');
+}
+
+async function refreshDatabases() {
+  const btn = $('#btnDbRefresh');
+  btn.textContent = '⟳';
+  btn.style.color = 'var(--glow)';
+  try {
+    const result = await api('/api/db/refresh', { method: 'POST' });
+    if (result.ok) {
+      databases = result.databases || [];
+      loadDatabases();
+      renderJobList();
+    }
+  } catch {}
+  setTimeout(() => { btn.textContent = '↻'; btn.style.color = 'var(--text-dim)'; }, 500);
+}
+
+async function loadJobs() {
+  try {
+    const data = await api('/api/sql/queue');
+    jobs = data.jobs || [];
+    reviewMode = data.reviewMode;
+    updateReviewModeBtn();
+    renderJobList();
+  } catch { jobs = []; }
+}
+
+function updateReviewModeBtn() {
+  const btn = $('#btnReviewMode');
+  if (reviewMode) {
+    btn.textContent = '🛡 Review Mode: ON';
+    btn.className = 'on';
+  } else {
+    btn.textContent = '⚡ Review Mode: OFF (silent)';
+    btn.className = 'danger';
+  }
+}
+
+// ── Render job list ──────────────────────────────────────
+function renderJobList() {
+  const dbFilter = $('#dbSelect').value;
+  let filtered = jobs;
+  if (dbFilter) filtered = filtered.filter(j => j.dbId === dbFilter);
+  if (currentSection) filtered = filtered.filter(j => j.status === currentSection);
+
+  const el = $('#jobList');
+  el.innerHTML = '';
+
+  if (!filtered.length) {
+    el.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:11px;">No ${currentSection} jobs</div>`;
+  }
+
+  filtered.forEach(job => {
+    const div = document.createElement('div');
+    div.className = 'sql-item' + (selectedJob?.id === job.id ? ' selected' : '');
+    div.onclick = () => selectJob(job);
+
+    const dbName = databases.find(d => d.id === job.dbId)?.name || job.dbId;
+    const time = new Date(job.submittedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    div.innerHTML = `
+      <div class="sql-id">#${job.id} · ${time} · ${dbName}</div>
+      <div class="sql-text">${escHtml(job.sql.slice(0, 80))}${job.sql.length > 80 ? '...' : ''}</div>
+      <div class="sql-meta">📝 ${escHtml(job.reason.slice(0, 40))}${job.reason.length > 40 ? '...' : ''}</div>`;
+    el.appendChild(div);
+  });
+
+  // Update badge
+  const pendingCount = (dbFilter ? jobs.filter(j => j.dbId === dbFilter) : jobs).filter(j => j.status === 'pending').length;
+  const badge = $('#badgePending');
+  badge.textContent = pendingCount;
+  badge.style.display = pendingCount > 0 ? 'inline' : 'none';
+
+  // ★ 更新 DB 列表的 pending 角标
+  renderDbHealth();
+}
+
+// ── Job detail ───────────────────────────────────────────
+function selectJob(job) {
+  selectedJob = job;
+  renderJobList();
+
+  const dbName = databases.find(d => d.id === job.dbId)?.name || job.dbId;
+  const time = new Date(job.submittedAt).toLocaleString('zh-CN');
+  const reviewTime = job.reviewedAt ? new Date(job.reviewedAt).toLocaleString('zh-CN') : '';
+  const statusColor = {pending:'var(--warn)',executed:'var(--glow)',rejected:'var(--danger)',failed:'var(--danger)'}[job.status]||'var(--text)';
+
+  const panel = $('#sqlPanel');
+  panel.innerHTML = `
+    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <span style="font-size:12px;color:var(--text);">#${job.id}</span>
+          <span style="font-size:10px;color:var(--text-dim);">${dbName}</span>
+          <span style="font-size:10px;color:var(--text-dim);">${time}</span>
+          <span style="font-size:10px;padding:2px 8px;border-radius:3px;background:${statusColor};color:#000;">${job.status.toUpperCase()}</span>
+          ${reviewTime ? `<span style="font-size:10px;color:var(--text-dim);">Reviewed: ${reviewTime}</span>` : ''}
+          ${job.rejectReason ? `<span style="font-size:10px;color:var(--danger);">Reject: ${escHtml(job.rejectReason)}</span>` : ''}
+        </div>
+        <div style="font-size:11px;color:var(--warn);">📝 ${escHtml(job.reason)}</div>
+      </div>
+      <div style="padding:16px 20px;font-family:var(--font);font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-all;font-variant-ligatures:none;color:var(--text);">${escHtml(job.sql)}</div>
+      ${job.result ? `
+      <div style="padding:8px 20px;font-size:10px;color:var(--text-dim);border-top:1px solid var(--border);">
+        ⏱ ${job.result.executionTime}ms · ${job.result.rows !== undefined ? job.result.rows.length + ' rows' : job.result.affectedRows + ' affected'}
+      </div>
+      <div style="flex:1;overflow-y:auto;margin:0 16px 12px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);font-family:var(--font);font-size:11px;line-height:1.5;white-space:pre-wrap;">${escHtml(JSON.stringify(job.result.rows || job.result, null, 2))}</div>
+      ` : (job.error ? `<div style="flex:1;overflow-y:auto;margin:0 16px 12px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);font-family:var(--font);font-size:11px;color:var(--danger);">${escHtml(job.error)}</div>` : `<div style="flex:1;"></div>`)}
+    </div>
+    <div style="display:flex;justify-content:flex-end;align-items:center;gap:6px;padding:8px 16px;background:var(--surface);border-top:1px solid var(--border);">
+      ${job.status === 'pending' ? `
+      <button style="font-family:var(--font);font-size:10px;padding:4px 12px;border-radius:var(--radius);cursor:pointer;background:var(--glow-dim);color:var(--text);border:1px solid var(--glow);" onclick="approveJob('${job.id}')">✓ Approve</button>
+      <button style="font-family:var(--font);font-size:10px;padding:4px 12px;border-radius:var(--radius);cursor:pointer;background:transparent;color:var(--danger);border:1px solid var(--danger);" onclick="openRejectModal('${job.id}')">✗ Reject</button>
+      ` : ''}
+      <button class="btn-ghost" style="font-size:10px;padding:4px 10px;" onclick="closeDetail()">✕ Close</button>
+    </div>
+  `;
+}
+
+// ── Actions ──────────────────────────────────────────────
+async function approveJob(id) {
+  try {
+    const result = await api(`/api/sql/approve/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: reviewToken }),
+    });
+    if (result.ok) {
+      // Update local state
+      const job = jobs.find(j => j.id === id);
+      if (job) { job.status = 'executed'; job.result = result.result; }
+      renderJobList();
+      if (selectedJob?.id === id) selectJob(job);
+    } else {
+      alert('Execute failed: ' + (result.error || 'unknown'));
+      await loadJobs();
+    }
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+let rejectTargetId = null;
+
+function openRejectModal(id) {
+  rejectTargetId = id;
+  $('#rejectReason').value = '';
+  $('#rejectModal').style.display = 'flex';
+  $('#rejectReason').focus();
+}
+
+function closeRejectModal() {
+  rejectTargetId = null;
+  $('#rejectModal').style.display = 'none';
+}
+
+async function rejectJob(id) {
+  const reason = document.getElementById('rejectReason')?.value || '';
+  closeRejectModal();
+  try {
+    await api(`/api/sql/reject/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason, token: reviewToken }),
+    });
+    const job = jobs.find(j => j.id === id);
+    if (job) { job.status = 'rejected'; job.rejectReason = reason; }
+    renderJobList();
+    if (selectedJob?.id === id) selectJob(job);
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+function closeDetail() {
+  selectedJob = null;
+  renderJobList();
+  $('#sqlPanel').innerHTML = '<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:12px;"><span>Select a SQL job from the sidebar</span></div>';
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+init();
+</script>
+</body>
+</html>

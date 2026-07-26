@@ -1,0 +1,62 @@
+/* ═══════════════════════════════════════════════════════════
+   TERMINAL NOIR — Shared Theme (Vue 3 edition)
+   ═══════════════════════════════════════════════════════════ */
+
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url('/fonts/fira-code-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal; font-weight: 500; font-display: swap;
+  src: url('/fonts/fira-code-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal; font-weight: 700; font-display: swap;
+  src: url('/fonts/fira-code-700.woff2') format('woff2');
+}
+
+:root {
+  --bg:        #09090b;
+  --surface:   #131316;
+  --border:    #23232a;
+  --text:      #c8c8d0;
+  --text-dim:  #6b6b78;
+  --glow:      #22ee66;
+  --glow-dim:  #116633;
+  --danger:    #f44747;
+  --warn:      #f0a030;
+  --info:      #4499ee;
+  --font:      'Fira Code', monospace;
+  --radius:    4px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='1' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+}
+
+/* ── ANSI colors ─────────────────────────────────────── */
+.ansi-black-fg   { color: #0c0c0c; } .ansi-red-fg     { color: #c50f1f; }
+.ansi-green-fg   { color: #13a10e; } .ansi-yellow-fg   { color: #c19c00; }
+.ansi-blue-fg    { color: #0078d7; } .ansi-magenta-fg  { color: #881798; }
+.ansi-cyan-fg    { color: #3a96dd; } .ansi-white-fg    { color: #c8c8d0; }
+.ansi-bright-black-fg  { color: #767676; } .ansi-bright-red-fg    { color: #e74856; }
+.ansi-bright-green-fg  { color: #16c60c; } .ansi-bright-yellow-fg  { color: #f9f1a5; }
+.ansi-bright-blue-fg   { color: #3b78ff; } .ansi-bright-magenta-fg { color: #b4009e; }
+.ansi-bright-cyan-fg   { color: #61d6d6; } .ansi-bright-white-fg   { color: #f2f2f2; }
+.ansi-bold { font-weight: bold; } .ansi-dim { opacity: 0.7; }
+.ansi-italic { font-style: italic; } .ansi-underline { text-decoration: underline; }
+
+/* ── Responsive ──────────────────────────────────────── */
+@media (max-width: 700px) {
+  .sidebar { width: 200px !important; min-width: 200px !important; }
+}
