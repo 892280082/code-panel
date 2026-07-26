@@ -1,19 +1,45 @@
 [
   {
+    "id": "2e1faf4f",
+    "sql": "UPDATE user SET displayName = \"测试\" WHERE id = 1",
+    "reason": "测试opencode审批流程",
+    "title": "测试审批-修改opencode用户显示名",
+    "dbId": "opencode-platform",
+    "status": "rejected",
+    "submittedAt": 1785080459080,
+    "reviewedAt": 1785080648692,
+    "rejectReason": ""
+  },
+  {
+    "id": "f5e525b8",
+    "sql": "UPDATE backstage_administrator_tab SET remark = CONCAT(remark, \" + test\") WHERE id = 1",
+    "reason": "测试审批流程",
+    "title": "测试审批-修改管理员备注",
+    "dbId": "zc-main",
+    "status": "rejected",
+    "submittedAt": 1785080334884,
+    "reviewedAt": 1785080360648,
+    "rejectReason": ""
+  },
+  {
     "id": "69ac116b",
     "sql": "UPDATE media_promotion_application SET apply_status = 0 WHERE id = 2073076229775060993",
     "reason": "重置",
     "dbId": "demo-media-platform",
-    "status": "pending",
-    "submittedAt": 1783096820214
+    "status": "rejected",
+    "submittedAt": 1783096820214,
+    "reviewedAt": 1785078734110,
+    "rejectReason": ""
   },
   {
     "id": "fc8009e5",
     "sql": "UPDATE media_promotion_application SET apply_status = 0 WHERE id = 2073076229775060993",
     "reason": "重置待审核",
     "dbId": "demo-media-platform",
-    "status": "pending",
-    "submittedAt": 1783096674401
+    "status": "rejected",
+    "submittedAt": 1783096674401,
+    "reviewedAt": 1785078737090,
+    "rejectReason": ""
   },
   {
     "id": "17f02eeb",

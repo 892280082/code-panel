@@ -1,0 +1,263 @@
+[
+  {
+    "id": "cd612df1",
+    "title": "查机构表",
+    "sql": "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = \"integration_platform\" AND TABLE_NAME LIKE \"%unit%\" LIMIT 5",
+    "dbId": "zc-main",
+    "dbLabel": "zc-main",
+    "result": {
+      "rows": [
+        {
+          "TABLE_NAME": "platunit__teachercert_tab"
+        },
+        {
+          "TABLE_NAME": "platunit__userconfig_tab"
+        },
+        {
+          "TABLE_NAME": "platunit_correspondenceconfig_tab"
+        },
+        {
+          "TABLE_NAME": "platunit_platformuserlog_tab"
+        },
+        {
+          "TABLE_NAME": "platunit_schoolcorresmap_tab"
+        }
+      ],
+      "executionTime": 8
+    },
+    "executedAt": 1785080287004
+  },
+  {
+    "id": "9dd7ccd6",
+    "title": "查opencode用户映射",
+    "sql": "SELECT * FROM opencode_user_mapping LIMIT 5",
+    "dbId": "zc-main",
+    "dbLabel": "zc-main",
+    "result": {
+      "rows": [],
+      "executionTime": 8
+    },
+    "executedAt": 1785080286990
+  },
+  {
+    "id": "c66d4023",
+    "title": "查课程表",
+    "sql": "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = \"integration_platform\" AND TABLE_NAME LIKE \"%course%\" LIMIT 10",
+    "dbId": "zc-main",
+    "dbLabel": "zc-main",
+    "result": {
+      "rows": [
+        {
+          "TABLE_NAME": "ck_test_cktestcourse_tab"
+        },
+        {
+          "TABLE_NAME": "ck_test_testsubjectcourselink_tab"
+        },
+        {
+          "TABLE_NAME": "cw_manager_correspondencecourse_tab"
+        },
+        {
+          "TABLE_NAME": "live_livecourse_tab"
+        },
+        {
+          "TABLE_NAME": "live_livecourseclazz_tab"
+        },
+        {
+          "TABLE_NAME": "live_livecoursefile_tab"
+        },
+        {
+          "TABLE_NAME": "live_livecoursefile_tab_live_livecoursefileupload_tab"
+        },
+        {
+          "TABLE_NAME": "live_livecoursefileupload_tab"
+        },
+        {
+          "TABLE_NAME": "live_studentlivecourse_tab"
+        },
+        {
+          "TABLE_NAME": "live_studentlivecoursehistory_tab"
+        }
+      ],
+      "executionTime": 7
+    },
+    "executedAt": 1785080282553
+  },
+  {
+    "id": "a97fdb3a",
+    "title": "查找用户管理相关表",
+    "sql": "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = \"integration_platform\" AND TABLE_NAME LIKE \"%admin%\" OR TABLE_NAME LIKE \"%user%\" LIMIT 10",
+    "dbId": "zc-main",
+    "dbLabel": "zc-main",
+    "result": {
+      "rows": [
+        {
+          "TABLE_NAME": "USER_PRIVILEGES"
+        },
+        {
+          "TABLE_NAME": "brushqs_brushuser_tab"
+        },
+        {
+          "TABLE_NAME": "brushqs_brushuserpowerbank_tab"
+        },
+        {
+          "TABLE_NAME": "brushqs_payshareuser_tab"
+        },
+        {
+          "TABLE_NAME": "opencode_user_mapping"
+        },
+        {
+          "TABLE_NAME": "platformuser_loginrecord_tab"
+        },
+        {
+          "TABLE_NAME": "platformuser_platform_tab"
+        },
+        {
+          "TABLE_NAME": "platformuser_student_tab"
+        },
+        {
+          "TABLE_NAME": "platformuser_teacher_tab"
+        },
+        {
+          "TABLE_NAME": "email_adminemailpower_tab"
+        }
+      ],
+      "executionTime": 9
+    },
+    "executedAt": 1785080282540
+  },
+  {
+    "id": "26e95ee6",
+    "title": "查opencode用户",
+    "sql": "SELECT id, username, name, roles FROM user LIMIT 5",
+    "dbId": "opencode-platform",
+    "dbLabel": "opencode-platform",
+    "result": {
+      "rows": [
+        {
+          "id": 1,
+          "username": "admin",
+          "name": "",
+          "roles": "user"
+        }
+      ],
+      "executionTime": 0
+    },
+    "executedAt": 1785080275696
+  },
+  {
+    "id": "b7e30ea6",
+    "title": "查看数据库表",
+    "sql": "SELECT TABLE_NAME, TABLE_ROWS, ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = \"integration_platform\" ORDER BY TABLE_ROWS DESC LIMIT 10",
+    "dbId": "zc-main",
+    "dbLabel": "zc-main",
+    "result": {
+      "rows": [
+        {
+          "TABLE_NAME": "log__schedulelog_tab",
+          "TABLE_ROWS": 429685,
+          "ENGINE": "InnoDB"
+        },
+        {
+          "TABLE_NAME": "teach_management_ckstudentcoursescore_tab",
+          "TABLE_ROWS": 272676,
+          "ENGINE": "InnoDB"
+        },
+        {
+          "TABLE_NAME": "ck_test_wechatteststudentrecord_tab",
+          "TABLE_ROWS": 271575,
+          "ENGINE": "InnoDB"
+        },
+        {
+          "TABLE_NAME": "log_apicallrecord_tab",
+          "TABLE_ROWS": 263340,
+          "ENGINE": "InnoDB"
+        },
+        {
+          "TABLE_NAME": "log__userloginlog_tab",
+          "TABLE_ROWS": 133652,
+          "ENGINE": "InnoDB"
+        },
+        {
+          "TABLE_NAME": "upload_file_tab",
+          "TABLE_ROWS": 101925,
+          "ENGINE": "InnoDB"
+        },
+        {
+          "TABLE_NAME": "stutestpaper_testpaperckstudent_tab",
+          "TABLE_ROWS": 89676,
+          "ENGINE": "InnoDB"
+        },
+        {
+          "TABLE_NAME": "sign_wechat__wechatsignstudentattach_tab",
+          "TABLE_ROWS": 66213,
+          "ENGINE": "InnoDB"
+        },
+        {
+          "TABLE_NAME": "log_systemerrorlog_tab",
+          "TABLE_ROWS": 51783,
+          "ENGINE": "InnoDB"
+        },
+        {
+          "TABLE_NAME": "backtask_opearteinfo",
+          "TABLE_ROWS": 41917,
+          "ENGINE": "InnoDB"
+        }
+      ],
+      "executionTime": 22
+    },
+    "executedAt": 1785080275680
+  },
+  {
+    "id": "cd6512d4",
+    "title": "查看表结构",
+    "sql": "SELECT name, sql FROM sqlite_master WHERE type=\"table\" LIMIT 10",
+    "dbId": "opencode-platform",
+    "dbLabel": "opencode-platform",
+    "result": {
+      "rows": [
+        {
+          "name": "platform",
+          "sql": "CREATE TABLE \"platform\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL, \"name\" varchar(100) NOT NULL, \"description\" varchar(500), \"apiEndpoint\" varchar(500), \"salt\" varchar(64) NOT NULL, \"saltHash\" varchar(64) NOT NULL, \"saltPrefix\" varchar(12) NOT NULL, \"contactInfo\" varchar(200), \"applicant\" varchar(50), \"adminPhone\" varchar(20), \"isActive\" boolean NOT NULL DEFAULT (1), \"isApproved\" boolean NOT NULL DEFAULT (0), \"templateGroupId\" integer, \"cloudDiskDir\" varchar(500), \"createdAt\" datetime NOT NULL DEFAULT (datetime('now')), \"updatedAt\" datetime NOT NULL DEFAULT (datetime('now')))"
+        },
+        {
+          "name": "sqlite_sequence",
+          "sql": "CREATE TABLE sqlite_sequence(name,seq)"
+        },
+        {
+          "name": "permission",
+          "sql": "CREATE TABLE \"permission\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL, \"code\" varchar(50) NOT NULL, \"description\" varchar(100) NOT NULL, \"templateGroupId\" integer)"
+        },
+        {
+          "name": "template_group",
+          "sql": "CREATE TABLE \"template_group\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL, \"key\" varchar(50) NOT NULL, \"name\" varchar(100) NOT NULL, \"isSystem\" boolean NOT NULL DEFAULT (0), \"apiKey\" varchar(36), \"permissionCallbackUrl\" varchar, \"lastSyncAt\" datetime, \"createdAt\" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT \"UQ_2e8345155f23492d252394a2ea6\" UNIQUE (\"key\"))"
+        },
+        {
+          "name": "directory_template",
+          "sql": "CREATE TABLE \"directory_template\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL, \"parentId\" integer, \"name\" varchar NOT NULL, \"type\" text NOT NULL DEFAULT ('file'), \"content\" text, \"previousContent\" text, \"ownerType\" integer NOT NULL DEFAULT (0), \"platformId\" integer, \"templateGroupId\" integer, \"permission\" varchar(8), \"isDeleted\" boolean NOT NULL DEFAULT (0), \"isActive\" boolean NOT NULL DEFAULT (1), \"sortOrder\" integer NOT NULL DEFAULT (0), \"createdAt\" datetime NOT NULL DEFAULT (datetime('now')))"
+        },
+        {
+          "name": "template_file",
+          "sql": "CREATE TABLE \"template_file\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL, \"templateGroupId\" integer NOT NULL, \"path\" varchar NOT NULL, \"content\" text NOT NULL, \"md5\" varchar NOT NULL, \"resolvedPermissions\" text, \"updatedAt\" datetime NOT NULL DEFAULT (datetime('now')))"
+        },
+        {
+          "name": "audit_log",
+          "sql": "CREATE TABLE \"audit_log\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL, \"platformId\" integer, \"actor\" varchar(200) NOT NULL, \"action\" varchar(50) NOT NULL, \"target\" varchar(200) NOT NULL, \"details\" text, \"ip\" varchar(45), \"userAgent\" varchar(500), \"createdAt\" datetime NOT NULL DEFAULT (datetime('now')))"
+        },
+        {
+          "name": "model_config",
+          "sql": "CREATE TABLE \"model_config\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL, \"providerId\" varchar NOT NULL, \"modelId\" varchar NOT NULL, \"key\" varchar NOT NULL, \"createdAt\" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT \"UQ_7061c4ce3d0b0efd7b285000b4a\" UNIQUE (\"key\"))"
+        },
+        {
+          "name": "user",
+          "sql": "CREATE TABLE \"user\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL, \"username\" varchar NOT NULL, \"passwordHash\" varchar, \"name\" varchar(100) NOT NULL DEFAULT (''), \"phone\" varchar(20) NOT NULL DEFAULT (''), \"externalUserId\" varchar(100) NOT NULL DEFAULT (''), \"organization\" varchar(200) NOT NULL DEFAULT (''), \"platformId\" integer NOT NULL DEFAULT (1), \"authMethod\" varchar(20) NOT NULL DEFAULT ('password'), \"displayName\" varchar, \"email\" varchar, \"isActive\" boolean NOT NULL DEFAULT (1), \"roles\" varchar NOT NULL DEFAULT ('user'), \"dirId\" varchar NOT NULL, \"tokenLimit\" integer NOT NULL DEFAULT (0), \"tokenUsed\" integer NOT NULL DEFAULT (0), \"tokenResetHours\" integer NOT NULL DEFAULT (720), \"tokenLastResetAt\" datetime, \"storageLimitKB\" integer NOT NULL DEFAULT (0), \"storageUsedKB\" integer NOT NULL DEFAULT (0), \"permissions\" varchar NOT NULL DEFAULT (''), \"permissionFingerprint\" varchar(64), \"templateFingerprint\" varchar(64), \"tenantId\" varchar(50) NOT NULL DEFAULT (''), \"isPlatformAdmin\" boolean NOT NULL DEFAULT (0), \"storageDirty\" boolean NOT NULL DEFAULT (0), \"storageUpdatedAt\" datetime, \"createdAt\" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT \"UQ_78a916df40e02a9deb1c4b75edb\" UNIQUE (\"username\"), CONSTRAINT \"UQ_91e84dd6daec47c47720d556863\" UNIQUE (\"dirId\"), CONSTRAINT \"FK_b530be1770fef0f5ccc56fc6217\" FOREIGN KEY (\"platformId\") REFERENCES \"platform\" (\"id\") ON DELETE NO ACTION ON UPDATE NO ACTION)"
+        },
+        {
+          "name": "refresh_token",
+          "sql": "CREATE TABLE \"refresh_token\" (\"id\" text PRIMARY KEY NOT NULL, \"tokenHash\" text NOT NULL, \"userId\" integer NOT NULL, \"expiresAt\" datetime NOT NULL, \"createdAt\" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT \"FK_8e913e288156c133999341156ad\" FOREIGN KEY (\"userId\") REFERENCES \"user\" (\"id\") ON DELETE CASCADE ON UPDATE NO ACTION)"
+        }
+      ],
+      "executionTime": 0
+    },
+    "executedAt": 1785080271004
+  }
+]

@@ -11,6 +11,7 @@ import logConfigRouter from './routes/log-config';
 import databasesRouter from './routes/databases';
 import sqlExecRouter from './routes/sql-exec';
 import sqlReviewRouter from './routes/sql-review';
+import sqlHistoryRouter from './routes/sql-history';
 import { startMonitor } from './log-monitor';
 import { startHealthCheck } from './db/health-check';
 import { init as initDbConfig } from './db/db-config-store';
@@ -35,6 +36,7 @@ app.use(logConfigRouter);
 app.use(databasesRouter);
 app.use(sqlExecRouter);
 app.use(sqlReviewRouter);
+app.use(sqlHistoryRouter);
 
 // ── SPA fallback — all non-API routes serve index.html ───
 const indexHtml = path.join(DIST_DIR, 'index.html');

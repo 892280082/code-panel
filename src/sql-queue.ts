@@ -3,7 +3,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import type { SqlJob, SqlJobStatus } from './types';
+import type { SqlJob, SqlJobStatus, DbConnectionParams } from './types';
 
 const QUEUE_FILE = path.join(__dirname, '..', 'sql-queue.json');
 
@@ -33,13 +33,15 @@ function saveQueue(): void {
 }
 
 /** 提交新任务 */
-export function addJob(sql: string, reason: string, dbId: string): SqlJob {
+export function addJob(sql: string, reason: string, dbId: string, title?: string, connection?: DbConnectionParams): SqlJob {
   const queue = loadQueue();
   const job: SqlJob = {
     id: generateId(),
     sql,
     reason,
+    title,
     dbId,
+    connection,
     status: 'pending',
     submittedAt: Date.now(),
   };
@@ -49,7 +51,7 @@ export function addJob(sql: string, reason: string, dbId: string): SqlJob {
 }
 
 /** 更新任务状态 */
-export function updateJob(id: string, updates: Partial<Pick<SqlJob, 'status' | 'reviewedAt' | 'rejectReason' | 'result' | 'error'>>): SqlJob | null {
+export function updateJob(id: string, updates: Partial<Pick<SqlJob, 'status' | 'reviewedAt' | 'rejectReason' | 'result' | 'error' | 'connection'>>): SqlJob | null {
   const queue = loadQueue();
   const job = queue.find(j => j.id === id);
   if (!job) return null;

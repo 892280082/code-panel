@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, computed } from 'vue'
 import { useSqlStore } from '@/stores/sql'
 import Sidebar from '@/components/Sidebar.vue'
-import StatusDot from '@/components/StatusDot.vue'
 import DbHealthList from '@/components/DbHealthList.vue'
+import DrawerPanel from '@/components/DrawerPanel.vue'
 import RejectModal from '@/components/RejectModal.vue'
+import type { SqlHistoryEntry } from '@/types'
 
 const store = useSqlStore()
 
@@ -17,6 +18,21 @@ function escHtml(s: string): string {
 
 function statusColor(s: string): string {
   return { pending:'var(--warn)',executed:'var(--glow)',rejected:'var(--danger)',failed:'var(--danger)' }[s] || 'var(--text)'
+}
+
+function histType(entry: SqlHistoryEntry): string {
+  const s = entry.sql.trim().toUpperCase()
+  if (s.startsWith('SELECT') || s.startsWith('SHOW')) return '🔍'
+  if (s.startsWith('INSERT')) return '📥'
+  if (s.startsWith('UPDATE')) return '📝'
+  if (s.startsWith('DELETE')) return '🗑'
+  if (s.startsWith('ALTER') || s.startsWith('CREATE') || s.startsWith('DROP')) return '⚙'
+  return '💾'
+}
+
+function resultSummary(r: { rows?: unknown[]; affectedRows?: number; changes?: number; executionTime: number }): string {
+  if (r.rows !== undefined) return `${r.rows.length} rows · ${r.executionTime}ms`
+  return `${r.affectedRows ?? r.changes ?? 0} affected · ${r.executionTime}ms`
 }
 
 async function handleToggleReview() {
@@ -36,17 +52,16 @@ async function handleApprove(id: string) {
 <template>
   <div class="app">
     <Sidebar>
-      <!-- DB selector -->
-      <div class="db-select-row">
-        <span class="filter-label">筛选↓</span>
-        <select class="db-select" :value="store.dbFilter" @change="store.setDbFilter(($event.target as HTMLSelectElement).value)">
-          <option value="">All Databases</option>
-          <option v-for="db in store.databases" :key="db.id" :value="db.id">{{ db.name }}</option>
-        </select>
-        <button class="btn-refresh" @click="store.refreshDatabases()" title="Refresh DB status">↻</button>
-      </div>
+      <!-- 分组选择 — 跟日志页一模一样 -->
+      <select
+        class="group-select"
+        :value="store.currentDbGroup"
+        @change="store.setDbGroup(($event.target as HTMLSelectElement).value)"
+      >
+        <option v-for="g in store.dbGroups" :key="g" :value="g">{{ g }}</option>
+      </select>
 
-      <!-- DB health -->
+      <!-- 当前分组下的数据库列表 -->
       <DbHealthList />
 
       <!-- Section tabs -->
@@ -76,6 +91,7 @@ async function handleApprove(id: string) {
             · {{ store.databases.find(d => d.id === job.dbId)?.name || job.dbId }}
           </div>
           <div class="sql-text">{{ job.sql.slice(0, 80) }}{{ job.sql.length > 80 ? '...' : '' }}</div>
+          <div class="sql-meta" v-if="job.title">🏷 {{ job.title }}</div>
           <div class="sql-meta">📝 {{ job.reason.slice(0, 40) }}{{ job.reason.length > 40 ? '...' : '' }}</div>
         </div>
       </div>
@@ -91,6 +107,24 @@ async function handleApprove(id: string) {
         >{{ store.reviewMode ? '🛡 Review Mode: ON' : '⚡ Review Mode: OFF (silent)' }}</button>
         <button @click="store.loadJobs()">↻ Refresh</button>
         <span class="token-display">Token: {{ store.reviewToken || '???' }}</span>
+        <span class="toolbar-right">
+          <button
+            class="drawer-btn"
+            :class="{ active: store.showHistoryDrawer }"
+            @click="store.toggleHistoryDrawer()"
+          >📋 AI 查询</button>
+          <button
+            class="drawer-btn"
+            :class="{ active: store.showApprovalDrawer }"
+            @click="store.toggleApprovalDrawer()"
+          >✅ 审批记录</button>
+          <button
+            class="bell-btn"
+            :class="{ ringing: store.isRinging, muted: !store.soundEnabled }"
+            @click="store.toggleSound()"
+            :title="store.soundEnabled ? '点击静音' : '点击开启声音'"
+          >🔔</button>
+        </span>
       </div>
 
       <!-- SQL Detail -->
@@ -113,6 +147,7 @@ async function handleApprove(id: string) {
                 Reviewed: {{ new Date(store.selectedJob!.reviewedAt).toLocaleString('zh-CN') }}
               </span>
             </div>
+            <div class="detail-title" v-if="store.selectedJob.title">🏷 {{ store.selectedJob.title }}</div>
             <div class="detail-reason">📝 {{ store.selectedJob.reason }}</div>
             <div v-if="store.selectedJob.rejectReason" class="detail-reject">Reject: {{ store.selectedJob.rejectReason }}</div>
           </div>
@@ -142,6 +177,56 @@ async function handleApprove(id: string) {
       </div>
     </main>
 
+    <!-- ═══════════ 抽屉：AI 查询记录 ═══════════ -->
+    <DrawerPanel title="📋 AI 查询记录" :show="store.showHistoryDrawer" @close="store.toggleHistoryDrawer()">
+      <div
+        v-for="h in store.historyList" :key="h.id"
+        class="dr-item"
+        :class="{ active: store.selectedHistory?.id === h.id }"
+        @click="store.selectHistory(store.selectedHistory?.id === h.id ? null : h)"
+      >
+        <div class="dr-item-head">
+          <span class="dr-icon">{{ histType(h) }}</span>
+          <span class="dr-title">{{ h.title }}</span>
+          <span class="dr-time">{{ new Date(h.executedAt).toLocaleTimeString('zh-CN', { hour:'2-digit', minute:'2-digit' }) }}</span>
+        </div>
+        <div class="dr-item-meta">
+          <span class="dr-db">📁 {{ h.dbLabel || h.dbId }}</span>
+          <span class="dr-summary">{{ resultSummary(h.result) }}</span>
+        </div>
+        <div v-if="store.selectedHistory?.id === h.id" class="dr-detail">
+          <pre class="dr-sql">{{ h.sql }}</pre>
+          <div class="dr-result-header">
+            ⏱ {{ h.result.executionTime }}ms ·
+            {{ h.result.rows !== undefined ? h.result.rows.length + ' rows' : (h.result.affectedRows ?? h.result.changes ?? 0) + ' affected' }}
+          </div>
+          <pre class="dr-result">{{ JSON.stringify(h.result.rows || h.result, null, 2) }}</pre>
+        </div>
+      </div>
+      <div v-if="!store.historyList.length" class="dr-empty">暂无可查询记录</div>
+    </DrawerPanel>
+
+    <!-- ═══════════ 抽屉：审批记录 ═══════════ -->
+    <DrawerPanel title="✅ 审批记录" :show="store.showApprovalDrawer" @close="store.toggleApprovalDrawer()">
+      <div v-for="job in store.reviewedJobs" :key="job.id" class="dr-item">
+        <div class="dr-item-head">
+          <span class="dr-icon">{{ job.status === 'executed' ? '✅' : job.status === 'rejected' ? '❌' : '⚠️' }}</span>
+          <span class="dr-title">{{ job.title || job.reason }}</span>
+          <span class="dr-time">{{ new Date(job.reviewedAt || job.submittedAt).toLocaleTimeString('zh-CN', { hour:'2-digit', minute:'2-digit' }) }}</span>
+        </div>
+        <div class="dr-item-meta">
+          <span class="dr-db">📁 {{ store.databases.find(d => d.id === job.dbId)?.name || job.dbId }}</span>
+          <span class="dr-summary" :style="{ color: job.status === 'rejected' ? 'var(--danger)' : job.status === 'failed' ? 'var(--danger)' : 'var(--glow-dim)' }">
+            {{ job.status.toUpperCase() }}
+            <template v-if="job.result"> · {{ resultSummary(job.result) }}</template>
+          </span>
+        </div>
+        <div class="dr-sql-preview">{{ job.sql.slice(0, 120) }}{{ job.sql.length > 120 ? '...' : '' }}</div>
+        <div v-if="job.rejectReason" class="dr-reject-reason">Reject: {{ job.rejectReason }}</div>
+      </div>
+      <div v-if="!store.reviewedJobs.length" class="dr-empty">暂无审批记录</div>
+    </DrawerPanel>
+
     <RejectModal />
   </div>
 </template>
@@ -150,28 +235,18 @@ async function handleApprove(id: string) {
 .app { display: flex; height: 100vh; }
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
-/* DB selector */
-.db-select-row {
-  padding: 8px 12px;
-  display: flex; gap: 6px; align-items: center;
-}
-.filter-label { font-size: 10px; color: var(--text-dim); }
-.db-select {
-  flex: 1; padding: 5px 8px;
-  font-family: var(--font); font-size: 11px;
+/* DB group select — 跟日志页一模一样 */
+.group-select {
+  width: 100%; padding: 8px 12px;
+  font-family: var(--font); font-size: 12px;
   background: var(--bg); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--radius);
+  border: none; border-bottom: 1px solid var(--border);
+  border-radius: 0;
   outline: none; cursor: pointer;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236b6b78' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6b78' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 6px center;
-}
-.btn-refresh {
-  font-family: var(--font); font-size: 10px; padding: 5px 8px;
-  background: transparent; color: var(--text-dim);
-  border: 1px solid var(--border); border-radius: var(--radius);
-  cursor: pointer; white-space: nowrap;
+  background-position: right 10px center;
 }
 
 /* Section tabs */
@@ -246,6 +321,7 @@ async function handleApprove(id: string) {
 .detail-id { font-size: 12px; color: var(--text); }
 .detail-db, .detail-time, .detail-review { font-size: 10px; color: var(--text-dim); }
 .detail-status { font-size: 10px; padding: 2px 8px; border-radius: 3px; color: #000; }
+.detail-title { font-size: 12px; color: var(--glow); margin-bottom: 4px; }
 .detail-reason { font-size: 11px; color: var(--warn); }
 .detail-reject { font-size: 10px; color: var(--danger); margin-top: 4px; }
 
@@ -301,4 +377,92 @@ async function handleApprove(id: string) {
   border: 1px solid var(--border);
 }
 .btn-ghost:hover { color: var(--text); border-color: var(--text-dim); }
+
+/* ═══════════ Toolbar right buttons ═══════════ */
+.toolbar-right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.drawer-btn {
+  font-family: var(--font); font-size: 10px;
+  padding: 4px 10px;
+  background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  cursor: pointer; transition: all 0.15s;
+}
+.drawer-btn:hover { color: var(--text); border-color: var(--glow-dim); }
+.drawer-btn.active { color: var(--glow); border-color: var(--glow-dim); background: rgba(34,238,102,0.06); }
+.bell-btn {
+  font-size: 14px; padding: 2px 6px;
+  background: transparent; border: 1px solid var(--border);
+  border-radius: var(--radius); cursor: pointer;
+  transition: all 0.15s; line-height: 1;
+}
+.bell-btn:hover { border-color: var(--glow-dim); }
+.bell-btn.ringing { border-color: var(--warn); background: rgba(240,160,48,0.1); animation: bell-shake 0.5s infinite; }
+.bell-btn.muted { opacity: 0.4; }
+@keyframes bell-shake {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(15deg); }
+  75% { transform: rotate(-15deg); }
+}
+
+/* Drawer item styles (shared between AI query + approval drawers) */
+.dr-item {
+  padding: 8px; margin: 2px 4px;
+  border-radius: var(--radius); cursor: pointer;
+  border: 1px solid transparent;
+  font-size: 10px;
+}
+.dr-item:hover { background: #1a1a22; border-color: var(--border); }
+.dr-item.active { background: #1a1a28; border-color: var(--glow-dim); }
+.dr-item-head {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 3px;
+}
+.dr-icon { font-size: 11px; flex-shrink: 0; }
+.dr-title {
+  flex: 1; font-size: 11px; font-weight: 600;
+  color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dr-time { font-size: 9px; color: var(--text-dim); flex-shrink: 0; }
+.dr-item-meta {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 9px; color: var(--text-dim);
+  margin-bottom: 2px;
+}
+.dr-db { color: var(--warn); }
+.dr-summary { font-size: 9px; color: var(--glow-dim); }
+.dr-empty {
+  padding: 24px; text-align: center;
+  color: var(--text-dim); font-size: 10px;
+}
+.dr-sql-preview {
+  font-size: 9px; color: var(--text-dim); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dr-reject-reason {
+  font-size: 9px; color: var(--danger); margin-top: 2px;
+}
+.dr-detail {
+  margin-top: 6px; padding: 8px;
+  background: var(--bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.dr-sql {
+  font-family: var(--font); font-size: 10px; line-height: 1.4;
+  white-space: pre-wrap; word-break: break-all;
+  color: var(--text); margin-bottom: 6px;
+  font-variant-ligatures: none;
+}
+.dr-result-header {
+  font-size: 9px; color: var(--text-dim);
+  margin-bottom: 4px;
+  padding-top: 4px; border-top: 1px solid var(--border);
+}
+.dr-result {
+  font-family: var(--font); font-size: 10px; line-height: 1.4;
+  white-space: pre-wrap; word-break: break-all;
+  color: var(--text-dim); margin: 0;
+  max-height: 200px; overflow-y: auto;
+}
 </style>

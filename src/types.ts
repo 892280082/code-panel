@@ -21,6 +21,17 @@ export interface DbConnection {
   notes?: string;       // 备注说明
 }
 
+/** 内联数据库连接参数（直连用，不查配置） */
+export interface DbConnectionParams {
+  type: DbType;
+  host?: string;
+  port?: number;
+  user?: string;
+  password?: string;
+  database?: string;
+  path?: string;        // SQLite 文件路径
+}
+
 /** 日志条目 */
 export interface LogEntry {
   name: string;
@@ -55,7 +66,10 @@ export interface SqlJob {
   id: string;
   sql: string;
   reason: string;           // ★ 强制备注：为什么要执行这条 SQL
-  dbId: string;             // 目标数据库 ID
+  title?: string;           // ★ 标题：操作目的
+  dbId: string;             // 目标数据库 ID（预配置的连接 ID）
+  /** 内联连接参数 — 不依赖预配置，直接连接 */
+  connection?: DbConnectionParams;
   status: SqlJobStatus;
   submittedAt: number;      // 提交时间戳
   reviewedAt?: number;      // 审批时间戳
@@ -73,11 +87,34 @@ export interface SqlResult {
   executionTime: number;    // 毫秒
 }
 
+/** AI 查询历史记录 */
+export interface SqlHistoryEntry {
+  id: string;
+  title: string;            // ★ 标题：为什么查/改这次数据库
+  sql: string;
+  dbId: string;             // 数据库 ID 或名称
+  dbLabel?: string;         // 数据库显示标签
+  connection?: DbConnectionParams;
+  result: SqlResult;        // 执行结果
+  executedAt: number;       // 执行时间
+}
+
+/** 查询 SQL 的请求体 */
+export interface QuerySqlBody {
+  sql: string;
+  dbId: string;
+  title: string;            // ★ 必填：查询标题
+  connection?: DbConnectionParams;
+}
+
 /** 提交 SQL 的请求体 */
 export interface SubmitSqlBody {
   sql: string;
   reason: string;
   dbId: string;
+  title: string;            // ★ 必填：操作标题
+  /** 内联连接参数（优先级高于 dbId） */
+  connection?: DbConnectionParams;
 }
 
 /** 文件状态（内存中跟踪） */

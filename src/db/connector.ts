@@ -4,7 +4,7 @@ import mysql from 'mysql2/promise';
 import initSqlJs, { Database as SqlJsDb } from 'sql.js';
 import fs from 'fs';
 import path from 'path';
-import type { DbConnection, SqlResult } from '../types';
+import type { DbConnection, DbConnectionParams, SqlResult } from '../types';
 
 /** 判断是否为 SELECT 类只读查询 */
 export function isReadOnly(sql: string): boolean {
@@ -69,6 +69,20 @@ function getMysqlPool(dbConfig: DbConnection): mysql.Pool {
     mysqlPools.set(dbConfig.id, pool);
   }
   return pool;
+}
+
+// ── 内联连接参数直连（不查预配置，不缓存） ──────────────
+
+/** 用内联参数创建一次性 MySQL 连接 */
+async function createDirectMysqlConnection(params: DbConnectionParams): Promise<mysql.Connection> {
+  return mysql.createConnection({
+    host: params.host,
+    port: params.port || 3306,
+    user: params.user,
+    password: params.password,
+    database: params.database,
+    connectTimeout: 10000,
+  });
 }
 
 // ── 统一查询接口 ─────────────────────────────────────────
@@ -145,6 +159,62 @@ export async function testConnection(dbConfig: DbConnection): Promise<{ ok: bool
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, error: msg };
+  }
+}
+
+/** 用内联连接参数执行 SQL（直连，不查预配置） */
+export async function executeQueryDirect(params: DbConnectionParams, sql: string): Promise<SqlResult> {
+  const t0 = Date.now();
+
+  if (params.type === 'sqlite') {
+    if (!params.path) throw new Error('SQLite path is required for direct connection');
+    await getSqlJs();
+    const filePath = params.path;
+    let buffer: Uint8Array | undefined;
+    if (fs.existsSync(filePath)) {
+      buffer = fs.readFileSync(filePath);
+    }
+    const SQL = await getSqlJs();
+    const db = new SQL.Database(buffer);
+
+    try {
+      if (isReadOnly(sql)) {
+        const results: unknown[] = [];
+        const stmt = db.prepare(sql);
+        while (stmt.step()) results.push(stmt.getAsObject());
+        stmt.free();
+        return { rows: results as Record<string, unknown>[], executionTime: Date.now() - t0 };
+      } else {
+        db.run(sql);
+        const changes = db.getRowsModified();
+        const data = db.export();
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(filePath, Buffer.from(data));
+        return { changes, affectedRows: changes, executionTime: Date.now() - t0 };
+      }
+    } finally {
+      db.close();
+    }
+  }
+
+  // MySQL — 创建一次性连接，用完即关
+  const conn = await createDirectMysqlConnection(params);
+  try {
+    const [rows] = await conn.execute(sql);
+    if (isReadOnly(sql)) {
+      return { rows: (rows as Record<string, unknown>[]), executionTime: Date.now() - t0 };
+    } else {
+      const result = rows as mysql.ResultSetHeader;
+      return {
+        affectedRows: result.affectedRows,
+        insertId: result.insertId,
+        changes: result.affectedRows,
+        executionTime: Date.now() - t0,
+      };
+    }
+  } finally {
+    conn.end();
   }
 }
 

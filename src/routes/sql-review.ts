@@ -3,11 +3,19 @@
 import { Router, Request, Response } from 'express';
 import { getJobs, updateJob, getJob } from '../sql-queue';
 import { getDatabase, getReviewMode, setReviewMode } from '../config-manager';
-import { executeQuery } from '../db/connector';
+import { executeQuery, executeQueryDirect } from '../db/connector';
+import { addHistory } from '../sql-history';
 import { REVIEW_TOKEN, checkToken } from '../auth-token';
 import type { SqlJobStatus } from '../types';
 
 const router = Router();
+
+/** 获取数据库显示标签 */
+function getDbLabel(job: { dbId: string; connection?: { database?: string } }): string {
+  if (job.connection?.database) return job.connection.database;
+  const db = getDatabase(job.dbId);
+  return db?.name || job.dbId;
+}
 
 // 获取任务队列（支持 ?status=pending 筛选）
 router.get('/api/sql/queue', (req: Request, res: Response) => {
@@ -25,15 +33,27 @@ router.post('/api/sql/approve/:id', async (req: Request, res: Response) => {
   if (!job) return res.status(404).json({ ok: false, error: `Job "${req.params.id}" not found` });
   if (job.status !== 'pending') return res.status(400).json({ ok: false, error: `Job is ${job.status}, not pending` });
 
-  const dbConfig = getDatabase(job.dbId);
-  if (!dbConfig) {
-    updateJob(job.id, { status: 'failed', reviewedAt: Date.now(), error: `Database "${job.dbId}" not found` });
-    return res.status(404).json({ ok: false, error: `Database "${job.dbId}" not found` });
-  }
-
   try {
+    const dbLabel = getDbLabel(job);
+
+    if (job.connection) {
+      const result = await executeQueryDirect(job.connection, job.sql);
+      updateJob(job.id, { status: 'executed', reviewedAt: Date.now(), result });
+      // 记录历史
+      addHistory(job.title || job.reason, job.sql, job.dbId, dbLabel, result, job.connection);
+      return res.json({ ok: true, id: job.id, status: 'executed', result });
+    }
+
+    const dbConfig = getDatabase(job.dbId);
+    if (!dbConfig) {
+      updateJob(job.id, { status: 'failed', reviewedAt: Date.now(), error: `Database "${job.dbId}" not found` });
+      return res.status(404).json({ ok: false, error: `Database "${job.dbId}" not found` });
+    }
+
     const result = await executeQuery(dbConfig, job.sql);
     updateJob(job.id, { status: 'executed', reviewedAt: Date.now(), result });
+    // 记录历史
+    addHistory(job.title || job.reason, job.sql, job.dbId, dbLabel, result);
     res.json({ ok: true, id: job.id, status: 'executed', result });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);

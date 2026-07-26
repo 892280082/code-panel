@@ -40,11 +40,24 @@ export interface DbConnection {
   healthError: string | null
 }
 
+export interface DbConnectionParams {
+  type: 'mysql' | 'sqlite'
+  host?: string
+  port?: number
+  user?: string
+  password?: string
+  database?: string
+  path?: string
+}
+
 export interface SqlJob {
   id: string
   sql: string
   reason: string
+  title?: string
   dbId: string
+  /** 内联连接参数 */
+  connection?: DbConnectionParams
   status: 'pending' | 'executed' | 'rejected' | 'failed'
   submittedAt: number
   reviewedAt?: number
@@ -59,6 +72,16 @@ export interface SqlResult {
   insertId?: number
   changes?: number
   executionTime: number
+}
+
+export interface SqlHistoryEntry {
+  id: string
+  title: string            // ★ 标题：为什么查/改这次数据库
+  sql: string
+  dbId: string
+  dbLabel?: string
+  result: SqlResult
+  executedAt: number
 }
 
 export interface SseMessage {

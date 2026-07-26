@@ -7,11 +7,10 @@ const store = useSqlStore()
 
 <template>
   <div class="db-health">
-    <div v-if="!store.databases.length" class="empty">No databases</div>
+    <div v-if="!store.currentDatabases.length" class="empty">No databases</div>
     <div
-      v-for="db in store.databases" :key="db.id"
+      v-for="db in store.currentDatabases" :key="db.id"
       class="db-row"
-      @click="store.setDbFilter(db.id)"
     >
       <StatusDot :status="db.alive ? 'alive' : db.lastCheck ? 'dead' : undefined" />
       <span class="db-name">{{ db.name }}</span>

@@ -17,7 +17,7 @@ bash ~/.claude/skills/code-panel/read-log.sh
 | 路径 | 用途 |
 |------|------|
 | `http://localhost:3008/log` | 日志查看器（实时追踪 + 分组管理） |
-| `http://localhost:3008/sql` | SQL 评审面板（审批/拒绝 + DB 存活状态） |
+| `http://localhost:3008/sql` | SQL 评审面板（审批/拒绝 + DB 存活状态 + 查询历史） |
 
 ---
 
@@ -38,19 +38,25 @@ bash ~/.claude/skills/code-panel/read-log.sh
 
 | 方法 | 路径 | 请求体 | 响应 |
 |------|------|--------|------|
-| **POST** | `/api/sql/query` | `{sql, dbId}` | `{ok:true, rows, executionTime}` |
-| **POST** | `/api/sql/submit` | `{sql, reason, dbId}` | `{ok:true, id, status, mode}` — status=`"pending"`(待审批) 或 `"executed"`(静默模式已执行) |
-| **GET** | `/api/sql/status/:id` | — | `{id, status, sql, reason, dbId, submittedAt, reviewedAt?, rejectReason?, result?, error?}` — status: `pending` / `executed` / `rejected` / `failed` |
-| **GET** | `/api/sql/review-mode` | — | `{reviewMode:bool}` |
-| **POST** | `/api/sql/review-mode` | `{enabled:bool}` | `{ok:true, reviewMode:bool}` |
+| **POST** | `/api/sql/query` | `{sql, title, dbId, connection?}` | `{ok:true, rows, executionTime}` |
+| **POST** | `/api/sql/submit` | `{sql, reason, title, dbId, connection?}` | `{ok:true, id, status, mode}` — status=`"pending"`(待审批) 或 `"executed"`(静默模式已执行) |
+| **GET** | `/api/sql/status/:id` | — | `{id, status, sql, reason, dbId, submittedAt, reviewedAt?, rejectReason?, result?, error?}` |
+| **GET** | `/api/sql/history` | — | `{ok:true, list:[{id, title, sql, dbId, dbLabel, result, executedAt}]}` |
+| **GET** | `/api/sql/review-mode` | — | `{reviewMode:bool, token}` |
+| **POST** | `/api/sql/review-mode` | `{enabled:bool, token}` | `{ok:true, reviewMode:bool}` |
 
-### SQL 评审（前端审批面板用）
+> `connection` 字段支持**直连模式**: `{type, host?, port?, user?, password?, database?, path?}`，优先级高于 `dbId`。
+> `title` 字段是**必填**的 — 每次操作都必须说明"为什么查/改这次数据库"。
+
+### SQL 评审（审批面板）
 
 | 方法 | 路径 | 请求体 | 响应 |
 |------|------|--------|------|
 | **GET** | `/api/sql/queue` | `?status=pending`（可选） | `{ok:true, jobs, reviewMode}` |
-| **POST** | `/api/sql/approve/:id` | — | `{ok:true, id, status:"executed", result}` |
-| **POST** | `/api/sql/reject/:id` | `{reason?}` | `{ok:true, id, status:"rejected"}` |
+| **POST** | `/api/sql/approve/:id` | `{token}` | `{ok:true, id, status:"executed", result}` |
+| **POST** | `/api/sql/reject/:id` | `{reason?, token}` | `{ok:true, id, status:"rejected"}` |
+
+> `/approve` 和 `/reject` 需要 `token` 验证（每次重启服务生成新 token），前端页面会自动获取。
 
 ### 日志分组配置
 
@@ -82,69 +88,103 @@ bash ~/.claude/skills/code-panel/read-log.sh
 
 ---
 
-## AI 使用模式
+## ⚠️ AI 绝对行为规范（严格遵守）
 
-### 查数据（SELECT）
+### 核心原则
+
+| 操作类型 | Review Mode ON | Review Mode OFF |
+|---------|---------------|-----------------|
+| **SELECT 查询** | ✅ AI 可直接调用 `/api/sql/query` | ✅ AI 可直接调用 |
+| **写入（INSERT/UPDATE/DELETE/ALTER…）** | ❌ **必须提交审批队列**，AI 不能自己执行 | ✅ AI 可直接执行 |
+| **审批/拒绝操作** | ❌ **AI 绝对禁止调用 `/api/sql/approve/:id` 和 `/api/sql/reject/:id`** | N/A（无队列） |
+| **开关评审模式** | ❌ **AI 绝对禁止调用 `/api/sql/review-mode`** | ❌ **AI 绝对禁止调用** |
+
+### 详细规则
+
+#### 1. SELECT 查询 — AI 可以自由调用
 
 ```bash
+# ✅ AI 可以直接查
 curl -s -X POST http://localhost:3008/api/sql/query \
   -H 'Content-Type: application/json' \
-  -d '{"sql":"SELECT * FROM users LIMIT 10", "dbId":"mydb"}'
+  -d '{"sql":"SELECT * FROM users LIMIT 10", "dbId":"mydb", "title":"查询用户列表"}'
 ```
 
-### 写数据（有审批）
+#### 2. 写操作 — 受 reviewMode 管控
+
+**Review Mode ON（默认）：**
 
 ```bash
-# 提交 → 告诉用户去 /sql 审批 → 轮询
+# ❌ AI 禁止直接执行写入操作
+# ✅ AI 必须提交到审批队列，然后通知用户去 /sql 审批
 curl -s -X POST http://localhost:3008/api/sql/submit \
   -H 'Content-Type: application/json' \
-  -d '{"sql":"UPDATE users SET status=1", "reason":"用户申请解封", "dbId":"mydb"}'
-
-curl -s http://localhost:3008/api/sql/status/<id>
+  -d '{"sql":"UPDATE users SET status=1", "reason":"用户申请解封", "title":"解封用户", "dbId":"mydb"}'
+# → { status: "pending" } → 告诉用户去 http://localhost:3008/sql 审批
 ```
 
-### 写数据（静默，无需审批）
+**Review Mode OFF（配置关闭评审）：**
 
 ```bash
-curl -s -X POST http://localhost:3008/api/sql/review-mode \
-  -H 'Content-Type: application/json' \
-  -d '{"enabled":false}'
-# ... 执行写操作 ...
-curl -s -X POST http://localhost:3008/api/sql/review-mode \
-  -H 'Content-Type: application/json' \
-  -d '{"enabled":true}'
+# ✅ AI 可以直接执行（需要先关 reviewMode）
+# ⚠️ 但以下操作 AI 绝对不能自己做：
+#   1. 绝对不能调 POST /api/sql/review-mode 来关评审模式
+#   2. 必须由用户手动关闭评审模式后，AI 才能执行
 ```
 
-### 管理数据库连接
+#### 3. 🚫 AI 绝对禁止的操作（无论如何都不行）
 
 ```bash
-curl -s http://localhost:3008/api/db                          # 列表
-curl -s -X POST http://localhost:3008/api/db -H ... -d '{...}'  # 新增
-curl -s -X PUT http://localhost:3008/api/db/:id -H ... -d '{...}'  # 修改
-curl -s -X DELETE http://localhost:3008/api/db/:id              # 删除
-curl -s -X POST http://localhost:3008/api/db/refresh            # 刷新存活状态
+# ❌ 绝对禁止 — AI 调了就是违规
+POST /api/sql/approve/:id     # 自行审批 SQL
+POST /api/sql/reject/:id      # 自行拒绝 SQL  
+POST /api/sql/review-mode     # 自行开关评审模式
 ```
 
-### 管理日志分组
+**禁止绕过的行为包括但不限于：**
+- 直接调 `/api/sql/approve/:id` 批准自己的提交
+- 偷偷关掉 reviewMode 再执行写入再恢复
+- 用内联连接参数（`connection`）绕过队列直接执行
+- 告诉用户"我不方便审批请你自己操作"（应该直接通知用户去面板操作）
+- 任何让 AI 直接或间接执行审批动作的行为
 
-```bash
-curl -s http://localhost:3008/api/log-config                                         # 列表
-curl -s -X POST http://localhost:3008/api/log-config -H ... -d '{...}'                # 新增分组
-curl -s -X PUT http://localhost:3008/api/log-config/:key -H ... -d '{...}'            # 改名
-curl -s -X DELETE http://localhost:3008/api/log-config/:key                           # 删除分组
-curl -s -X POST http://localhost:3008/api/log-config/:key/logs -H ... -d '{"name":"应用日志","file":"/var/log/app.log","port":3003}'  # 加日志文件（含端口）
-```
+#### 4. ✅ AI 可以做的
 
-### 决策流程
+- **查询数据** — 自由调用 `/api/sql/query`
+- **提交写入到队列** — 调 `/api/sql/submit` 然后通知用户
+- **轮询任务状态** — 调 `/api/sql/status/:id` 查看是否已被审批
+- **管理数据库连接** — 调 `/api/db` 相关接口
+- **管理日志配置** — 调 `/api/log-config` 相关接口
+- **查看历史记录** — 调 `/api/sql/history`
 
-```
-SELECT → POST /api/sql/query → 直接返回
-写操作 → POST /api/sql/submit →
-  ├─ 用户在线 → 告诉用户去 /sql 审批 → 轮询 /api/sql/status/:id
-  └─ 静默模式 → 关 reviewMode → 直接执行 → 恢复
-配 DB  → POST/PUT/DELETE /api/db → 即时生效
-配日志 → POST/PUT/DELETE /api/log-config → 即时生效
-```
+#### 5. 人工审核如何工作
+
+1. AI 提交写入 SQL → 队列状态变为 `pending`
+2. **必须告诉用户去 `http://localhost:3008/sql` 审批**
+3. 浏览器会自动叮叮叮响铃提醒
+4. 用户在面板点 Approve → SQL 被执行 → 记录历史
+5. 用户在面板点 Reject → SQL 被拒绝
+6. AI 可以轮询 `/api/sql/status/:id` 知道结果
+
+#### 6. 如何关闭审批（静默模式）
+
+**必须由用户自己操作：**
+- 在 `http://localhost:3008/sql` 页面点 "Review Mode: ON" 按钮切换
+- 或者手动改 `config.json` 里的 `"reviewMode": false`
+
+---
+
+## 新功能特性
+
+### 右侧"AI 查询记录"面板
+- 所有成功执行的 SQL（SELECT 和写入）自动记录
+- 显示：标题 + 数据库 + SQL + 执行结果 + 时间
+- 点击展开查看详情
+
+### 🔔 审批声音提醒
+- 有新的待审批 SQL 提交时，浏览器叮叮叮响
+- 右侧面板标题栏有 🔔 按钮，点击停止响铃
+- 全部审批完自动停铃
 
 ---
 
@@ -154,11 +194,18 @@ SELECT → POST /api/sql/query → 直接返回
 
 数据库连接 + 日志分组均存储在 `data/db-config.sqlite`。
 首次启动自动从 `config.json` 迁移，之后 `config.json` 仅保留 `reviewMode`。
+SQL 审批队列存储在 `sql-queue.json`。
+AI 查询历史记录存储在 `sql-history.json`（保留最近 200 条）。
 
 ### 健康检查
 
 启动时检查一次，之后每 60 秒自动检查。`/api/db` 响应含 `alive` / `lastCheck` / `serverVersion`。
 前端面板用 ● alive / ○ dead / ◌ unknown 展示。
+
+### 安全令牌
+
+`/approve`、`/reject`、`/review-mode` 接口需要 `token` 验证。
+令牌在服务启动时随机生成（8 位 hex），前端页面自动获取。
 
 ### config.json
 
