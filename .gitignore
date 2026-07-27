@@ -4,3 +4,7 @@ data/
 *.tmp
 frontend/node_modules/
 frontend/dist/
+
+# Runtime data (local-only, do not commit)
+sql-history.json
+sql-queue.json
