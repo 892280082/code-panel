@@ -9,7 +9,7 @@ description: >-
 ## 启动
 
 ```bash
-bash ~/.claude/skills/code-panel/read-log.sh
+bash ~/.claude/skills/code-panel/start.sh
 ```
 
 ## 访问面板
