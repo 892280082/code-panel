@@ -56,6 +56,12 @@ body {
 .ansi-bold { font-weight: bold; } .ansi-dim { opacity: 0.7; }
 .ansi-italic { font-style: italic; } .ansi-underline { text-decoration: underline; }
 
+/* ── Custom scrollbar ────────────────────────────────── */
+.drawer-scroll::-webkit-scrollbar { width: 6px; }
+.drawer-scroll::-webkit-scrollbar-track { background: transparent; }
+.drawer-scroll::-webkit-scrollbar-thumb { background: var(--border, #23232a); border-radius: 3px; }
+.drawer-scroll::-webkit-scrollbar-thumb:hover { background: var(--text-dim, #6b6b78); }
+
 /* ── Responsive ──────────────────────────────────────── */
 @media (max-width: 700px) {
   .sidebar { width: 200px !important; min-width: 200px !important; }

@@ -79,6 +79,54 @@ bash ~/.claude/skills/code-panel/start.sh
 | **POST** | `/api/log/clear` | `{file}` | `{ok:true}` — 清空日志文件（类似 `: > file`） |
 | **GET** | `/api/stream` | — | SSE 流，实时推送日志变更 |
 
+### 终端命令抽屉 API
+
+管理右上角绿色 FAB 按钮 → 右侧抽屉里的预填写命令。支持**增删改 + 排序 + 分组联动**。
+
+| 方法 | 路径 | 请求体 | 响应 |
+|------|------|--------|------|
+| **GET** | `/api/terminal/commands` | `?group=xxx`（可选筛选） | `{ok:true, data:[...]}` |
+| **POST** | `/api/terminal/commands` | `{label, command, cwd?, group?}` | `{ok:true, data:{id,label,command,cwd?,group?,type:"custom",...}}` |
+| **PUT** | `/api/terminal/commands/reorder` | `{ids:[], group?}` | `{ok:true}` |
+| **PUT** | `/api/terminal/commands/:id` | `{label?, command?, cwd?, group?}` | `{ok:true, data:{...}}` |
+| **DELETE** | `/api/terminal/commands/:id` | — | `{ok:true}` |
+
+**字段说明**：
+| 字段 | 类型 | 必填 | 限制 |
+|------|------|------|------|
+| `label` | string | ✅ | 1-100 字符，按钮显示名称 |
+| `command` | string | ✅ | 1-4096 字符，终端中执行的命令 |
+| `cwd` | string | 否 | 绝对路径（`/` 开头），命令执行的工作目录 |
+| `group` | string | 否 | 所属日志分组 key，为空时全局可见 |
+
+> **分组联动**：当指定 `?group=xxx` 查询时，只返回该分组的自定义命令。系统预设命令（磁盘空间、内存、CPU 等 7 条）全局可见。前端自动跟随当前日志分组切换。
+
+**示例**：
+```bash
+# 注册一条自定义命令（关联到 production 分组）
+curl -s -X POST http://localhost:3008/api/terminal/commands \
+  -H 'Content-Type: application/json' \
+  -d '{"label":"查看Nginx日志","command":"tail -f /var/log/nginx/access.log","cwd":"/var/log/nginx","group":"production"}'
+
+# 按分组查看命令
+curl -s "http://localhost:3008/api/terminal/commands?group=production"
+
+# 编辑命令
+curl -s -X PUT http://localhost:3008/api/terminal/commands/<id> \
+  -H 'Content-Type: application/json' \
+  -d '{"label":"改后名称","command":"echo hello"}'
+
+# 排序（传入自定义命令 ID 数组的新顺序）
+curl -s -X PUT http://localhost:3008/api/terminal/commands/reorder \
+  -H 'Content-Type: application/json' \
+  -d '{"ids":["id1","id2","id3"],"group":"production"}'
+
+# 删除命令
+curl -s -X DELETE http://localhost:3008/api/terminal/commands/<id>
+```
+
+> `type: "system"` 的命令（磁盘空间、内存、CPU、网络连接、进程列表、系统负载、磁盘 IO）为只读预设，不可编辑删除。API 创建的命令固定为 `type: "custom"`。
+
 ### 全局配置
 
 | 方法 | 路径 | 请求体 | 响应 |

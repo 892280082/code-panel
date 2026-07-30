@@ -1,6 +1,7 @@
 // ── read-log v3 (Vue 3) — Log Viewer + SQL Review Panel ──
 
 import express from 'express';
+import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { exec } from 'child_process';
@@ -12,6 +13,9 @@ import databasesRouter from './routes/databases';
 import sqlExecRouter from './routes/sql-exec';
 import sqlReviewRouter from './routes/sql-review';
 import sqlHistoryRouter from './routes/sql-history';
+import terminalRouter from './routes/terminal';
+import { terminalProxyMiddleware, mountTerminalProxy } from './terminal/proxy';
+import { startTTYD, stopTTYD } from './terminal/ttyd-manager';
 import { startMonitor } from './log-monitor';
 import { startHealthCheck } from './db/health-check';
 import { init as initDbConfig } from './db/db-config-store';
@@ -29,6 +33,9 @@ app.use(express.static(DIST_DIR));
 // Serve legacy static assets (fonts, etc.)
 app.use(express.static(PUBLIC_DIR));
 
+// Terminal proxy（HTTP，转发到 ttyd 进程）
+app.use(terminalProxyMiddleware);
+
 // ── API routes ───────────────────────────────────────────
 app.use(logsRouter);
 app.use(configRouter);
@@ -37,6 +44,7 @@ app.use(databasesRouter);
 app.use(sqlExecRouter);
 app.use(sqlReviewRouter);
 app.use(sqlHistoryRouter);
+app.use(terminalRouter);
 
 // ── SPA fallback — all non-API routes serve index.html ───
 const indexHtml = path.join(DIST_DIR, 'index.html');
@@ -60,19 +68,35 @@ app.use((req, res, next) => {
 async function start() {
   await initDbConfig();
 
+  await startTTYD();
   startMonitor();
   startHealthCheck();
 
-  app.listen(PORT, () => {
+  const server = http.createServer(app);
+
+  // WebSocket 代理（在 HTTP server 升级事件上）
+  mountTerminalProxy(server);
+
+  server.listen(PORT, () => {
     console.log(`╔══════════════════════════════════════════════╗`);
     console.log(`║  Log Viewer  →  http://localhost:${PORT}/log      ║`);
     console.log(`║  SQL Review  →  http://localhost:${PORT}/sql      ║`);
+    console.log(`║  Terminal    →  http://localhost:${PORT}/terminal ║`);
     console.log(`╚══════════════════════════════════════════════╝`);
 
     const cmd = process.platform === 'darwin' ? 'open' :
                 process.platform === 'win32' ? 'start' : 'xdg-open';
     exec(`${cmd} http://localhost:${PORT}/log`, () => {});
   });
+
+  // graceful shutdown
+  const shutdown = () => {
+    stopTTYD();
+    server.close();
+    process.exit(0);
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }
 
 start().catch(err => {

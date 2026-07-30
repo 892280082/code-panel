@@ -42,8 +42,8 @@ async function handleToggleReview() {
 
 async function handleApprove(id: string) {
   const result = await store.approveJob(id)
-  if (!result.ok) {
-    alert('Execute failed: ' + (result.error || 'unknown'))
+  if (!result?.ok) {
+    alert('Execute failed: ' + (result?.error || 'unknown'))
     await store.loadJobs()
   }
 }

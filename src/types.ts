@@ -125,6 +125,29 @@ export interface FileState {
   lastActive: number;
 }
 
+/** 原始 config.json 结构（含 ttyd、jwt 等） */
+export interface RawConfig {
+  reviewMode?: boolean;
+  terminalDefaultCwd?: string;
+  ttyd?: {
+    port: number;
+    command: string;
+    args?: string;
+  };
+  jwt?: {
+    expiryHours: number;
+  };
+}
+
+/** 终端 session 信息（内存） */
+export interface TerminalSessionInfo {
+  port: number;
+  label: string;
+  command: string;
+  cwd: string;
+  createdAt: number;
+}
+
 /** SSE 广播消息 */
 export interface SseMessage {
   file: string;
