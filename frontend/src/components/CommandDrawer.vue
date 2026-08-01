@@ -19,9 +19,32 @@ const customCmds = computed(() => commands.value.filter((c: any) => c.type === '
 
 // ── 按钮拖拽 ────────────────────────────────────────
 const POS_KEY = 'cmd-drawer-trigger-pos'
-const saved = (() => { try { const v = JSON.parse(localStorage.getItem(POS_KEY) || ''); if (v && typeof v.x === 'number' && typeof v.y === 'number') return v } catch { return null } })()
-const btnX = ref(saved?.x ?? 100)
-const btnY = ref(saved?.y ?? 12)
+const BTN_SIZE = 44
+const EDGE = 8
+
+/** 屏幕分辨率变化后，上次记录的位置可能超出可视区域，越界则重置回屏幕内，避免图标丢失 */
+function clampBtnPos(v: { x: number; y: number } | null) {
+  if (!v) return null
+  const maxX = window.innerWidth - BTN_SIZE - EDGE
+  const maxY = window.innerHeight - BTN_SIZE - EDGE
+  if (maxX < EDGE || maxY < EDGE) return null
+  return { x: Math.min(Math.max(v.x, EDGE), maxX), y: Math.min(Math.max(v.y, EDGE), maxY) }
+}
+function readSavedPos() {
+  try {
+    const v = JSON.parse(localStorage.getItem(POS_KEY) || '')
+    if (v && typeof v.x === 'number' && typeof v.y === 'number') return v
+  } catch { /* ignore */ }
+  return null
+}
+const raw = readSavedPos()
+const clamped = clampBtnPos(raw)
+const btnX = ref(clamped?.x ?? 100)
+const btnY = ref(clamped?.y ?? 12)
+// 上次记录已越界 → 用修正后的位置覆盖存储，下次打开直接是正常位置
+if (raw && clamped && (raw.x !== clamped.x || raw.y !== clamped.y)) {
+  localStorage.setItem(POS_KEY, JSON.stringify(clamped))
+}
 let dragging = false
 let dragStartX = 0, dragStartY = 0, dragOrigX = 0, dragOrigY = 0
 
@@ -82,10 +105,18 @@ watch(() => terminal.drawerOpen, (open) => {
   else { stopPolling(); showForm.value = false }
 })
 
+function clampToViewport() {
+  const c = clampBtnPos({ x: btnX.value, y: btnY.value })
+  if (c) { btnX.value = c.x; btnY.value = c.y }
+}
 onMounted(() => {
   if (terminal.drawerOpen) startPolling()
+  window.addEventListener('resize', clampToViewport)
 })
-onUnmounted(() => stopPolling())
+onUnmounted(() => {
+  stopPolling()
+  window.removeEventListener('resize', clampToViewport)
+})
 
 function onClickCommand(cmd: any) {
   terminal.createSession(cmd.label, cmd.command, cmd.cwd || '')

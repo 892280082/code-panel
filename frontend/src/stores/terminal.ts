@@ -31,7 +31,15 @@ export const useTerminalStore = defineStore('terminal', () => {
         let x = 0, y = 0
         try {
           const saved = JSON.parse(localStorage.getItem(`cmd-terminal-pos-${port}`) || 'null')
-          if (saved && typeof saved.x === 'number') { x = saved.x; y = saved.y }
+          if (saved && typeof saved.x === 'number' && typeof saved.y === 'number') {
+            // 分辨率变化后上次位置可能超出屏幕，越界则重置为居中可见区域
+            const panelW = Math.min(900, window.innerWidth - 48)
+            const panelH = Math.min(580, window.innerHeight - 48)
+            const maxX = Math.max(0, (window.innerWidth - panelW) / 2)
+            const maxY = Math.max(0, (window.innerHeight - panelH) / 2)
+            x = Math.min(Math.max(saved.x, -maxX), maxX)
+            y = Math.min(Math.max(saved.y, -maxY), maxY)
+          }
         } catch {}
         sessions.set(port, { port, label, command, cwd, minimized: false, x, y })
       } else {

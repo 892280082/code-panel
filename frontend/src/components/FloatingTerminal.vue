@@ -9,9 +9,32 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 
 // ── 拖拽位置 ──────────────────────────────────────────
 const POS_KEY = 'terminal-fab-pos'
-const saved = (() => { try { const v = JSON.parse(localStorage.getItem(POS_KEY) || ''); if (v && typeof v.x === 'number' && typeof v.y === 'number') return v } catch { return null } })()
-const fabX = ref(saved?.x ?? 24)
-const fabY = ref(saved?.y ?? 24)
+const FAB_SIZE = 44
+const EDGE = 8
+
+/** 屏幕分辨率变化后，上次记录的位置可能超出可视区域，越界则重置回屏幕内，避免图标丢失 */
+function clampPos(v: { x: number; y: number } | null) {
+  if (!v) return null
+  const maxX = window.innerWidth - FAB_SIZE - EDGE
+  const maxY = window.innerHeight - FAB_SIZE - EDGE
+  if (maxX < EDGE || maxY < EDGE) return null
+  return { x: Math.min(Math.max(v.x, EDGE), maxX), y: Math.min(Math.max(v.y, EDGE), maxY) }
+}
+function readSavedPos() {
+  try {
+    const v = JSON.parse(localStorage.getItem(POS_KEY) || '')
+    if (v && typeof v.x === 'number' && typeof v.y === 'number') return v
+  } catch { /* ignore */ }
+  return null
+}
+const raw = readSavedPos()
+const clamped = clampPos(raw)
+const fabX = ref(clamped?.x ?? 24)
+const fabY = ref(clamped?.y ?? 24)
+// 上次记录已越界 → 用修正后的位置覆盖存储，下次打开直接是正常位置
+if (raw && clamped && (raw.x !== clamped.x || raw.y !== clamped.y)) {
+  localStorage.setItem(POS_KEY, JSON.stringify(clamped))
+}
 const dragging = ref(false)
 let dragStartX = 0, dragStartY = 0, dragOrigX = 0, dragOrigY = 0
 
@@ -70,13 +93,20 @@ function close() {
   minimized.value = false
 }
 
+function clampToViewport() {
+  const c = clampPos({ x: fabX.value, y: fabY.value })
+  if (c) { fabX.value = c.x; fabY.value = c.y }
+}
+
 onMounted(() => {
   checkStatus()
   pollTimer = setInterval(checkStatus, 5000)
+  window.addEventListener('resize', clampToViewport)
 })
 
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
+  window.removeEventListener('resize', clampToViewport)
 })
 </script>
 
