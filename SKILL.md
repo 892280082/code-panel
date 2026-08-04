@@ -136,6 +136,126 @@ curl -s -X DELETE http://localhost:3008/api/terminal/commands/<id>
 
 ---
 
+## 📝 数据录入教程（教别人如何录入数据）
+
+面板自己的配置（数据库连接、日志分组、终端命令）都存储在 `data/db-config.sqlite` + `data/terminal-commands.json`。
+录入数据有两条路：**① 调 API（推荐，可批量、可被 AI 执行）** ② **前端页面点加号**（人工操作）。下面是 API 方式。
+
+### 当前库里的数据（截至 2026-08-04，可直接模仿）
+
+**数据库连接（3 条，`connections` 表）**
+
+| id | name | type | group | host | port | user | database | path |
+|----|------|------|-------|------|------|------|----------|------|
+| `zc-main` | zc-main | mysql | proj | db.example.com | 3306 | root | integration_platform | — |
+| `zc-exam` | zc-exam | mysql | proj | db.example.com | 3306 | root | integration_exam | — |
+| `opencode-platform` | opencode-platform | sqlite | proj | — | — | — | — | /Users/owner/repository/proj-v3/zc-opencode/opencode-platform.db |
+
+**日志分组（2 个）+ 日志条目（9 条）**
+
+| 分组 key | 分组名 | 日志条目（name → file，port） |
+|----------|--------|------------------------------|
+| `proj` | proj | zc-main → /tmp/zc-main.log (7071)、zc-platform-backend → /tmp/zc-platform-backend.log (6173)、zc-study → /tmp/zc-study.log (6170)、zc-exam → /tmp/zc-exam.log (7072)、ai-opencode-server → /tmp/ai-opencode-server.log (3011)、ai-platform-api → /tmp/ai-platform-api.log (3015)、ai-platform → /tmp/ai-platform.log (3013)、ai-chat → /tmp/ai-chat.log (3014) |
+| `test` | 测试 | 测试日志 → /tmp/test-log.log |
+
+**终端命令**：7 条系统预设（`type: system`，只读）+ 自定义命令（`type: custom`），如 `🚀 启动主模块`（group: proj，执行 fast-start 脚本）。
+
+### ① 录入数据库连接
+
+```bash
+# MySQL 连接（模仿 zc-main）
+curl -s -X POST http://localhost:3008/api/db \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "id": "my-db",                          # 唯一标识（必填）
+    "name": "my-db",                        # 显示名称（必填）
+    "type": "mysql",                        # mysql | sqlite（必填）
+    "version": "8.0",
+    "group": "proj",                        # 所属分组，可空
+    "host": "db.example.com",
+    "port": 3306,
+    "user": "root",
+    "password": "xxxx",
+    "database": "integration_platform",
+    "notes": "备注说明"
+  }'
+
+# SQLite 连接（模仿 opencode-platform，无 host/port/user，用 path）
+curl -s -X POST http://localhost:3008/api/db \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "id": "my-sqlite",
+    "name": "my-sqlite",
+    "type": "sqlite",
+    "group": "proj",
+    "path": "/absolute/path/to/xxx.db"      # 必须是绝对路径
+  }'
+
+# 验证连接是否可用（不用先录入，直接测）
+curl -s -X POST http://localhost:3008/api/db/test \
+  -H 'Content-Type: application/json' \
+  -d '{"type":"mysql","host":"db.example.com","port":3306,"user":"root","password":"xxxx","database":"integration_platform"}'
+# → {ok:true, serverVersion:"8.0.36"} 或 {ok:false, error:"..."}
+```
+
+### ② 录入日志分组 + 日志条目
+
+```bash
+# 一次性创建分组并带日志条目（模仿 test 分组）
+curl -s -X POST http://localhost:3008/api/log-config \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "key": "my-group",                      # 分组唯一 key（必填）
+    "name": "我的分组",                      # 显示名称（必填）
+    "logs": [
+      {"name": "日志A", "file": "/tmp/log-a.log"},
+      {"name": "日志B", "file": "/tmp/log-b.log"}
+    ]
+  }'
+
+# 分组已存在时，往分组里加一条日志（模仿 proj 组的 8 条）
+curl -s -X POST http://localhost:3008/api/log-config/proj/logs \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "zc-main", "file": "/tmp/zc-main.log", "port": 7071}'
+# → {ok:true, id:9}   # port 用于端口存活检测，不需要就不传
+
+# 改日志条目 / 删日志条目
+curl -s -X PUT http://localhost:3008/api/log-config/proj/logs/9 \
+  -H 'Content-Type: application/json' -d '{"file": "/tmp/zc-main-new.log"}'
+curl -s -X DELETE http://localhost:3008/api/log-config/proj/logs/9
+```
+
+> 注意：`file` 必须是服务器上真实存在的日志文件路径，前端 `●` 存活状态靠它判断。
+
+### ③ 录入终端命令（右侧绿色 FAB → 命令抽屉）
+
+```bash
+# 自定义命令（模仿「🚀 启动主模块」，关联到 proj 分组）
+curl -s -X POST http://localhost:3008/api/terminal/commands \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "label": "🚀 启动主模块",
+    "command": "bash /Users/owner/repository/proj-v3/.claude/skills/fast-start/scripts/start.sh zc-main zc-platform-backend zc-study",
+    "cwd": "/Users/owner/repository/proj-v3/.claude/skills/fast-start",
+    "group": "proj"                         # 空 = 全局可见
+  }'
+# → {ok:true, data:{id:"...", type:"custom"}}
+
+# 录入完成后用 ?group= 验证
+curl -s "http://localhost:3008/api/terminal/commands?group=proj"
+```
+
+### 校验录入是否成功
+
+```bash
+# 三张总览（前端 /log 和 /sql 页面同源数据）
+curl -s http://localhost:3008/api/config        # groups + databases + reviewMode
+curl -s http://localhost:3008/api/logs          # 日志列表（含 exists/alive 状态）
+curl -s http://localhost:3008/api/db            # 数据库连接（含 alive 健康检查）
+```
+
+---
+
 ## ⚠️ AI 绝对行为规范（严格遵守）
 
 ### 核心原则
