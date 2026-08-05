@@ -15,6 +15,8 @@ import sqlReviewRouter from './routes/sql-review';
 import sqlHistoryRouter from './routes/sql-history';
 import terminalRouter from './routes/terminal';
 import launchRouter from './routes/launch';
+import backupRouter from './routes/backup';
+import { runBackup } from './backup/backup-manager';
 import { terminalProxyMiddleware, mountTerminalProxy } from './terminal/proxy';
 import { startTTYD, stopTTYD } from './terminal/ttyd-manager';
 import { startMonitor } from './log-monitor';
@@ -47,6 +49,7 @@ app.use(sqlReviewRouter);
 app.use(sqlHistoryRouter);
 app.use(terminalRouter);
 app.use(launchRouter);
+app.use(backupRouter);
 
 // ── SPA fallback — all non-API routes serve index.html ───
 const indexHtml = path.join(DIST_DIR, 'index.html');
@@ -73,6 +76,14 @@ async function start() {
   await startTTYD();
   startMonitor();
   startHealthCheck();
+
+  // 程序启动自动备份一次(同天覆盖替换),路径未配置时跳过
+  const backupRes = runBackup();
+  if (backupRes.ok) {
+    console.log(`✓ Backup → ${backupRes.file}`);
+  } else {
+    console.log(`⚠ Backup skipped: ${backupRes.error}`);
+  }
 
   const server = http.createServer(app);
 

@@ -6,6 +6,7 @@ import Sidebar from '@/components/Sidebar.vue'
 import StatusDot from '@/components/StatusDot.vue'
 import ConfigModal from '@/components/ConfigModal.vue'
 import QuickLaunchDrawer from '@/components/QuickLaunchDrawer.vue'
+import BackupDrawer from '@/components/BackupDrawer.vue'
 
 const store = useLogStore()
 const ansiLabels: Record<string, string> = { strip: '🎨 strip', raw: '🔤 raw', color: '🌈 color' }
@@ -117,6 +118,7 @@ watch(currentContent, () => {
         >{{ ansiLabels[store.ansiMode] }}</button>
         <span class="status">{{ store.connected ? '● connected' : '○ reconnecting' }}</span>
         <QuickLaunchDrawer />
+        <BackupDrawer />
       </div>
 
       <!-- Tab Bar -->
