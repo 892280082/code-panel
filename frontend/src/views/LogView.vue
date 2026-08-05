@@ -5,6 +5,7 @@ import { ansiToHtml, ansiStrip } from '@/composables/useAnsi'
 import Sidebar from '@/components/Sidebar.vue'
 import StatusDot from '@/components/StatusDot.vue'
 import ConfigModal from '@/components/ConfigModal.vue'
+import QuickLaunchDrawer from '@/components/QuickLaunchDrawer.vue'
 
 const store = useLogStore()
 const ansiLabels: Record<string, string> = { strip: '🎨 strip', raw: '🔤 raw', color: '🌈 color' }
@@ -115,6 +116,7 @@ watch(currentContent, () => {
           @click="store.cycleAnsi()"
         >{{ ansiLabels[store.ansiMode] }}</button>
         <span class="status">{{ store.connected ? '● connected' : '○ reconnecting' }}</span>
+        <QuickLaunchDrawer />
       </div>
 
       <!-- Tab Bar -->

@@ -14,6 +14,7 @@ import sqlExecRouter from './routes/sql-exec';
 import sqlReviewRouter from './routes/sql-review';
 import sqlHistoryRouter from './routes/sql-history';
 import terminalRouter from './routes/terminal';
+import launchRouter from './routes/launch';
 import { terminalProxyMiddleware, mountTerminalProxy } from './terminal/proxy';
 import { startTTYD, stopTTYD } from './terminal/ttyd-manager';
 import { startMonitor } from './log-monitor';
@@ -45,6 +46,7 @@ app.use(sqlExecRouter);
 app.use(sqlReviewRouter);
 app.use(sqlHistoryRouter);
 app.use(terminalRouter);
+app.use(launchRouter);
 
 // ── SPA fallback — all non-API routes serve index.html ───
 const indexHtml = path.join(DIST_DIR, 'index.html');
