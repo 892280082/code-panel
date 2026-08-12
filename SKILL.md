@@ -1,8 +1,10 @@
 ---
 name: code-panel
 description: >-
-  日志查看 + 数据库 SQL 执行面板，提供实时日志追踪、SQL 查询/审批、多数据库连接管理。
-  用户说"查看日志、看日志、追踪日志、tail 日志、查数据库、执行 SQL、数据库查询、配置数据库、添加日志文件"时触发。
+  运维控制面板：实时日志追踪、SQL 查询/审批、Git 仓库管理（变更 diff/提交历史/文件浏览）、
+  持久化终端（命令抽屉 + tmux/ttyd 接入）、系统资源监控、自动备份。
+  用户说"查看日志、看日志、追踪日志、tail 日志、查数据库、执行 SQL、数据库查询、配置数据库、
+  添加日志文件、看 git、git diff、浏览仓库代码、仓库文件、开终端、tmux 会话、系统资源、CPU 内存、备份"时触发。
   启动端口 3008。前端 Vue 3 + Pinia + Vue Router。
 ---
 
@@ -16,8 +18,9 @@ bash ~/.claude/skills/code-panel/start.sh
 
 | 路径 | 用途 |
 |------|------|
-| `http://localhost:3008/log` | 日志查看器（实时追踪 + 分组管理） |
+| `http://localhost:3008/log` | 日志查看器（实时追踪 + 分组管理 + 系统资源圆环 + 备份按钮） |
 | `http://localhost:3008/sql` | SQL 评审面板（审批/拒绝 + DB 存活状态 + 查询历史） |
+| `http://localhost:3008/git` | Git 仓库管理（变更 diff / 提交历史 / 仓库文件浏览器） |
 
 ---
 
@@ -126,6 +129,95 @@ curl -s -X DELETE http://localhost:3008/api/terminal/commands/<id>
 ```
 
 > `type: "system"` 的命令（磁盘空间、内存、CPU、网络连接、进程列表、系统负载、磁盘 IO）为只读预设，不可编辑删除。API 创建的命令固定为 `type: "custom"`。
+
+### Tmux 持久化终端 API
+
+管理**持久化终端**：tmux session 常驻服务器，ttyd 只是接入通道（断开/刷新后 session 不丢，可随时重连）。
+
+| 方法 | 路径 | 请求体 | 响应 |
+|------|------|--------|------|
+| **GET** | `/api/terminal/tmux/list` | — | `{ok:true, data:[{name, description?, created?}]}`（tmux 未安装/无会话时返回空列表） |
+| **POST** | `/api/terminal/tmux/create` | `{name, description?}` | `201 {ok:true, data:{name}}` |
+| **POST** | `/api/terminal/tmux/attach` | `{name}` | `201 {ok:true, data:{port, sessionName}}` — 为该 session 启动 ttyd，返回端口 |
+| **DELETE** | `/api/terminal/tmux-sessions/:port` | — | `{ok:true}` — 断开 ttyd 接入，**不杀** tmux session |
+| **DELETE** | `/api/terminal/tmux/:name` | — | `{ok:true}` — 彻底删除（断开 + kill session） |
+
+> 前端 iframe 统一用 `/api/terminal/<port>/?token=<JWT>` 连接（与其他 ttyd 终端一致）。
+> 使用流程：`create`（常驻会话）→ `attach`（拿端口）→ iframe 接入；用完 `tmux-sessions/:port` 断开或 `tmux/:name` 删除。
+> 页面级终端（一次性，非持久化）：`POST /api/terminal/sessions`（`{label, command, cwd}`）→ 返回 `{port}`，`DELETE /api/terminal/sessions/:port` 关闭。
+
+### Git 仓库管理 API
+
+管理注册的 git 仓库（路径 + 备注），提供**变更 diff、提交历史、源码查看、一键 pull**。仓库列表存储在 `data/git-repos.json`。
+
+| 方法 | 路径 | 请求体/参数 | 响应 |
+|------|------|-------------|------|
+| **GET** | `/api/git/repos` | `?group=`（可选标签筛选） | `[{id, name, path, notes, group?, createdAt, updatedAt}]` |
+| **POST** | `/api/git/repos` | `{name, repoPath, notes?, group?}` | `{ok:true, repo:{...}}` |
+| **PUT** | `/api/git/repos/:id` | 部分字段 | `{ok:true}` |
+| **DELETE** | `/api/git/repos/:id` | — | `{ok:true}` |
+| **GET** | `/api/git/summary/:id` | `?staged=` | `{repoId, repoName, branch, clean, fileCount, additions, deletions}` |
+| **GET** | `/api/git/diff/:id` | `?staged=` | `{ok:true, repoId, repoName, repoPath, branch, stat, files:[{path, status: added/deleted/modified/renamed, additions, deletions, hunks:[{header, lines:[{type: context/addition/deletion, content, oldLine?, newLine?}]}]}]}` |
+| **GET** | `/api/git/source/:id` | `?file=<repo内相对路径>` | `{ok:true, path, size, content}`（路径穿越防护） |
+| **GET** | `/api/git/log/:id` | `?limit=100&offset=0` | `{ok:true, repoId, repoName, branch, totalCommits, dayGroups:[{date, commits:[{hash, author, email, date, subject, body}]}]}` |
+| **POST** | `/api/git/pull-all` | `?group=`（可选） | `{ok:true, results:[{repoId, repoName, branch, status: pulled/up-to-date/conflict/error/no-remote, message, pulledCount?}]}` |
+
+**示例**：注册仓库 + 看变更
+```bash
+# 注册一个仓库（path 必须是服务器上真实 git 仓库的绝对路径）
+curl -s -X POST http://localhost:3008/api/git/repos \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"code-panel","repoPath":"/Users/owner/.claude/skills/code-panel","notes":"运维面板","group":"ops"}'
+
+# 看仓库状态（分支/是否干净/变更文件数）
+curl -s http://localhost:3008/api/git/summary/1
+
+# 看完整 diff（含 hunks）
+curl -s http://localhost:3008/api/git/diff/1
+
+# 看某文件源码
+curl -s "http://localhost:3008/api/git/source/1?file=src/server.ts"
+
+# 一键 pull 所有仓库
+curl -s -X POST http://localhost:3008/api/git/pull-all
+```
+
+### Repo Browser（仓库文件浏览器）API
+
+前端弹窗（📂 按钮）内的文件树 + 预览 + 历史，也可以直接调 API 浏览任意注册仓库。
+
+| 方法 | 路径 | 参数 | 响应 |
+|------|------|------|------|
+| **GET** | `/api/repo-browser/:repoId/git-changes` | — | `{ok:true, changedDirs:[], changedFiles:[]}`（staged+unstaged+untracked 变更，含父目录层级） |
+| **GET** | `/api/repo-browser/:repoId/tree` | `?path=`（子目录，空=根） | `{ok:true, repoId, repoName, path, entries:[{name, type: file/dir, size}]}`（目录优先排序） |
+| **GET** | `/api/repo-browser/:repoId/file` | `?path=&offset=&limit=` | `{ok:true, path, content, lang, offset, limit, totalSize, hasMore, binary}`（分段读取，上限 10MB，二进制文件 `binary:true`） |
+| **GET** | `/api/repo-browser/:repoId/diff` | `?path=` | `{ok:true, path, lines:[{type: add/del/ctx, text}], rawDiff}` |
+| **GET** | `/api/repo-browser/:repoId/file-log` | `?path=&limit=50` | `{ok:true, path, totalCommits, dayGroups:[{date, commits:[...]}]}` |
+| **GET** | `/api/repo-browser/:repoId/file-commit-diff` | `?path=&commit=` | `{ok:true, ...diff}`（某次提交对该文件的变更） |
+| **GET** | `/api/repo-browser/:repoId/commit-files` | `?commit=` | `{ok:true, ...files}`（某次提交涉及的文件列表） |
+
+> 所有 `path` 参数走 `safeResolve` 防路径穿越；文件 >10MB 拒绝读取。
+
+### 系统资源监控 API
+
+| 方法 | 路径 | 响应 |
+|------|------|------|
+| **GET** | `/api/resources` | `{cpu:{percent, cores, load1, load5}, memory:{percent, usedGB, totalGB}, disk:{percent, usedGB, totalGB, mount}}` |
+| **GET** | `/api/resources/processes` | `{processes:[{pid, name, memPercent, rssMB, cpuPercent}]}`（内存 TOP 30） |
+
+> 前端 `/log` 工具栏的两个圆环（CPU/内存），点击弹出详情（折线图 + 进程表）。
+
+### 备份管理 API
+
+每天自动备份一次（`backups/backup-<日期>.tar.gz`），保留最近 10 天；可手动触发 + 下载。
+
+| 方法 | 路径 | 请求体 | 响应 |
+|------|------|--------|------|
+| **GET** | `/api/backup` | — | `{ok:true, data:[{filename, date, size, createdAt}]}`（按日期倒序） |
+| **POST** | `/api/backup` | — | `201 {ok:true, data:{filename, date, size, createdAt}}` — 立即备份 |
+| **GET** | `/api/backup/:filename` | — | 下载 tar.gz（`?token=<JWT>` 或 Authorization 头） |
+
+> 前端入口在 `/log` 工具栏"备份"按钮（资源显示器左边）。
 
 ### 全局配置
 
@@ -245,6 +337,28 @@ curl -s -X POST http://localhost:3008/api/terminal/commands \
 curl -s "http://localhost:3008/api/terminal/commands?group=proj"
 ```
 
+### ④ 录入 Git 仓库（/git 页面 → + Add Repo）
+
+```bash
+# 注册仓库（模仿 238 上的 demo-main）
+curl -s -X POST http://localhost:3008/api/git/repos \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "demo-main",
+    "repoPath": "/home/demo/repository/demo-main",
+    "notes": "238 主项目",
+    "group": "prod"                  # 可选字符串标签
+  }'
+# → {ok:true, repo:{id:1, ...}}   # id 用于后续 /summary /diff /log /repo-browser
+
+# 验证（三件套）
+curl -s http://localhost:3008/api/git/summary/1     # 分支/是否干净/变更文件数
+curl -s http://localhost:3008/api/git/diff/1        # 变更 diff
+curl -s http://localhost:3008/api/git/repos         # 仓库列表
+```
+
+> 注意：`repoPath` 必须是服务器上真实存在的 git 仓库绝对路径；`/api/git/source` 和 `/api/repo-browser/*` 都做了路径穿越防护。
+
 ### 校验录入是否成功
 
 ```bash
@@ -344,6 +458,24 @@ POST /api/sql/review-mode     # 自行开关评审模式
 
 ## 新功能特性
 
+### Git 仓库管理页（/git）
+- 左侧仓库列表：分支、干净/变更状态、变更数、一键同步（pull-all）
+- 点仓库展开 diff：文件级增删统计 + hunks 逐行（context/addition/deletion）
+- 点文件切换 diff/source 视图；"🕒" 看提交历史（按天分组）
+- 📂 按钮打开 **Repo Browser 弹窗**：完整文件树（目录优先）+ 文件预览（markdown 渲染 / 代码高亮）+ 文件历史 + Git 变更高亮
+
+### 持久化终端（tmux）
+- 命令抽屉（底部"命令终端"按钮）→ 点命令开一个 ttyd 终端窗口
+- 持久化终端常驻服务器：刷新/断开不丢，重新点会话即重连；可彻底删除
+- 终端窗口可拖动、可最小化，位置记忆在 localStorage
+
+### 系统资源监控
+- /log 工具栏两个圆环实时显示 CPU/内存占用
+- 点击弹出详情：CPU/内存 30 点折线图 + 进程 TOP 30（内存排序）
+
+### 自动备份
+- 每天自动备份数据文件到 `backups/`（保留 10 天），工具栏"备份"按钮可立即备份 + 下载
+
 ### 右侧"AI 查询记录"面板
 - 所有成功执行的 SQL（SELECT 和写入）自动记录
 - 显示：标题 + 数据库 + SQL + 执行结果 + 时间
@@ -364,6 +496,8 @@ POST /api/sql/review-mode     # 自行开关评审模式
 首次启动自动从 `config.json` 迁移，之后 `config.json` 仅保留 `reviewMode`。
 SQL 审批队列存储在 `sql-queue.json`。
 AI 查询历史记录存储在 `sql-history.json`（保留最近 200 条）。
+Git 仓库列表存储在 `data/git-repos.json`（JSON 数组，含 id/name/path/notes/group/时间戳）。
+备份文件存储在 `backups/backup-<日期>.tar.gz`（每天自动 + 手动触发，保留最近 10 天）。
 
 ### 健康检查
 
