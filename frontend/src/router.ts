@@ -19,6 +19,11 @@ const router = createRouter({
       name: 'sql',
       component: () => import('@/views/SqlView.vue'),
     },
+    {
+      path: '/prd',
+      name: 'prd',
+      component: () => import('@/views/PrdView.vue'),
+    },
   ],
 })
 

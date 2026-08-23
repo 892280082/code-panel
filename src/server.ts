@@ -4,7 +4,6 @@ import express from 'express';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
-import { exec } from 'child_process';
 
 import logsRouter from './routes/logs';
 import configRouter from './routes/config';
@@ -13,6 +12,7 @@ import databasesRouter from './routes/databases';
 import sqlExecRouter from './routes/sql-exec';
 import sqlReviewRouter from './routes/sql-review';
 import sqlHistoryRouter from './routes/sql-history';
+import prdRouter from './routes/prd';
 import terminalRouter from './routes/terminal';
 import launchRouter from './routes/launch';
 import backupRouter from './routes/backup';
@@ -47,6 +47,7 @@ app.use(databasesRouter);
 app.use(sqlExecRouter);
 app.use(sqlReviewRouter);
 app.use(sqlHistoryRouter);
+app.use(prdRouter);
 app.use(terminalRouter);
 app.use(launchRouter);
 app.use(backupRouter);
@@ -96,10 +97,6 @@ async function start() {
     console.log(`║  SQL Review  →  http://localhost:${PORT}/sql      ║`);
     console.log(`║  Terminal    →  http://localhost:${PORT}/terminal ║`);
     console.log(`╚══════════════════════════════════════════════╝`);
-
-    const cmd = process.platform === 'darwin' ? 'open' :
-                process.platform === 'win32' ? 'start' : 'xdg-open';
-    exec(`${cmd} http://localhost:${PORT}/log`, () => {});
   });
 
   // graceful shutdown

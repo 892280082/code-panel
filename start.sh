@@ -8,7 +8,6 @@ PORT=3008
 # 检查是否已在运行
 if lsof -i :$PORT -t >/dev/null 2>&1; then
     echo "⏳ 服务已在运行 → http://localhost:$PORT/log"
-    xdg-open http://localhost:$PORT/log 2>/dev/null || open http://localhost:$PORT/log 2>/dev/null
     exit 0
 fi
 

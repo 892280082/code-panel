@@ -7,13 +7,14 @@ const route = useRoute()
 const tabs = [
   { path: '/log', label: 'Logs' },
   { path: '/sql', label: 'SQL' },
+  { path: '/prd', label: 'PRD' },
 ]
 </script>
 
 <template>
   <aside class="sidebar">
     <div class="sidebar-header">
-      <h2>▸ {{ route.path === '/sql' ? 'SQL Review' : 'Log Viewer' }}</h2>
+      <h2>▸ {{ route.path === '/sql' ? 'SQL Review' : route.path === '/prd' ? 'PRD Docs' : 'Log Viewer' }}</h2>
       <div class="sidebar-nav">
         <a v-for="t in tabs" :key="t.path"
            class="nav-tab"

@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import type { DbConnection } from '../types';
 import { setDb, initTables } from '../log-config-store';
+import { setDb as setPrdDb, initTables as initPrdTables } from '../prd-status-store';
 import { invalidateConnection } from './connector';
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
@@ -52,6 +53,10 @@ export async function init(): Promise<void> {
   // 初始化日志配置表
   setDb(db);
   initTables();
+
+  // 初始化 PRD 完成状态表
+  setPrdDb(db);
+  initPrdTables();
 
   // 从 config.json 迁移旧数据
   const cfgFile = path.join(__dirname, '..', '..', 'config.json');
