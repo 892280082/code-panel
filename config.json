@@ -3,9 +3,22 @@
   "prd": {
     "dir": "/Users/owner/repository/demo-main",
     "folders": [
-      { "name": "直播功能·方案文档", "dir": "/Users/owner/repository/demo-main/user-doc/owner/2026-08-22" },
-      { "name": "IM即时通讯·接入", "dir": "/Users/owner/repository/demo-main/user-doc/owner/2026-08-22/消费者APP-IM即时通讯接入" },
-      { "name": "统一登录·PRD", "dir": "/Users/owner/repository/demo-main/user-doc/owner/2026-08-23/统一登录-PRD" }
+      {
+        "name": "owner·需求中心",
+        "dir": "/Users/owner/repository/demo-main/PRD/owner"
+      },
+      {
+        "name": "直播功能·方案文档",
+        "dir": "/Users/owner/repository/demo-main/user-doc/owner/2026-08-22"
+      },
+      {
+        "name": "IM即时通讯·接入",
+        "dir": "/Users/owner/repository/demo-main/user-doc/owner/2026-08-22/消费者APP-IM即时通讯接入"
+      },
+      {
+        "name": "统一登录·PRD",
+        "dir": "/Users/owner/repository/demo-main/user-doc/owner/2026-08-23/统一登录-PRD"
+      }
     ]
   }
 }
