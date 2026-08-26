@@ -38,6 +38,14 @@ function getLogStatus(log: any) {
   return undefined
 }
 
+/** 端口号数字亮/暗：与圆点同源（SSE 实时 portStatusMap），避免定时检测只亮圆点不亮数字 */
+function getPortAlive(log: any): boolean {
+  if (log.port && store.portStatusMap[log.port] !== undefined) {
+    return store.portStatusMap[log.port]
+  }
+  return !!log.alive
+}
+
 function escFileName(fp: string) { return fp.replace(/[^a-zA-Z0-9]/g, '_') }
 
 const activityNow = ref(Date.now())
@@ -101,7 +109,7 @@ watch(currentContent, () => {
           <StatusDot :status="getLogStatus(log)" />
           <span class="name">{{ log.name }}</span>
           <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
-          <span v-if="log.port" class="port-tag" :class="{ alive: log.alive }">{{ log.port }}</span>
+          <span v-if="log.port" class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
         </div>
       </div>
     </Sidebar>
