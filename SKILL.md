@@ -166,14 +166,14 @@ bash ~/.claude/skills/code-panel/start.sh
 
 ### 终端命令抽屉 API
 
-管理右上角绿色 FAB 按钮 → 右侧抽屉里的预填写命令。支持**增删改 + 排序 + 分组联动**。
+管理右上角绿色 FAB 按钮 → 右侧抽屉里的预填写命令。支持**增删改 + 排序 + 日志分组联动 + 子分组**。
 
 | 方法 | 路径 | 请求体 | 响应 |
 |------|------|--------|------|
 | **GET** | `/api/terminal/commands` | `?group=xxx`（可选筛选） | `{ok:true, data:[...]}` |
-| **POST** | `/api/terminal/commands` | `{label, command, cwd?, group?}` | `{ok:true, data:{id,label,command,cwd?,group?,type:"custom",...}}` |
+| **POST** | `/api/terminal/commands` | `{label, command, cwd?, group?, subgroup?}` | `{ok:true, data:{id,label,command,cwd?,group?,subgroup?,type:"custom",...}}` |
 | **PUT** | `/api/terminal/commands/reorder` | `{ids:[], group?}` | `{ok:true}` |
-| **PUT** | `/api/terminal/commands/:id` | `{label?, command?, cwd?, group?}` | `{ok:true, data:{...}}` |
+| **PUT** | `/api/terminal/commands/:id` | `{label?, command?, cwd?, group?, subgroup?}` | `{ok:true, data:{...}}` |
 | **DELETE** | `/api/terminal/commands/:id` | — | `{ok:true}` |
 
 **字段说明**：
@@ -182,24 +182,26 @@ bash ~/.claude/skills/code-panel/start.sh
 | `label` | string | ✅ | 1-100 字符，按钮显示名称 |
 | `command` | string | ✅ | 1-4096 字符，终端中执行的命令 |
 | `cwd` | string | 否 | 绝对路径（`/` 开头），命令执行的工作目录 |
-| `group` | string | 否 | 所属日志分组 key，为空时全局可见 |
+| `group` | string | 否 | 所属**日志分组 key**（与侧栏日志分组联动，`?group=xxx` 过滤），为空时全局可见 |
+| `subgroup` | string | 否 | **子分组名**（同一日志分组内再分块展示，如「快速启动」「单平台(前后台一体)」），为空时归入「未分组」块 |
 
 > **分组联动**：当指定 `?group=xxx` 查询时，只返回该分组的自定义命令。系统预设命令（磁盘空间、内存、CPU 等 7 条）全局可见。前端自动跟随当前日志分组切换。
+> **子分组**：抽屉内自定义命令按 `subgroup` 聚合成区块展示（区块头 + 命令数），新建/编辑表单可填子分组（datalist 自动提示已有分组）。排序为**组内**排序（不跨子分组）。
 
 **示例**：
 ```bash
-# 注册一条自定义命令（关联到 production 分组）
+# 注册一条自定义命令（关联到 production 日志分组 + 快速启动子分组）
 curl -s -X POST http://localhost:3008/api/terminal/commands \
   -H 'Content-Type: application/json' \
-  -d '{"label":"查看Nginx日志","command":"tail -f /var/log/nginx/access.log","cwd":"/var/log/nginx","group":"production"}'
+  -d '{"label":"🚀 全部启动","command":"bash /path/to/start.sh start all","group":"production","subgroup":"快速启动"}'
 
-# 按分组查看命令
+# 按日志分组查看命令
 curl -s "http://localhost:3008/api/terminal/commands?group=production"
 
-# 编辑命令
+# 编辑命令（改子分组）
 curl -s -X PUT http://localhost:3008/api/terminal/commands/<id> \
   -H 'Content-Type: application/json' \
-  -d '{"label":"改后名称","command":"echo hello"}'
+  -d '{"label":"改后名称","command":"echo hello","subgroup":"单平台"}'
 
 # 排序（传入自定义命令 ID 数组的新顺序）
 curl -s -X PUT http://localhost:3008/api/terminal/commands/reorder \
@@ -211,6 +213,43 @@ curl -s -X DELETE http://localhost:3008/api/terminal/commands/<id>
 ```
 
 > `type: "system"` 的命令（磁盘空间、内存、CPU、网络连接、进程列表、系统负载、磁盘 IO）为只读预设，不可编辑删除。API 创建的命令固定为 `type: "custom"`。
+
+#### ⭐ 终端自定义命令默认模式（前后端一体 + 子分组，⭐2026-08-26 用户定稿 · 强制）
+
+**以后添加任何项目的终端自定义命令，默认按这个模式组织**（参考 code-server 的 demo 分组）：
+
+**① 命令本身做"前后端一体"** — 一个命令同时起/停该项目的前端 + 后端，不要只起前端：
+
+```
+# 单平台：start <平台> <平台>-vue（前后端一起）
+bash <项目>/.claude/skills/<start脚本> start main main-vue
+# 全部：start all
+bash <项目>/.claude/skills/<start脚本> start all
+```
+
+- demo 项目用 `my-start`：`bash /Users/owner/repository/demo-main/.claude/skills/my-start/start.sh start main main-vue`
+- 其余项目参考其 `fast-start` / `my-start` 的 `start.sh`（命名规则统一：不带 `-vue` = 后端，带 `-vue` = 前端，`all` = 全部前后端）
+
+**② 同一 `group`（日志分组）内，用 `subgroup` 分三个固定子分组**，顺序如下：
+
+| subgroup | 内容 | 命令形态 |
+|----------|------|---------|
+| **快速启动** | 全部启动 / 全部关闭 / 安装公共包（3 条） | `start all` / `stop all` / `clean install` |
+| **单平台(前后台一体)** | 各平台启动（每平台 1 条） | `start <平台> <平台>-vue` |
+| **停止(前后台一体)** | 各平台关闭（每平台 1 条） | `stop <平台> <平台>-vue` |
+
+**③ 录入顺序**：先在 JSON/API 里写「快速启动」3 条 → 再各平台「启动」「停止」成对写入（保证前端聚合后子分组顺序正确）。
+
+**示例**（demo 组已按此配置，见 `data/terminal-commands.json`）：
+```json
+[
+  { "label": "🚀 全部启动(前后端一体)", "command": "bash /Users/owner/repository/demo-main/.claude/skills/my-start/start.sh start all", "group": "demo", "subgroup": "快速启动" },
+  { "label": "🛑 全部关闭",             "command": "bash /Users/owner/repository/demo-main/.claude/skills/my-start/start.sh stop all",  "group": "demo", "subgroup": "快速启动" },
+  { "label": "🧹 安装公共包(清空重装)", "command": "bash /Users/owner/repository/demo-main/.claude/skills/my-start/start.sh clean install", "group": "demo", "subgroup": "快速启动" },
+  { "label": "🚀 启动 main-platform(前后端一体)", "command": "bash /Users/owner/repository/demo-main/.claude/skills/my-start/start.sh start main main-vue", "group": "demo", "subgroup": "单平台(前后台一体)" },
+  { "label": "🛑 关闭 main-platform",   "command": "bash /Users/owner/repository/demo-main/.claude/skills/my-start/start.sh stop main main-vue",  "group": "demo", "subgroup": "停止(前后台一体)" }
+]
+```
 
 ### Tmux 持久化终端 API
 
@@ -417,20 +456,33 @@ curl -s -X DELETE http://localhost:3008/api/log-config/proj/logs/9
 
 ### ③ 录入终端命令（右侧绿色 FAB → 命令抽屉）
 
+> ⭐ **默认模式（强制）**：前后端一体命令 + `subgroup` 子分组（详见上文「终端自定义命令默认模式」）。每个日志分组推荐：`快速启动`（全部启动/全部关闭/安装公共包）+ `单平台(前后台一体)` + `停止(前后台一体)`。
+
 ```bash
-# 自定义命令（模仿「🚀 启动主模块」，关联到 proj 分组）
+# 全部启动（前后端一体，关联到 demo 日志分组 + 快速启动子分组）
 curl -s -X POST http://localhost:3008/api/terminal/commands \
   -H 'Content-Type: application/json' \
   -d '{
-    "label": "🚀 启动主模块",
-    "command": "bash /Users/owner/repository/proj-v3/.claude/skills/fast-start/scripts/start.sh zc-main zc-platform-backend zc-study",
-    "cwd": "/Users/owner/repository/proj-v3/.claude/skills/fast-start",
-    "group": "proj"                         # 空 = 全局可见
+    "label": "🚀 全部启动(前后端一体)",
+    "command": "bash /Users/owner/repository/demo-main/.claude/skills/my-start/start.sh start all",
+    "group": "demo",
+    "subgroup": "快速启动"
   }'
-# → {ok:true, data:{id:"...", type:"custom"}}
+# → {ok:true, data:{id:"...", type:"custom", subgroup:"快速启动"}}
 
-# 录入完成后用 ?group= 验证
-curl -s "http://localhost:3008/api/terminal/commands?group=proj"
+# 单平台（前后端一体，前后端一起起停）
+curl -s -X POST http://localhost:3008/api/terminal/commands \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "label": "🚀 启动 main-platform(前后端一体)",
+    "command": "bash /Users/owner/repository/demo-main/.claude/skills/my-start/start.sh start main main-vue",
+    "group": "demo",
+    "subgroup": "单平台(前后台一体)"
+  }'
+
+# 录入顺序：先写「快速启动」3 条 → 再各平台「启动」「停止」成对写入
+# 录入完成后用 ?group= 验证（前端会自动按 subgroup 聚合成区块）
+curl -s "http://localhost:3008/api/terminal/commands?group=demo"
 ```
 
 ### ④ 录入 Git 仓库（/git 页面 → + Add Repo）

@@ -11,11 +11,27 @@ const showForm = ref(false)
 const newLabel = ref('')
 const newCmd = ref('')
 const newCwd = ref('')
+const newSubgroup = ref('')
 const formError = ref('')
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const systemCmds = computed(() => commands.value.filter((c: any) => c.type === 'system'))
 const customCmds = computed(() => commands.value.filter((c: any) => c.type === 'custom'))
+
+// ── 子分组聚合：按 subgroup 分块展示（未设置 subgroup 的命令归入默认块）──
+const groupedCustomCmds = computed(() => {
+  const map = new Map<string, any[]>()
+  for (const c of customCmds.value) {
+    const g = c.subgroup || ''
+    if (!map.has(g)) map.set(g, [])
+    map.get(g)!.push(c)
+  }
+  return Array.from(map.entries())
+})
+/** 已有子分组名（表单 datalist 提示用） */
+const allSubgroups = computed(() =>
+  Array.from(new Set(customCmds.value.map((c: any) => c.subgroup).filter(Boolean)) as Set<string>),
+)
 
 // ── 按钮拖拽 ────────────────────────────────────────
 const POS_KEY = 'cmd-drawer-trigger-pos'
@@ -138,12 +154,13 @@ async function handleCreate() {
         label: newLabel.value.trim(),
         command: newCmd.value.trim(),
         cwd: newCwd.value.trim() || undefined,
-        group: currentGroup.value || undefined
+        group: currentGroup.value || undefined,
+        subgroup: newSubgroup.value.trim() || undefined
       })
     })
     const data = await res.json()
     if (data.ok) {
-      newLabel.value = ''; newCmd.value = ''; newCwd.value = ''
+      newLabel.value = ''; newCmd.value = ''; newCwd.value = ''; newSubgroup.value = ''
       showForm.value = false
       loadCommands()
     } else {
@@ -159,6 +176,7 @@ const editingCmd = ref<any>(null)
 const editLabel = ref('')
 const editCmd = ref('')
 const editCwd = ref('')
+const editSubgroup = ref('')
 const editError = ref('')
 
 function openEdit(cmd: any) {
@@ -166,6 +184,7 @@ function openEdit(cmd: any) {
   editLabel.value = cmd.label
   editCmd.value = cmd.command
   editCwd.value = cmd.cwd || ''
+  editSubgroup.value = cmd.subgroup || ''
   editError.value = ''
 }
 
@@ -181,7 +200,8 @@ async function handleEditSave() {
         label: editLabel.value.trim(),
         command: editCmd.value.trim(),
         cwd: editCwd.value.trim() || undefined,
-        group: currentGroup.value || undefined
+        group: currentGroup.value || undefined,
+        subgroup: editSubgroup.value.trim() || undefined
       })
     })
     const data = await res.json()
@@ -204,21 +224,24 @@ async function handleDelete(cmd: any) {
   return true
 }
 
-// ── 排序（自定义命令） ─────────────────────────────────
-function moveUp(index: number) {
-  const list = customCmds.value
-  if (index <= 0) return
-  const ids = list.map((c: any) => c.id)
-  const tmp = ids[index]; ids[index] = ids[index - 1]; ids[index - 1] = tmp
-  saveReorder(ids)
+// ── 排序（自定义命令，组内排序） ─────────────────────────
+/** 在指定子分组内上移/下移命令（整体数组重新排序，保持其它命令相对顺序） */
+function moveInGroup(cmd: any, dir: -1 | 1) {
+  const sub = cmd.subgroup || ''
+  const groupList = customCmds.value.filter((c: any) => (c.subgroup || '') === sub)
+  const idx = groupList.findIndex((c: any) => c.id === cmd.id)
+  if (idx === -1) return
+  const target = idx + dir
+  if (target < 0 || target >= groupList.length) return
+
+  const allIds = customCmds.value.map((c: any) => c.id)
+  const a = allIds.indexOf(cmd.id)
+  const b = allIds.indexOf(groupList[target].id)
+  const tmp = allIds[a]; allIds[a] = allIds[b]; allIds[b] = tmp
+  saveReorder(allIds)
 }
-function moveDown(index: number) {
-  const list = customCmds.value
-  if (index >= list.length - 1) return
-  const ids = list.map((c: any) => c.id)
-  const tmp = ids[index]; ids[index] = ids[index + 1]; ids[index + 1] = tmp
-  saveReorder(ids)
-}
+function moveUp(cmd: any) { moveInGroup(cmd, -1) }
+function moveDown(cmd: any) { moveInGroup(cmd, 1) }
 async function saveReorder(ids: string[]) {
   await fetch('/api/terminal/commands/reorder', {
     method: 'PUT',
@@ -273,6 +296,10 @@ async function saveReorder(ids: string[]) {
               <input v-model="newLabel" class="form-input" placeholder="名称" @keyup.enter="handleCreate" />
               <input v-model="newCmd" class="form-input mono" placeholder="命令" @keyup.enter="handleCreate" />
               <input v-model="newCwd" class="form-input mono" placeholder="工作目录（可选）" @keyup.enter="handleCreate" />
+              <input v-model="newSubgroup" class="form-input" list="cmd-subgroups" placeholder="子分组（可选，如 快速启动 / 单平台）" @keyup.enter="handleCreate" />
+              <datalist id="cmd-subgroups">
+                <option v-for="g in allSubgroups" :key="g" :value="g" />
+              </datalist>
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <button class="form-submit" @click="handleCreate">保存</button>
             </div>
@@ -281,18 +308,25 @@ async function saveReorder(ids: string[]) {
               暂无自定义命令，点击「+ 新建」创建
             </div>
 
-            <div v-for="(cmd, idx) in customCmds" :key="cmd.id" class="cmd-card">
-              <div class="cmd-card-body" @click="onClickCommand(cmd)">
-                <span class="cmd-label">{{ cmd.label }}</span>
-                <span class="cmd-preview">{{ cmd.command }}</span>
+            <!-- 按子分组聚合展示 -->
+            <template v-for="[sub, list] in groupedCustomCmds" :key="sub || '__default__'">
+              <div class="subgroup-head">
+                <span class="subgroup-name">{{ sub || '未分组' }}</span>
+                <span class="subgroup-count">{{ list.length }}</span>
               </div>
-              <div class="cmd-card-foot">
-                <button class="foot-btn" :disabled="idx === 0" @click.stop="moveUp(idx)">▲</button>
-                <button class="foot-btn" :disabled="idx === customCmds.length - 1" @click.stop="moveDown(idx)">▼</button>
-                <span class="foot-sep" />
-                <button class="foot-btn cfg" @click.stop="openEdit(cmd)">配置</button>
+              <div v-for="cmd in list" :key="cmd.id" class="cmd-card">
+                <div class="cmd-card-body" @click="onClickCommand(cmd)">
+                  <span class="cmd-label">{{ cmd.label }}</span>
+                  <span class="cmd-preview">{{ cmd.command }}</span>
+                </div>
+                <div class="cmd-card-foot">
+                  <button class="foot-btn" :disabled="list.indexOf(cmd) === 0" @click.stop="moveUp(cmd)">▲</button>
+                  <button class="foot-btn" :disabled="list.indexOf(cmd) === list.length - 1" @click.stop="moveDown(cmd)">▼</button>
+                  <span class="foot-sep" />
+                  <button class="foot-btn cfg" @click.stop="openEdit(cmd)">配置</button>
+                </div>
               </div>
-            </div>
+            </template>
           </template>
 
           <!-- 系统 Tab -->
@@ -331,6 +365,7 @@ async function saveReorder(ids: string[]) {
           <input v-model="editLabel" class="form-input" placeholder="名称" />
           <input v-model="editCmd" class="form-input mono" placeholder="命令" />
           <input v-model="editCwd" class="form-input mono" placeholder="工作目录（可选）" />
+          <input v-model="editSubgroup" class="form-input" list="cmd-subgroups" placeholder="子分组（可选）" />
           <div v-if="editError" class="form-error">{{ editError }}</div>
         </div>
         <div class="modal-footer">
@@ -598,6 +633,26 @@ async function saveReorder(ids: string[]) {
 .section-hint {
   color: var(--text-dim, #6b6b78);
   font-size: 12px; text-align: center; padding: 16px 0;
+}
+
+/* ── 子分组区块头 ─────────────────────────────────────── */
+.subgroup-head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 2px 2px;
+  margin-top: 4px;
+  border-bottom: 1px solid var(--border, #23232a);
+}
+.subgroup-head:first-child { margin-top: 0; }
+.subgroup-name {
+  font-size: 12px; font-weight: 600;
+  color: var(--text, #c8c8d0);
+  letter-spacing: 0.02em;
+}
+.subgroup-count {
+  font-size: 10px; color: var(--text-dim, #6b6b78);
+  background: rgba(255,255,255,0.05);
+  border-radius: 8px; padding: 0 6px;
+  line-height: 16px;
 }
 .cmd-label { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cmd-preview {

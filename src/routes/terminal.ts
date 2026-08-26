@@ -83,7 +83,7 @@ router.get('/api/terminal/commands', (req: Request, res: Response) => {
 
 // POST /api/terminal/commands — 注册命令按钮
 router.post('/api/terminal/commands', (req: Request, res: Response) => {
-  const { label, command, cwd, group } = req.body;
+  const { label, command, cwd, group, subgroup } = req.body;
 
   if (!label || typeof label !== 'string' || !label.trim() || label.trim().length > 100) {
     res.status(400).json({ ok: false, error: 'label is required and must be 1-100 characters' });
@@ -106,7 +106,8 @@ router.post('/api/terminal/commands', (req: Request, res: Response) => {
     label.trim(),
     command.trim(),
     cwd && typeof cwd === 'string' ? cwd.trim() : undefined,
-    group && typeof group === 'string' ? group.trim() : undefined
+    group && typeof group === 'string' ? group.trim() : undefined,
+    subgroup && typeof subgroup === 'string' ? subgroup.trim() : undefined
   );
 
   res.status(201).json({ ok: true, data: entry });
@@ -126,7 +127,7 @@ router.put('/api/terminal/commands/reorder', (req: Request, res: Response) => {
 // PUT /api/terminal/commands/:id — 编辑命令按钮
 router.put('/api/terminal/commands/:id', (req: Request, res: Response) => {
   const { id } = req.params;
-  const { label, command, cwd, group } = req.body;
+  const { label, command, cwd, group, subgroup } = req.body;
 
   if (label !== undefined && (typeof label !== 'string' || !label.trim() || label.trim().length > 100)) {
     res.status(400).json({ ok: false, error: 'label must be 1-100 characters' });
@@ -141,7 +142,7 @@ router.put('/api/terminal/commands/:id', (req: Request, res: Response) => {
     return;
   }
 
-  const updated = updateCommand(id, { label, command, cwd, group });
+  const updated = updateCommand(id, { label, command, cwd, group, subgroup });
   if (!updated) {
     res.status(404).json({ ok: false, error: 'command not found or is system command' });
     return;

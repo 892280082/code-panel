@@ -8,7 +8,8 @@ export interface CommandButton {
   command: string;
   cwd?: string;
   type: 'system' | 'custom';
-  group?: string;       // 所属分组，为空时表示全局命令
+  group?: string;       // 所属日志分组，为空时表示全局命令（与侧栏日志分组联动）
+  subgroup?: string;    // 子分组名（同一日志分组内再分块展示，如「快速启动」「单平台(前后台一体)」），为空时归入默认块
   createdAt: string;
   updatedAt: string;
 }
@@ -72,7 +73,7 @@ export function getAllCommands(group?: string): CommandButton[] {
   return all.filter(c => c.type === 'system' || c.group === group);
 }
 
-export function addCommand(label: string, command: string, cwd?: string, group?: string, type: 'system' | 'custom' = 'custom'): CommandButton {
+export function addCommand(label: string, command: string, cwd?: string, group?: string, subgroup?: string, type: 'system' | 'custom' = 'custom'): CommandButton {
   const commands = readFile();
   const now = new Date().toISOString();
   const entry: CommandButton = {
@@ -82,6 +83,7 @@ export function addCommand(label: string, command: string, cwd?: string, group?:
     cwd: cwd?.trim() || undefined,
     type,
     group: group?.trim() || undefined,
+    subgroup: subgroup?.trim() || undefined,
     createdAt: now,
     updatedAt: now,
   };
@@ -100,7 +102,7 @@ export function deleteCommand(id: string): boolean {
   return true;
 }
 
-export function updateCommand(id: string, fields: { label?: string; command?: string; cwd?: string; group?: string }): CommandButton | null {
+export function updateCommand(id: string, fields: { label?: string; command?: string; cwd?: string; group?: string; subgroup?: string }): CommandButton | null {
   const commands = readFile();
   const idx = commands.findIndex(c => c.id === id);
   if (idx === -1) return null;
@@ -110,6 +112,7 @@ export function updateCommand(id: string, fields: { label?: string; command?: st
   if (fields.command !== undefined) cmd.command = fields.command.trim();
   if (fields.cwd !== undefined) cmd.cwd = fields.cwd?.trim() || undefined;
   if (fields.group !== undefined) cmd.group = fields.group?.trim() || undefined;
+  if (fields.subgroup !== undefined) cmd.subgroup = fields.subgroup?.trim() || undefined;
   cmd.updatedAt = new Date().toISOString();
   commands[idx] = cmd;
   writeFile(commands);
