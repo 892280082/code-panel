@@ -16,6 +16,8 @@ import prdRouter from './routes/prd';
 import terminalRouter from './routes/terminal';
 import launchRouter from './routes/launch';
 import backupRouter from './routes/backup';
+import gitReposRouter from './routes/git-repos';
+import repoBrowserRouter from './routes/repo-browser';
 import { runBackup } from './backup/backup-manager';
 import { terminalProxyMiddleware, mountTerminalProxy } from './terminal/proxy';
 import { startTTYD, stopTTYD } from './terminal/ttyd-manager';
@@ -51,6 +53,8 @@ app.use(prdRouter);
 app.use(terminalRouter);
 app.use(launchRouter);
 app.use(backupRouter);
+app.use(gitReposRouter);
+app.use(repoBrowserRouter);
 
 // ── SPA fallback — all non-API routes serve index.html ───
 const indexHtml = path.join(DIST_DIR, 'index.html');

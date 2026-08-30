@@ -7,6 +7,7 @@ import path from 'path';
 import type { DbConnection } from '../types';
 import { setDb, initTables } from '../log-config-store';
 import { setDb as setPrdDb, initTables as initPrdTables } from '../prd-status-store';
+import { setGitDb, initGitTable } from '../git/git-repo-store';
 import { invalidateConnection } from './connector';
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
@@ -57,6 +58,10 @@ export async function init(): Promise<void> {
   // 初始化 PRD 完成状态表
   setPrdDb(db);
   initPrdTables();
+
+  // 初始化 Git 仓库表
+  setGitDb(db);
+  initGitTable();
 
   // 从 config.json 迁移旧数据
   const cfgFile = path.join(__dirname, '..', '..', 'config.json');
