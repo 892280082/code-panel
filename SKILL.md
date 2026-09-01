@@ -22,13 +22,43 @@ bash ~/.claude/skills/code-panel/start.sh
 | `http://localhost:3008/log` | 日志查看器（实时追踪 + 分组管理 + 系统资源圆环 + 备份按钮） |
 | `http://localhost:3008/sql` | SQL 评审面板（审批/拒绝 + DB 存活状态 + 查询历史） |
 | `http://localhost:3008/git` | Git 仓库管理（变更 diff / 提交历史 / 仓库文件浏览器） |
-| `http://localhost:3008/prd` | **PRD 文档面板**（左侧文件夹 + MD 文件，点开内嵌渲染 + 原型 iframe，目录完成状态） |
+| `http://localhost:3008/prd` | **PRD 文档面板**（顶部**分组下拉**按 group 过滤（同 /log），只显示当前分组的文件夹；左侧文件夹 + 文件，点开内嵌渲染 + 原型 iframe，目录完成状态） |
 
 ---
 
 ## PRD 指令（用户说"PRD"时执行）
 
 > **触发词**：PRD、写PRD、设计原型、打开PRD、PRD面板。用户说这些时，按下面的强制流程写 PRD 文档并渲染。
+
+> 📐 **PRD 目录格式标准**（总看板 index.md / plan 三状态目录 / 子计划四件套 / 表格与链接规范）见 `references/prd-directory-format.md`，写 PRD 前必读。
+
+### 📁 PRD 目录结构与模板（⭐ 强制 · 2026-09-02 用户定稿）
+
+> 🚨 **写 PRD 必须套用模板**：完整模板目录在 **`templates/prd/`**（总看板 + plan 三状态 + 子计划四件套 + 原型 + 伪代码），**复制即用，禁止自创结构**。
+> 用法：`cp -r templates/prd/* <项目>/prd/` → 改总看板 → 填子计划 → 每步骤一个 md。
+
+```
+prd/
+├── index.md              ← 总看板（管理所有子计划，标准表格列头：计划/模块/优先级/阶段/定稿/伪代码/核心实现/speckit）
+└── plan/                 ← ⭐ 状态 = 目录位置（移动目录即流转）
+    ├── todo/             ← ⏳ 待启动
+    ├── doing/<计划名>/    ← 🔄 进行中（子计划放这里）
+    │   ├── index.md      ← 子计划入口（背景/目标/核心流程/步骤导航/核心差异）
+    │   ├── 步骤N-<名称>.md ← 每步骤一个（见下方必备元素）
+    │   ├── 原型-<页面>.html ← 原生 HTML 原型（自包含样式）
+    │   └── 伪代码/        ← 步骤N-<端>-<功能>.ts（@tabs 渲染，每功能一个）
+    └── done/             ← 📂 已归档
+```
+
+**步骤文档必备元素（缺一不可，禁止只写伪代码）**：
+
+| 元素 | 写法 |
+|------|------|
+| 🖼 **原型图** | `> 原型图：\`原型-<页面>.html\``（面板自动 iframe 内联，顶部即见原型） |
+| 🔀 **流程图** | mermaid（**必须配数据结构 + 文字流程双份**，禁止裸流程图） |
+| 📂 **菜单清单** | 平台 / 一级菜单 / 二级菜单 / 路由 / 权限码（层级三列式） |
+| 📋 **表结构** | 逐字段（#序号 / 类型 / 可空 / 说明）+ **库归属**（`【库】`）+ **码值标注**（枚举）+ **隔离说明** |
+| 💻 **伪代码** | `> @tabs 步骤N` **在 MD 内渲染**（iframe 显示代码），**不是让用户翻 .ts 文件** |
 
 ### 强制原型结构规范（写 PRD 必须按此顺序，禁止跳过）
 
@@ -269,7 +299,7 @@ bash <项目>/.claude/skills/<start脚本> start all
 
 ### Git 仓库管理 API
 
-管理注册的 git 仓库（路径 + 备注），提供**变更 diff、提交历史、源码查看、一键 pull**。仓库列表存储在 `data/git-repos.json`。
+管理注册的 git 仓库（路径 + 备注 + 分组），提供**变更 diff、提交历史、源码查看、一键 pull**。仓库列表存储在 SQLite `git_repos` 表（与数据库连接/日志分组同库 `data/db-config.sqlite`），`group` 字段复用日志分组 key（字符串标签，前端分组下拉筛选）。
 
 | 方法 | 路径 | 请求体/参数 | 响应 |
 |------|------|-------------|------|
@@ -345,10 +375,10 @@ curl -s -X POST http://localhost:3008/api/git/pull-all
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | **GET** | `/prd` | PRD 面板页（左侧文件夹 → MD 文件 → 内嵌预览） |
-| **GET** | `/api/prd/folders` | 文件夹列表（名称/目录/文件数/日期/完成状态） |
+| **GET** | `/api/prd/folders` | 文件夹列表（名称/目录/**group**/文件数/日期/完成状态；group 用于面板分组下拉） |
 | **GET** | `/api/prd/files?dir=` | 某目录下 MD 文件列表 |
 | **GET** | `/api/prd/content?dir=&file=` | 内嵌预览（渲染 MD + 原型 iframe，无左侧导航） |
-| **GET** | `/api/prd/view?dir=&file=` | 双栏查看页（左 MD 列表 + 右渲染 HTML） |
+| **GET** | `/api/prd/view?dir=&file=` | 双栏查看页（左 文件列表 = **md + 代码文件**（伪代码目录的 .ts/.js 等也可点开），右渲染 HTML；代码文件渲染为深色代码视图） |
 | **GET** | `/api/prd/file?p=` | 读取原型 HTML（供 iframe） |
 | **POST** | `/api/prd/done` | `{dir, done}` 切换**目录**完成状态（沉淀数据库） |
 
@@ -644,7 +674,7 @@ POST /api/sql/review-mode     # 自行开关评审模式
 首次启动自动从 `config.json` 迁移，之后 `config.json` 仅保留 `reviewMode`。
 SQL 审批队列存储在 `sql-queue.json`。
 AI 查询历史记录存储在 `sql-history.json`（保留最近 200 条）。
-Git 仓库列表存储在 `data/git-repos.json`（JSON 数组，含 id/name/path/notes/group/时间戳）。
+Git 仓库列表存储在 SQLite `git_repos` 表（与数据库连接/日志分组同库 `data/db-config.sqlite`，含 id/name/path/notes/group/时间戳）。
 备份文件存储在 `backups/backup-<日期>.tar.gz`（每天自动 + 手动触发，保留最近 10 天）。
 
 ### 健康检查

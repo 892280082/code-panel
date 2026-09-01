@@ -24,6 +24,11 @@ const router = createRouter({
       name: 'prd',
       component: () => import('@/views/PrdView.vue'),
     },
+    {
+      path: '/git',
+      name: 'git',
+      component: () => import('@/views/GitView.vue'),
+    },
   ],
 })
 

@@ -1,9 +1,18 @@
 <template>
   <div class="app">
     <Sidebar>
+      <!-- 分组切换：只显示当前分组的文件夹（类似 /log） -->
+      <select
+        class="group-select"
+        :value="currentGroup"
+        @change="setGroup(($event.target as HTMLSelectElement).value)"
+      >
+        <option v-if="!groups.length" disabled>No groups</option>
+        <option v-for="g in groups" :key="g" :value="g">{{ g }}</option>
+      </select>
       <div class="scroll-list">
         <div
-          v-for="f in folders" :key="f.dir"
+          v-for="f in filteredFolders" :key="f.dir"
           class="list-item file-item"
           :class="{ selected: currentDir === f.dir }"
           @click="selectFolder(f.dir)"
@@ -72,13 +81,31 @@
 import { ref, computed, onMounted } from 'vue'
 import Sidebar from '@/components/Sidebar.vue'
 
-interface PrdFolder { name: string; dir: string; fileCount: number; date: string; done: boolean }
+interface PrdFolder { name: string; dir: string; group?: string; fileCount: number; date: string; done: boolean }
 interface PrdFile { name: string; path: string }
 const currentDirDone = computed(() => folders.value.find(f => f.dir === currentDir.value)?.done || false)
 const folders = ref<PrdFolder[]>([])
 const files = ref<PrdFile[]>([])
 const currentDir = ref('')
 const currentFile = ref('')
+
+// ── 分组切换（类似 /log，只显示当前分组的文件夹）──
+const groups = computed<string[]>(() => {
+  const s = new Set<string>()
+  for (const f of folders.value) s.add(f.group || '未分组')
+  return [...s]
+})
+const currentGroup = ref(localStorage.getItem('prd-group') || '')
+const filteredFolders = computed<PrdFolder[]>(() =>
+  folders.value.filter(f => (f.group || '未分组') === currentGroup.value)
+)
+
+function setGroup(g: string) {
+  currentGroup.value = g
+  localStorage.setItem('prd-group', g)
+  const first = filteredFolders.value[0]
+  if (first) selectFolder(first.dir)   // 切分组后默认选中该组第一个文件夹
+}
 
 const previewUrl = computed(() =>
   currentDir.value && currentFile.value
@@ -94,7 +121,12 @@ async function loadFolders() {
     const data = await res.json()
     if (data.ok) {
       folders.value = data.folders
-      if (data.folders.length) selectFolder(data.folders[0].dir)
+      // 初始化当前分组：优先记住的选择，否则取第一个分组
+      if (!currentGroup.value || !groups.value.includes(currentGroup.value)) {
+        currentGroup.value = groups.value[0] || ''
+      }
+      const first = filteredFolders.value[0]
+      if (first) selectFolder(first.dir)
     }
   } catch { /* ignore */ }
 }
@@ -141,6 +173,15 @@ onMounted(loadFolders)
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
 .scroll-list { flex: 1; overflow-y: auto; padding: 8px; min-height: 25vh; }
+.group-select {
+  width: calc(100% - 16px); margin: 8px 8px 0;
+  padding: 8px 12px;
+  font-family: var(--font); font-size: 12px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  outline: none; cursor: pointer;
+}
+.group-select:focus { border-color: var(--glow-dim); }
 .list-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 4px; }
 .folder-block { flex: 1; min-width: 0; }
 .fb-name { font-size: 12px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
