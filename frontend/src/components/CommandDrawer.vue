@@ -377,56 +377,39 @@ async function saveReorder(ids: string[]) {
 
         <!-- 滚动内容区 -->
         <div class="drawer-scroll">
-          <!-- 自定义 Tab -->
+          <!-- 自定义 Tab(命令由 .code-panel/commands.yaml 配置,纯展示+运行) -->
           <template v-if="activeTab === 'custom'">
-            <button class="new-btn" @click="showForm = !showForm">
-              <span v-if="showForm">− 取消</span>
-              <span v-else>+ 新建</span>
-            </button>
-
-            <div v-if="showForm" class="form-card">
-              <input v-model="newLabel" class="form-input" placeholder="名称" @keyup.enter="handleCreate" />
-              <input v-model="newCmd" class="form-input mono" placeholder="命令" @keyup.enter="handleCreate" />
-              <input v-model="newCwd" class="form-input mono" placeholder="工作目录（可选）" @keyup.enter="handleCreate" />
-              <input v-model="newSubgroup" class="form-input" list="cmd-subgroups" placeholder="子分组（可选，如 快速启动 / 单平台）" @keyup.enter="handleCreate" />
-              <datalist id="cmd-subgroups">
-                <option v-for="g in allSubgroups" :key="g" :value="g" />
-              </datalist>
-              <div v-if="formError" class="form-error">{{ formError }}</div>
-              <button class="form-submit" @click="handleCreate">保存</button>
+            <div v-if="customCmds.length === 0" class="section-hint">
+              暂无自定义命令 —— 在项目 .code-panel/commands.yaml 里加
             </div>
-
-            <div v-if="customCmds.length === 0 && !showForm" class="section-hint">
-              暂无自定义命令，点击「+ 新建」创建
-            </div>
-
-            <!-- 按子分组聚合展示 -->
             <template v-for="[sub, list] in groupedCustomCmds" :key="sub || '__default__'">
               <div class="subgroup-head">
                 <span class="subgroup-name">{{ sub || '未分组' }}</span>
                 <span class="subgroup-count">{{ list.length }}</span>
               </div>
-              <div v-for="cmd in list" :key="cmd.id" class="cmd-card">
-                <div class="cmd-card-body" @click="onClickCommand(cmd)">
+              <div class="cmd-grid">
+                <button
+                  v-for="cmd in list" :key="cmd.id"
+                  class="cmd-btn" :title="cmd.command"
+                  @click="onClickCommand(cmd)"
+                >
                   <span class="cmd-label">{{ cmd.label }}</span>
-                  <span class="cmd-preview">{{ cmd.command }}</span>
-                </div>
-                <div class="cmd-card-foot">
-                  <button class="foot-btn" :disabled="list.indexOf(cmd) === 0" @click.stop="moveUp(cmd)">▲</button>
-                  <button class="foot-btn" :disabled="list.indexOf(cmd) === list.length - 1" @click.stop="moveDown(cmd)">▼</button>
-                  <span class="foot-sep" />
-                  <button class="foot-btn cfg" @click.stop="openEdit(cmd)">配置</button>
-                </div>
+                </button>
               </div>
             </template>
           </template>
 
           <!-- 系统 Tab -->
           <template v-if="activeTab === 'system'">
-            <button v-for="cmd in systemCmds" :key="cmd.id" class="sys-card" @click="onClickCommand(cmd)">
-              <span class="cmd-label">{{ cmd.label }}</span>
-              <span class="cmd-preview">{{ cmd.command }}</span>
-            </button>
+            <div class="cmd-grid">
+              <button
+                v-for="cmd in systemCmds" :key="cmd.id"
+                class="cmd-btn" :title="cmd.command"
+                @click="onClickCommand(cmd)"
+              >
+                <span class="cmd-label">{{ cmd.label }}</span>
+              </button>
+            </div>
           </template>
 
           <!-- 会话 Tab(Tmux 持久化终端) -->
@@ -482,29 +465,6 @@ async function saveReorder(ids: string[]) {
       </div>
     </Teleport>
 
-    <!-- 配置弹窗（编辑 + 删除） -->
-    <Teleport to="body">
-      <div v-if="editingCmd" class="modal-backdrop" @click="editingCmd = null" />
-      <div v-if="editingCmd" class="modal-dialog" @click.stop>
-        <div class="modal-header">
-          <span>配置命令</span>
-          <button class="modal-close" @click="editingCmd = null">✕</button>
-        </div>
-        <div class="modal-body">
-          <input v-model="editLabel" class="form-input" placeholder="名称" />
-          <input v-model="editCmd" class="form-input mono" placeholder="命令" />
-          <input v-model="editCwd" class="form-input mono" placeholder="工作目录（可选）" />
-          <input v-model="editSubgroup" class="form-input" list="cmd-subgroups" placeholder="子分组（可选）" />
-          <div v-if="editError" class="form-error">{{ editError }}</div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-danger" @click="handleDelete(editingCmd).then(ok => { if (ok) editingCmd = null })">删除</button>
-          <span class="foot-gap" />
-          <button class="btn-cancel" @click="editingCmd = null">取消</button>
-          <button class="btn-save" @click="handleEditSave">保存</button>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
 
@@ -548,7 +508,7 @@ async function saveReorder(ids: string[]) {
 .drawer-panel {
   position: fixed;
   top: 0; right: 0;
-  width: 320px; height: 100vh;
+  width: 460px; height: 100vh;
   z-index: 10001;
   background: var(--surface, #131316);
   border-left: 1px solid var(--border, #23232a);
@@ -871,6 +831,30 @@ async function saveReorder(ids: string[]) {
   transition: border-color 0.2s, background 0.2s;
 }
 .launch-btn:hover {
+  border-color: var(--glow, #22ee66);
+  background: rgba(34,238,102,0.05);
+}
+
+/* ── 命令按钮:一行两个 ───────────────────────────────── */
+.cmd-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.cmd-btn {
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--bg, #09090b);
+  border: 1px solid var(--border, #23232a);
+  border-radius: 6px;
+  color: var(--text, #c8c8d0);
+  cursor: pointer; text-align: left;
+  display: flex; align-items: center;
+  overflow: hidden;
+  transition: border-color 0.15s, background 0.15s;
+}
+.cmd-btn .cmd-label { font-size: 12px; }
+.cmd-btn:hover {
   border-color: var(--glow, #22ee66);
   background: rgba(34,238,102,0.05);
 }
