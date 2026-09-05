@@ -8,7 +8,6 @@ import type { LogEntry } from '@/types'
 import Sidebar from '@/components/Sidebar.vue'
 import StatusDot from '@/components/StatusDot.vue'
 import QuickLaunchDrawer from '@/components/QuickLaunchDrawer.vue'
-import BackupDrawer from '@/components/BackupDrawer.vue'
 
 const store = useLogStore()
 const projects = useProjectsStore()
@@ -203,7 +202,6 @@ watch(currentContent, () => {
         >{{ ansiLabels[store.ansiMode] }}</button>
         <span class="status">{{ store.connected ? '● connected' : '○ reconnecting' }}</span>
         <QuickLaunchDrawer />
-        <BackupDrawer />
       </div>
 
       <!-- Tab Bar -->

@@ -8,6 +8,7 @@ import { useRouter } from 'vue-router'
 import { apiFetch } from '@/utils/api-fetch'
 import { useProjectsStore } from '@/stores/projects'
 import { useAuthStore } from '@/stores/auth'
+import BackupPanel from '@/components/BackupPanel.vue'
 
 const emit = defineEmits<{ (e: 'close'): void }>()
 
@@ -15,10 +16,11 @@ const projects = useProjectsStore()
 const auth = useAuthStore()
 const router = useRouter()
 
-type TabKey = 'project' | 'account'
+type TabKey = 'project' | 'backup' | 'account'
 const activeTab = ref<TabKey>('project')
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'project', label: '项目' },
+  { key: 'backup', label: '备份' },
   { key: 'account', label: '账号' },
 ]
 
@@ -160,6 +162,11 @@ async function logout() {
             <div v-else class="add-zone">
               <button class="ghost add-left" @click="showAdd = true">＋ 添加项目</button>
             </div>
+          </div>
+
+          <!-- ── 备份 ── -->
+          <div v-else-if="activeTab === 'backup'" class="tab-pane">
+            <BackupPanel />
           </div>
 
           <!-- ── 账号 ── -->
