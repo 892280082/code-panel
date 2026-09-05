@@ -116,7 +116,7 @@ watch(currentContent, () => {
           <section v-for="g in platformGroups" :key="g.name" class="platform-card">
             <h3 class="platform-name">{{ g.name }}<span v-if="g.logs.length" class="cnt">{{ g.logs.length }}</span></h3>
             <div class="pc-cols">
-              <!-- 左列:后端(或旧格式全部);右列:前端,二者并排一行 -->
+              <!-- 左列:后端(或旧格式全部);右列:前端,二者并排;每项名字在上、端口在下 -->
               <div v-if="colA(g).length" class="pc-col" :class="{ wide: !colB(g).length }">
                 <div
                   v-for="log in colA(g)" :key="log.file"
@@ -124,10 +124,14 @@ watch(currentContent, () => {
                   :class="{ selected: store.activeFile === log.file }"
                   @click="store.openFile(log.file, log.name)"
                 >
-                  <StatusDot :status="getLogStatus(log)" />
-                  <span class="name">{{ log.name }}</span>
-                  <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
-                  <span v-if="log.port" class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
+                  <div class="tile-top">
+                    <StatusDot :status="getLogStatus(log)" />
+                    <span class="name">{{ log.name }}</span>
+                    <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
+                  </div>
+                  <div v-if="log.port" class="tile-sub">
+                    <span class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
+                  </div>
                 </div>
               </div>
               <div v-if="colB(g).length" class="pc-col" :class="{ wide: !colA(g).length }">
@@ -137,10 +141,14 @@ watch(currentContent, () => {
                   :class="{ selected: store.activeFile === log.file }"
                   @click="store.openFile(log.file, log.name)"
                 >
-                  <StatusDot :status="getLogStatus(log)" />
-                  <span class="name">{{ log.name }}</span>
-                  <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
-                  <span v-if="log.port" class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
+                  <div class="tile-top">
+                    <StatusDot :status="getLogStatus(log)" />
+                    <span class="name">{{ log.name }}</span>
+                    <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
+                  </div>
+                  <div v-if="log.port" class="tile-sub">
+                    <span class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -403,22 +411,21 @@ watch(currentContent, () => {
   min-width: 0;
   width: 100%;
   box-sizing: border-box;
-  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--bg);
   padding: 24px 12px 12px;
 }
 .platform-name {
-  position: absolute; top: -9px; left: 12px; margin: 0;
+  position: absolute; top: -11px; left: 14px; margin: 0; z-index: 2;
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 11px; font-weight: 700;
+  font-size: 12px; font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--text-dim);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 1px 10px;
+  padding: 2px 12px;
   white-space: nowrap;
   cursor: default;
 }
@@ -434,13 +441,24 @@ watch(currentContent, () => {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  padding: 12px 12px; margin: 4px 0;
-  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 10px 12px; margin: 4px 0;
   border: 1px solid transparent;
-  overflow: hidden;
+  border-radius: 8px;
 }
-.platform-card .list-item .name { min-width: 0; }
+.platform-card .list-item .tile-top {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+}
+.platform-card .list-item .name { min-width: 0; font-size: 13px; }
+.platform-card .list-item .tile-sub {
+  display: flex; align-items: center;
+  padding-left: 14px; /* 与名字行圆点错位对齐 */
+}
 .platform-card .list-item.selected {
-  background: #1a1a28; border-color: var(--glow-dim); border-radius: 8px;
+  background: #1a1a28; border-color: var(--glow-dim);
 }
+
 </style>
