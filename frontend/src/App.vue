@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted } from 'vue'
 import CommandDrawer from '@/components/CommandDrawer.vue'
 import TerminalPanel from '@/components/TerminalPanel.vue'
 import RepoBrowserModal from '@/components/RepoBrowserModal.vue'
@@ -11,17 +11,13 @@ const auth = useAuthStore()
 const terminalStore = useTerminalStore()
 const browserStore = useRepoBrowserStore()
 
-function handleBeforeUnload() {
-  terminalStore.cleanupAll()
-}
-
 onMounted(() => {
   auth.checkAuth()
-  window.addEventListener('beforeunload', handleBeforeUnload)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('beforeunload', handleBeforeUnload)
+  // 刷新后恢复上次打开的终端窗口(tmux 重连 / cmd 复用服务端会话)。
+  // 稍等片刻,让项目列表(auth 后异步)加载完,再对 tmux 发起 attach。
+  setTimeout(() => {
+    if (auth.isLoggedIn) terminalStore.restorePersisted()
+  }, 1600)
 })
 </script>
 

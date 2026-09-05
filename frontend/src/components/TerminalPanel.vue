@@ -34,6 +34,7 @@ function onDragEnd() {
   if (dragPort !== null) {
     const s = store.sessions.get(dragPort)
     if (s) localStorage.setItem(`cmd-terminal-pos-${dragPort}`, JSON.stringify({ x: s.x, y: s.y }))
+    store.persistWindows()
   }
   dragPort = null
   document.removeEventListener('mousemove', onDragMove)
