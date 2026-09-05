@@ -244,7 +244,7 @@ watch(currentContent, () => {
 }
 .empty-hint { font-size: 11px; color: var(--text-dim); text-align: center; padding: 20px 8px; line-height: 1.8; }
 
-.scroll-list { flex: 1; overflow-y: auto; padding: 8px; min-height: 25vh; }
+.scroll-list { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px; min-height: 25vh; }
 .scroll-list::-webkit-scrollbar { width: 4px; }
 .scroll-list::-webkit-scrollbar-track { background: transparent; }
 .scroll-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -391,13 +391,19 @@ watch(currentContent, () => {
 /* 平台分组:一行一个大框,每卡左上角「缺一口」放平台名;卡内 后端|前端 并排 */
 .platform-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 100%;
   gap: 14px;
   padding: 6px 10px 12px;
   align-content: start;
+  width: 100%;
+  min-width: 0;
 }
 .platform-card {
   position: relative;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--bg);
@@ -421,14 +427,19 @@ watch(currentContent, () => {
   background: var(--bg); border: 1px solid var(--border);
   border-radius: 8px; padding: 0 5px; line-height: 14px;
 }
-.pc-cols { display: flex; gap: 8px; align-items: stretch; }
-.pc-col { flex: 1; min-width: 0; }
+.pc-cols { display: flex; gap: 8px; align-items: stretch; width: 100%; min-width: 0; }
+.pc-col { flex: 1 1 0; min-width: 0; overflow: hidden; }
 .pc-col.wide { flex: 1 1 100%; }
 .platform-card .list-item {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 6px 8px; margin: 1px 0;
   font-size: 12px;
   border: 1px solid transparent;
+  overflow: hidden;
 }
+.platform-card .list-item .name { min-width: 0; }
 .platform-card .list-item.selected {
   background: #1a1a28; border-color: var(--glow-dim); border-radius: 6px;
 }
