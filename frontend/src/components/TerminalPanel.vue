@@ -72,6 +72,7 @@ function onDragEnd() {
     </div>
     <div class="terminal-body">
       <iframe
+        v-if="!session.minimized"
         :src="`/api/terminal/${port}/?token=${auth.token}`"
         class="terminal-iframe"
       />
