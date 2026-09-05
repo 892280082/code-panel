@@ -47,6 +47,34 @@ const filteredGroups = computed<QuickGroup[]>(() =>
     .filter(g => g.items.length > 0)
 )
 
+// ── 常用分组:浏览器本地勾选,高亮置顶,其余置灰 ──────────
+function favKey() { return `ql:favs:${projects.currentId || 'g'}` }
+const favs = ref<string[]>([])
+function loadFavs() {
+  try {
+    const a = JSON.parse(localStorage.getItem(favKey()) || '[]')
+    favs.value = Array.isArray(a) ? a.filter(x => typeof x === 'string') : []
+  } catch { favs.value = [] }
+}
+function isFav(name: string): boolean { return favs.value.includes(name) }
+function toggleFav(name: string) {
+  if (isFav(name)) favs.value = favs.value.filter(x => x !== name)
+  else favs.value = [...favs.value, name]
+  try { localStorage.setItem(favKey(), JSON.stringify(favs.value)) } catch { /* ignore */ }
+}
+
+/** 展示顺序:勾选的常用组排前(按勾选顺序),其余照原序(置灰) */
+const orderedGroups = computed<QuickGroup[]>(() => {
+  const fg = filteredGroups.value
+  return [...fg].sort((a, b) => {
+    const ia = isFav(a.name) ? 1 : 0
+    const ib = isFav(b.name) ? 1 : 0
+    if (ia !== ib) return ib - ia
+    if (ia && ib) return favs.value.indexOf(a.name) - favs.value.indexOf(b.name)
+    return fg.indexOf(a) - fg.indexOf(b)
+  })
+})
+
 /** 是否有任意条目(用于区分「空配置」与「搜索无结果」两种提示) */
 const hasAnyItems = computed(() => totalItems.value > 0)
 
@@ -93,6 +121,7 @@ function positionPanel() {
 /** 项目切换时重新加载(含首次选中项目) */
 watch(() => projects.currentId, () => {
   groups.value = []
+  loadFavs()
   if (projects.currentId) load()
 })
 
@@ -106,6 +135,7 @@ function onDocMouseDown(e: MouseEvent) {
 }
 
 onMounted(() => {
+  loadFavs()
   load()
   document.addEventListener('mousedown', onDocMouseDown)
 })
@@ -153,8 +183,17 @@ onBeforeUnmount(() => {
 
           <!-- 分组 -->
           <template v-else>
-            <section v-for="(g, gi) in filteredGroups" :key="gi" class="ql-group">
+            <section
+              v-for="(g, gi) in orderedGroups" :key="gi"
+              class="ql-group"
+              :class="{ fav: isFav(g.name), dim: !isFav(g.name) }"
+            >
               <div class="ql-group-head">
+                <button
+                  class="ql-fav" :class="{ on: isFav(g.name) }"
+                  :title="isFav(g.name) ? '取消常用' : '设为常用(排前面+高亮)'"
+                  @click.stop="toggleFav(g.name)"
+                >{{ isFav(g.name) ? '★' : '☆' }}</button>
                 <span class="ql-group-name">{{ g.name }}</span>
                 <span class="ql-group-cnt">{{ g.items.length }}</span>
               </div>
@@ -321,4 +360,16 @@ onBeforeUnmount(() => {
   color: #060; background: var(--glow, #22ee66);
   border-color: var(--glow, #22ee66);
 }
+
+/* ── 常用分组(勾选高亮置顶;其余置灰) ─────────────────── */
+.ql-fav {
+  background: transparent; border: none; cursor: pointer;
+  font-size: 11px; line-height: 1; padding: 0 2px;
+  color: var(--text-dim, #6b6b78);
+}
+.ql-fav.on { color: #f2cc60; text-shadow: 0 0 6px rgba(242,204,96,0.55); }
+.ql-group.dim { opacity: 0.42; }
+.ql-group.fav { }
+.ql-group.fav .ql-group-head { border-bottom-color: rgba(242,204,96,0.35); }
+.ql-group.fav .ql-group-name { color: #f2cc60; }
 </style>
