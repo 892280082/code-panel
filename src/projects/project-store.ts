@@ -66,7 +66,9 @@ const README_TEMPLATE = `# .code-panel —— 本项目在 code-panel 面板里�
 | \`git.yaml\`       | git 仓库(面板 /git)   | 加本机 git 仓库 {id,name,path} |
 | \`commands.yaml\`  | 命令抽屉「自定义命令」 | 加启动/停止/单模块命令按钮(见下) |
 | \`links.yaml\`     | 快捷方式(/log 顶栏 🔗) | 加分组 quick links:group→items→多 urls(标签/域名) |
-| \`data/\`          | 运行时数据(SQL 历史/队列、PRD 完成态、tmux 备注) | 面板自动写,勿手改 |
+| \`uploads/\`       | ☁ 上传目录:浏览器传上来的文件 | 面板 ☁ 上传;文件绝对路径发给终端/AI 用 |
+| \`downloads/\`     | ☁ 下载目录:AI 产物交付区 | AI/命令写文档进这里,用户在面板 ☁ ⬇ 下载拿回 |
+| \`data/\`          | 运行时数据(SQL 历史/队列、PRD 完成态、tmux 备注;cloud-config.json 存云目录覆盖) | 面板自动写,勿手改 |
 
 每个 yaml 文件顶部注释就是完整字段说明 + 示例(把注释里的例子打开就能用)。
 

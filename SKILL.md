@@ -3,9 +3,9 @@ name: code-panel
 description: >-
   运维控制面板(改版 v3):JWT 登录 + 多项目(.code-panel YAML)+ 实时日志追踪、SQL 查询/审批、
   项目内 git 管理(变更 diff/历史/文件浏览)、PRD 文档面板(MD→HTML+原型 iframe)、
-  持久化终端(命令抽屉 + tmux 会话 + ttyd 接入)、系统资源监控、自动备份。
+  持久化终端(命令抽屉 + tmux 会话 + ttyd 接入)、系统资源监控、云文件上传/下载(☁)、自动备份。
   用户说"看日志、追踪日志、查数据库、执行 SQL、审批 SQL、配置数据库、看 git、git diff、浏览仓库代码、
-  看PRD、写PRD、打开PRD、开终端、tmux 会话、添加项目、切换项目、备份、CPU 内存"时触发。
+  看PRD、写PRD、打开PRD、开终端、tmux 会话、添加项目、切换项目、备份、云文件、上传、下载、CPU 内存"时触发。
   启动端口 3008。前端 Vue 3 + Pinia + Vue Router;全局数据 ~/.code-panel/data.db,项目数据在 <项目根>/.code-panel/。
 ---
 
@@ -46,16 +46,19 @@ bash ~/.claude/skills/code-panel/start.sh     # 端口 3008
 └── jwt.secret                     # JWT 密钥(自动生成 0o600)
 
 <项目根>/.code-panel/
-├── .gitignore                     # data/
+├── .gitignore                     # data/ uploads/ downloads/
 ├── logs.yaml                      # sections:[{name, logs:[{name,file,port?}]}]  —— 日志清单
 ├── sql.yaml                       # connections:[{id,name,type,host/port/user/password/database|path,...}] —— 本项目数据库连接
 ├── prd.yaml                       # dir + folders:[{name,dir}]  —— PRD 目录清单
 ├── git.yaml                       # repos:[{id,name,path,notes?}] —— 本项目 git 仓库(字符串 id)
+├── uploads/                       # ☁ 云上传目录(gitignore)——浏览器传上来,复制绝对路径给终端/AI 用
+├── downloads/                     # ☁ 云下载目录(gitignore)——AI 把文档/产物写进来,用户在面板点下载拿回
 └── data/                          # 运行时数据(gitignore,随项目走)
     ├── sql-history.json  sql-queue.json     # SQL 历史 / 审批队列
     ├── prd-status.json                      # PRD 目录完成态(路径→done)
     ├── commands.json  launch-links.json     # 命令抽屉自定义命令 / 快捷启动
-    └── tmux-notes.json                      # tmux 会话备注(归属本项目)
+    ├── tmux-notes.json                      # tmux 会话备注(归属本项目)
+    └── cloud-config.json                    # 云上传/下载目录覆盖(默认以上,配置在 ⚙ →「文件」改)
 ```
 
 - **旧分组(proj/proj-ark/pharma/test 等)已废弃**:不再从中央 sqlite 读取。要恢复某套配置,把它登记成项目并写好 `.code-panel/*.yaml`(旧数据在备份 tar.gz 里可查)。
@@ -153,6 +156,18 @@ tmux 持久会话(会话常驻宿主;备注存归属项目 data/tmux-notes.json;
 
 > 前端 iframe 统一 `/api/terminal/<port>/?token=<jwt>`;终端代理(HTTP+WS)都校验 JWT(`?token=`/cookie/Bearer),未带令牌 401/403。
 
+## 文件 API(☁ 云上传/下载;作用域 ?project)
+
+面板右下角 ☁ chip 打开云抽屉 = 与本机换文件的两个目录(默认 `<项目根>/.code-panel/uploads` 与 `downloads`,可在 ⚙ →「文件」改,存 data/cloud-config.json):
+
+| 端点 | 作用 |
+|------|------|
+| GET/PUT `/api/files/config` | 读/改当前项目上传、下载目录(空串=恢复默认) |
+| GET `/api/files?side=upload\|download` | 列该目录文件(新→旧) |
+| POST `/api/files/upload` | multipart `files` 多文件 → 上传目录 |
+| POST `/api/files/paste-image` | `{dataUrl}` 剪贴板图片 → 上传目录 |
+| GET `/api/files/raw?side=&name=` | 读文件内容(inline;前端拼 `?token=` 供缩略图/下载) |
+
 ## 备份 API
 
 | 方法 | 路径 | 说明 |
@@ -209,6 +224,10 @@ curl -s -X PUT http://localhost:3008/api/projects/demo/yaml/logs \
 - SELECT 自由查;写操作在 reviewMode 下必须 submit 并**明确告诉用户去 `http://localhost:3008/sql` 审批**(页面会响铃)。
 - 所有 sql 调用记得带 `?project=<id>`。
 - ReviewMode 关闭需用户手动操作(页面上点开关或全局配置),AI 绝不代劳。
+
+**交付文件给用户(☁ 云文件通道)**:
+- 用户要你看图 / 给你文件时:文件在其项目 `<项目根>/.code-panel/uploads/`,绝对路径可直接引用(用户面板 ☁ 上传后复制给你);找不到就 `GET /api/files?project=<id>&side=upload` 看清单。
+- 你要交付文档/产物给用户时:写到 `<项目根>/.code-panel/downloads/` 并告诉用户「已放到下载目录,去面板 ☁ → ⬇ 下载」。写入前先 `GET /api/files/config?project=<id>` 确认确切目录(用户可能改过默认);该目录 gitignore,不进仓库。
 
 ## 实现细节备忘
 

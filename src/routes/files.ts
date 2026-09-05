@@ -22,7 +22,7 @@ import { readRuntimeJson, writeRuntimeJson } from '../projects/project-store';
 const router = Router();
 
 // ── 目录配置 ────────────────────────────────────────────────
-const CFG_FILE = 'files-config.json';
+const CFG_FILE = 'cloud-config.json';
 const IMG_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg']);
 
 function reqProject(req: Request): ProjectRow {
@@ -52,10 +52,8 @@ function sideDir(project: ProjectRow, side: string): string {
 
 // GET /api/files/config — 当前配置(绝对路径;空=默认)
 router.get('/api/files/config', requireProject, (req: Request, res: Response) => {
-  const project = reqProject(req);
-  const cfg = (readRuntimeJson(project, CFG_FILE, {}) || {}) as Record<string, string>;
-  const dirs = filesDirs(project);
-  res.json({ ok: true, data: { upload: dirs.upload, download: dirs.download, saved: cfg } });
+  const dirs = filesDirs(reqProject(req));
+  res.json({ ok: true, data: { upload: dirs.upload, download: dirs.download } });
 });
 
 // PUT /api/files/config — 保存(空串恢复默认)
