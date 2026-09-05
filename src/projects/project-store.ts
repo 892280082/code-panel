@@ -83,8 +83,12 @@ export function ensureProjectSkeleton(project: ProjectRow): void {
   const dataDir = projectDataDir(project.root);
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
+  // .gitignore 幂等保证含 data/ uploads/ downloads/(运行时数据 + 云上传下载目录都不进仓库)
   const gitignore = path.join(dir, '.gitignore');
-  if (!fs.existsSync(gitignore)) fs.writeFileSync(gitignore, 'data/\n', 'utf8');
+  const want = ['data/', 'uploads/', 'downloads/'];
+  const prev = fs.existsSync(gitignore) ? fs.readFileSync(gitignore, 'utf8') : '';
+  const missing = want.filter((l) => !prev.split('\n').some((x) => x.trim() === l));
+  if (missing.length) fs.writeFileSync(gitignore, (prev ? prev.replace(/\n?$/, '\n') : '') + missing.join('\n') + '\n', 'utf8');
 
   const readme = path.join(dir, 'README.md');
   if (!fs.existsSync(readme)) fs.writeFileSync(readme, README_TEMPLATE, 'utf8');

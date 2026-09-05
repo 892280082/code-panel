@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import CommandDrawer from '@/components/CommandDrawer.vue'
 import TerminalPanel from '@/components/TerminalPanel.vue'
 import RepoBrowserModal from '@/components/RepoBrowserModal.vue'
+import CloudPanel from '@/components/CloudPanel.vue'
 import { useTerminalStore } from '@/stores/terminal'
 import { useRepoBrowserStore } from '@/stores/repo-browser'
 import { useAuthStore } from '@/stores/auth'
@@ -32,5 +33,6 @@ onMounted(() => {
       :repo-name="browserStore.repoName"
       @close="browserStore.closeModal"
     />
+    <CloudPanel />
   </template>
 </template>

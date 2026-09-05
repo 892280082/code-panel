@@ -30,6 +30,7 @@ import authRouter, { protectedAuthRouter } from './routes/auth';
 import projectsRouter from './routes/projects';
 import linksRouter from './routes/links';
 import resourcesRouter from './routes/resources';
+import filesRouter from './routes/files';
 
 const app = express();
 const PORT = 3008;
@@ -69,6 +70,7 @@ app.use(repoBrowserRouter);
 app.use(projectsRouter);
 app.use(linksRouter);
 app.use(resourcesRouter);
+app.use(filesRouter);
 
 // ── SPA fallback — all non-API routes serve index.html ───
 const indexHtml = path.join(DIST_DIR, 'index.html');

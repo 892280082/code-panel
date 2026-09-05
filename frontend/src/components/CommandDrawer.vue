@@ -5,10 +5,12 @@ import { useRouter } from 'vue-router'
 import { useProjectsStore } from '@/stores/projects'
 import { useTerminalStore } from '@/stores/terminal'
 import { useRepoBrowserStore } from '@/stores/repo-browser'
+import { useCloudStore } from '@/stores/cloud'
 
 const terminal = useTerminalStore()
 const projects = useProjectsStore()
 const browser = useRepoBrowserStore()
+const cloud = useCloudStore()
 const router = useRouter()
 const commands = ref<any[]>([])
 const activeTab = ref<'custom' | 'system' | 'tmux'>('custom')
@@ -46,8 +48,8 @@ const BTN_SIZE = 44          // FAB 直径
 const CHIP_SIZE = 35         // 左右小圆片直径
 const GAP = 16               // FAB 与芯片间距
 const EDGE = 16              // 芯片簇最外侧距视口右/下边缘的距离
-/** FAB 距右边缘的最小值：保证右侧 📂 仓库芯片始终留在可视区内 */
-const MIN_FAB_RIGHT = EDGE + CHIP_SIZE + GAP
+/** FAB 距右边缘的最小值：保证右侧 📂 仓库 + ☁ 云 两个芯片始终留在可视区内 */
+const MIN_FAB_RIGHT = EDGE + 2 * (CHIP_SIZE + GAP)
 
 /** 屏幕分辨率变化后，上次记录的位置可能超出可视区域，越界则重置回屏幕内，避免图标丢失 */
 function clampBtnPos(v: { x: number; y: number } | null) {
@@ -88,6 +90,8 @@ const sessionList = computed(() => Array.from(terminal.sessions.entries()))
 const chipsBarRight = computed(() => btnX.value + BTN_SIZE + GAP)
 /** 右侧仓库芯片右缘 = FAB 右缘 − 芯片宽 − 间距 */
 const repoChipRight = computed(() => btnX.value - CHIP_SIZE - GAP)
+/** 最外侧 ☁ 云芯片右缘 = FAB 右缘 − 2×(芯片宽+间距) */
+const cloudChipRight = computed(() => btnX.value - 2 * (CHIP_SIZE + GAP))
 
 function onTriggerDragStart(e: MouseEvent) {
   if (terminal.drawerOpen) return
@@ -129,6 +133,12 @@ function onChipClick(port: number) {
   if (!s) return
   if (s.minimized) terminal.restoreSession(port)
   else terminal.bringToFront(port)
+}
+
+// ── ☁ 云芯片：开云文件抽屉(同时收起命令抽屉) ────────────
+function onCloudChipClick() {
+  if (terminal.drawerOpen) terminal.closeDrawer()
+  cloud.toggle()
 }
 
 // ── 📂 仓库芯片：未开 → 打开当前项目第一个仓库；已开 → 最小化则恢复，否则关闭 ──
@@ -451,6 +461,19 @@ async function saveReorder(ids: string[]) {
       >📂</button>
     </div>
 
+    <!-- 最右侧 ☁ 云文件芯片：上传给机器 / 下载 AI 产物 -->
+    <div
+      class="cmd-cloud-bar"
+      :style="{ right: cloudChipRight + 'px', top: btnY + 'px' }"
+    >
+      <button
+        class="cmd-cloud-chip"
+        :class="{ on: cloud.isOpen }"
+        :title="cloud.isOpen ? '关闭云文件' : '云文件(上传 / 下载)'"
+        @click="onCloudChipClick"
+      >☁</button>
+    </div>
+
     <Teleport to="body">
       <div v-if="terminal.drawerOpen" class="drawer-backdrop" @click="terminal.closeDrawer()" />
       <div v-if="terminal.drawerOpen" class="drawer-panel" @click.stop>
@@ -634,8 +657,9 @@ async function saveReorder(ids: string[]) {
   50%      { border-color: rgba(34,238,102,0.85); box-shadow: 0 0 8px rgba(34,238,102,0.45); }
 }
 
-/* ── 右侧 📂 仓库芯片条 ────────────────────────────── */
-.cmd-repo-bar {
+/* ── 右侧 📂 仓库芯片条 / 最外侧 ☁ 云芯片条 ─────────── */
+.cmd-repo-bar,
+.cmd-cloud-bar {
   position: fixed;
   z-index: 9989;
   display: flex; align-items: center;
@@ -684,6 +708,30 @@ async function saveReorder(ids: string[]) {
 @keyframes repo-chip-online {
   0%, 100% { border-color: rgba(242,204,96,0.3);  box-shadow: 0 0 0 rgba(242,204,96,0); }
   50%      { border-color: rgba(242,204,96,0.85); box-shadow: 0 0 8px rgba(242,204,96,0.45); }
+}
+
+/* ── ☁ 云芯片 ───────────────────────────────────────── */
+.cmd-cloud-chip {
+  pointer-events: auto;
+  width: 35px; height: 35px; border-radius: 50%;
+  background: rgba(50,50,68,0.7); color: rgba(255,255,255,0.55);
+  border: 1px solid rgba(255,255,255,0.08);
+  font-size: 15px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+  flex-shrink: 0;
+  transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.1s, box-shadow 0.2s;
+}
+.cmd-cloud-chip:hover {
+  background: rgba(68,153,238,0.18); color: #fff;
+  border-color: rgba(68,153,238,0.45);
+  transform: scale(1.05);
+}
+.cmd-cloud-chip.on {
+  color: #22ee66;
+  border-color: rgba(34,238,102,0.5);
+  background: rgba(34,238,102,0.12);
+  box-shadow: 0 0 8px rgba(34,238,102,0.25);
 }
 
 /* ── 抽屉 ─────────────────────────────────────────────── */
