@@ -3,6 +3,13 @@
 
 import { ref } from 'vue'
 import { apiFetch } from '@/utils/api-fetch'
+import { useProjectsStore } from '@/stores/projects'
+
+/** 当前项目 query 后缀(?project=<id>);无项目返回 '' */
+function qs(): string {
+  const pid = useProjectsStore().currentId
+  return pid ? `project=${encodeURIComponent(pid)}` : ''
+}
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -108,14 +115,15 @@ export function useFileHistory() {
     historyLoadedForFile.value = ''
   }
 
-  async function loadFileHistory(repoId: number, filePath: string) {
+  async function loadFileHistory(repoId: string, filePath: string) {
     historyLoading.value = true
     historyError.value = ''
     fileHistory.value = []
     fileHistoryDayGroups.value = []
 
     try {
-      const res = await apiFetch(`/api/repo-browser/${repoId}/file-log?path=${encodeURIComponent(filePath)}&limit=50`)
+      const url = `/api/repo-browser/${encodeURIComponent(repoId)}/file-log?path=${encodeURIComponent(filePath)}&limit=50&${qs()}`
+      const res = await apiFetch(url)
       const data = await res.json()
       if (data.ok) {
         fileHistoryDayGroups.value = data.dayGroups || []
@@ -136,7 +144,7 @@ export function useFileHistory() {
     }
   }
 
-  async function loadCommitFiles(repoId: number, commitHash: string) {
+  async function loadCommitFiles(repoId: string, commitHash: string) {
     commitFilesLoading.value = true
     commitFilesError.value = ''
     commitFiles.value = []
@@ -146,7 +154,8 @@ export function useFileHistory() {
     commitFileDiffLines.value = []
 
     try {
-      const res = await apiFetch(`/api/repo-browser/${repoId}/commit-files?commit=${encodeURIComponent(commitHash)}`)
+      const url = `/api/repo-browser/${encodeURIComponent(repoId)}/commit-files?commit=${encodeURIComponent(commitHash)}&${qs()}`
+      const res = await apiFetch(url)
       const data = await res.json()
       if (data.ok) {
         commitFiles.value = data.files || []
@@ -165,7 +174,7 @@ export function useFileHistory() {
     }
   }
 
-  async function selectCommit(repoId: number, commitHash: string, currentFilePath?: string | null) {
+  async function selectCommit(repoId: string, commitHash: string, currentFilePath?: string | null) {
     selectedCommit.value = commitHash
     commitFileDiffLines.value = []
     commitFileDiffAdditions.value = 0
@@ -180,7 +189,7 @@ export function useFileHistory() {
     }
   }
 
-  async function loadCommitFileDiff(repoId: number, commitHash: string, filePath: string) {
+  async function loadCommitFileDiff(repoId: string, commitHash: string, filePath: string) {
     selectedCommitFilePath.value = filePath
     commitFileDiffLoading.value = true
     commitFileDiffError.value = ''
@@ -189,9 +198,8 @@ export function useFileHistory() {
     commitFileDiffDeletions.value = 0
 
     try {
-      const res = await apiFetch(
-        `/api/repo-browser/${repoId}/file-commit-diff?path=${encodeURIComponent(filePath)}&commit=${commitHash}`
-      )
+      const url = `/api/repo-browser/${encodeURIComponent(repoId)}/file-commit-diff?path=${encodeURIComponent(filePath)}&commit=${encodeURIComponent(commitHash)}&${qs()}`
+      const res = await apiFetch(url)
       const data = await res.json()
       if (data.ok) {
         commitFileDiffLines.value = data.lines || []
@@ -207,7 +215,7 @@ export function useFileHistory() {
     }
   }
 
-  async function selectCommitFile(repoId: number, commitHash: string, filePath: string) {
+  async function selectCommitFile(repoId: string, commitHash: string, filePath: string) {
     await loadCommitFileDiff(repoId, commitHash, filePath)
   }
 

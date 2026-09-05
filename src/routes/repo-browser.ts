@@ -3,8 +3,10 @@
 import fs from 'fs';
 import path from 'path';
 import { Router, Request, Response } from 'express';
+import type { ProjectRow } from '../db/global-store';
+import { requireProject } from '../projects/context';
 import { getRepo, type GitRepo } from '../git/git-repo-store';
-import { errorMessage, parseRouteId } from '../utils/route-utils';
+import { errorMessage } from '../utils/route-utils';
 import {
   getFileLog,
   getFileCommitDiff,
@@ -13,17 +15,28 @@ import {
 
 const router = Router();
 
-// ── Route wrapper — resolves repoId + repo, wraps error handling ──
+// 该项目作用域:repo 一律从该项目的 git.yaml 按 string id 解析
+router.use('/api/repo-browser', requireProject);
+
+function reqProject(req: Request): ProjectRow {
+  return (req as Request & { project: ProjectRow }).project;
+}
+
+// ── Route wrapper — resolves project + repoId + repo, wraps error handling ──
 
 function withRepo(
-  handler: (repo: GitRepo, repoId: number, req: Request, res: Response) => void,
+  handler: (repo: GitRepo, repoId: string, req: Request, res: Response) => void,
   errorLabel: string,
 ) {
   return (req: Request, res: Response) => {
     try {
-      const repoId = parseRouteId(req, res, 'repoId');
-      if (repoId === null) return;
-      const repo = getRepo(repoId);
+      const project = reqProject(req);
+      const repoId = req.params.repoId ?? '';
+      if (!repoId) {
+        res.status(400).json({ ok: false, error: 'invalid repoId' });
+        return;
+      }
+      const repo = getRepo(project, repoId);
       if (!repo) {
         res.status(404).json({ ok: false, error: `Repo ${repoId} not found` });
         return;

@@ -7,13 +7,13 @@ import fs from 'fs';
 
 import logsRouter from './routes/logs';
 import configRouter from './routes/config';
-import logConfigRouter from './routes/log-config';
 import databasesRouter from './routes/databases';
 import sqlExecRouter from './routes/sql-exec';
 import sqlReviewRouter from './routes/sql-review';
 import sqlHistoryRouter from './routes/sql-history';
 import prdRouter from './routes/prd';
 import terminalRouter from './routes/terminal';
+import tmuxRouter from './routes/tmux';
 import launchRouter from './routes/launch';
 import backupRouter from './routes/backup';
 import gitReposRouter from './routes/git-repos';
@@ -21,9 +21,13 @@ import repoBrowserRouter from './routes/repo-browser';
 import { runBackup } from './backup/backup-manager';
 import { terminalProxyMiddleware, mountTerminalProxy } from './terminal/proxy';
 import { startTTYD, stopTTYD } from './terminal/ttyd-manager';
+import { killAllTmuxAttachSync, cleanupStaleTmuxAttachPorts } from './terminal/tmux-manager';
 import { startMonitor } from './log-monitor';
 import { startHealthCheck } from './db/health-check';
-import { init as initDbConfig } from './db/db-config-store';
+import { initGlobalStore } from './db/global-store';
+import { authMiddleware } from './auth/jwt';
+import authRouter, { protectedAuthRouter } from './routes/auth';
+import projectsRouter from './routes/projects';
 
 const app = express();
 const PORT = 3008;
@@ -38,23 +42,29 @@ app.use(express.static(DIST_DIR));
 // Serve legacy static assets (fonts, etc.)
 app.use(express.static(PUBLIC_DIR));
 
+// ── Auth（JWT）────────────────────────────────────────────
+app.use(authRouter);                 // 公开：POST /api/auth/login
+app.use(authMiddleware);             // 保护其余全部 /api/*
+app.use(protectedAuthRouter);        // 需登录：logout / change-password
+
 // Terminal proxy（HTTP，转发到 ttyd 进程）
 app.use(terminalProxyMiddleware);
 
 // ── API routes ───────────────────────────────────────────
 app.use(logsRouter);
 app.use(configRouter);
-app.use(logConfigRouter);
 app.use(databasesRouter);
 app.use(sqlExecRouter);
 app.use(sqlReviewRouter);
 app.use(sqlHistoryRouter);
 app.use(prdRouter);
 app.use(terminalRouter);
+app.use(tmuxRouter);
 app.use(launchRouter);
 app.use(backupRouter);
 app.use(gitReposRouter);
 app.use(repoBrowserRouter);
+app.use(projectsRouter);
 
 // ── SPA fallback — all non-API routes serve index.html ───
 const indexHtml = path.join(DIST_DIR, 'index.html');
@@ -76,7 +86,11 @@ app.use((req, res, next) => {
 
 // ── Start ────────────────────────────────────────────────
 async function start() {
-  await initDbConfig();
+  // P2:不再初始化 db-config.sqlite;全局库只放 users/projects/settings
+  await initGlobalStore();
+
+  // P3:清理上次服务器残留的 tmux 接入 ttyd(9020-9029);tmux 会话本身常驻保留
+  cleanupStaleTmuxAttachPorts();
 
   await startTTYD();
   startMonitor();
@@ -106,6 +120,7 @@ async function start() {
   // graceful shutdown
   const shutdown = () => {
     stopTTYD();
+    killAllTmuxAttachSync(); // 只断 ttyd 接入,tmux session 保持常驻
     server.close();
     process.exit(0);
   };

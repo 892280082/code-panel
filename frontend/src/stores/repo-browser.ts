@@ -2,15 +2,16 @@
 //   History/commit state lives in useFileHistory composable.
 
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { apiFetch } from '@/utils/api-fetch'
 import { raise } from '@/utils/z-layer'
 import { useFileHistory } from '@/composables/useFileHistory'
+import { useProjectsStore } from './projects'
 
 // ── Types ────────────────────────────────────────────────
 
 export interface GitRepoLite {
-  id: number
+  id: string
   name: string
   path: string
 }
@@ -23,7 +24,7 @@ export interface DirEntry {
 
 export interface TreeResult {
   ok: boolean
-  repoId: number
+  repoId: string
   repoName: string
   path: string
   entries: DirEntry[]
@@ -44,20 +45,22 @@ export interface FileChunk {
 // ── Store ────────────────────────────────────────────────
 
 export const useRepoBrowserStore = defineStore('repoBrowser', () => {
+  const projects = useProjectsStore()
+
   // ── Modal state ───────────────────────────────────────
   const visible = ref(false)
-  const repoId = ref<number | null>(null)
+  const repoId = ref<string | null>(null)
   const repoName = ref('')
   const repoPath = ref('')
 
   // 最近打开的仓库：持久化到 localStorage，刷新后任务栏 📂 图标仍可直接重开
   const LAST_REPO_KEY = 'repo-browser:last'
-  const lastRepo = ref<{ id: number; name: string; path: string } | null>(null)
+  const lastRepo = ref<{ id: string; name: string; path: string } | null>(null)
   try {
     const saved = localStorage.getItem(LAST_REPO_KEY)
     if (saved) {
       const parsed = JSON.parse(saved)
-      if (parsed && typeof parsed.id === 'number' && parsed.name) {
+      if (parsed && typeof parsed.id === 'string' && parsed.name) {
         lastRepo.value = parsed
         repoId.value = parsed.id
         repoName.value = parsed.name
@@ -65,6 +68,11 @@ export const useRepoBrowserStore = defineStore('repoBrowser', () => {
       }
     }
   } catch { /* 忽略损坏的本地记录 */ }
+
+  // 项目切换 → 关闭浏览器窗口(旧项目仓库不应残留)
+  watch(() => projects.currentId, () => {
+    if (visible.value) closeModal()
+  })
 
   // ── 浮动窗口状态（与终端窗口同一层级体系）─────────────────
   //   不再用全屏遮罩：点别处（如终端）不关闭，只是沉到下层；
@@ -86,10 +94,15 @@ export const useRepoBrowserStore = defineStore('repoBrowser', () => {
   const changedFiles = ref<Set<string>>(new Set())
   const gitLoading = ref(false)
 
-  async function loadGitChanges(id: number) {
+  /** 当前项目 query(?project=<id>);无项目返回 '' */
+  function qs(): string {
+    return projects.currentId ? `project=${encodeURIComponent(projects.currentId)}` : ''
+  }
+
+  async function loadGitChanges(id: string) {
     gitLoading.value = true
     try {
-      const res = await apiFetch(`/api/repo-browser/${id}/git-changes`)
+      const res = await apiFetch(`/api/repo-browser/${encodeURIComponent(id)}/git-changes?${qs()}`)
       const data = await res.json()
       if (data.ok) {
         changedDirs.value = new Set(data.changedDirs)
@@ -111,9 +124,10 @@ export const useRepoBrowserStore = defineStore('repoBrowser', () => {
 
   /** 加载 Git 改动 + 自动展开所有改动目录（打开窗口与切到 Git 模式共用） */
   async function ensureGitChanges() {
+    if (!repoId.value || !projects.currentId) return
     // Ensure git changes are loaded
     if (changedDirs.value.size === 0 && changedFiles.value.size === 0) {
-      await loadGitChanges(repoId.value!)
+      await loadGitChanges(repoId.value)
     }
     // Auto-expand all changed dirs and preload them
     const expanded = new Set(expandedDirs.value)
@@ -170,7 +184,7 @@ export const useRepoBrowserStore = defineStore('repoBrowser', () => {
 
   function cacheKey(subPath: string) { return subPath || '__ROOT__' }
 
-  function openModal(id: number, name: string, path?: string) {
+  function openModal(id: string, name: string, path?: string) {
     visible.value = true
     minimized.value = false
     maximized.value = false   // 每次新打开恢复常规尺寸
@@ -260,9 +274,12 @@ export const useRepoBrowserStore = defineStore('repoBrowser', () => {
 
     loadingDirs.value = new Set(loadingDirs.value).add(key)
 
+    if (!repoId.value || !projects.currentId) return
     try {
       const params = subPath ? `?path=${encodeURIComponent(subPath)}` : ''
-      const res = await apiFetch(`/api/repo-browser/${repoId.value}/tree${params}`)
+      const q = qs()
+      const url = `/api/repo-browser/${encodeURIComponent(repoId.value)}/tree${params}${q ? (params ? '&' : '?') + q : ''}`
+      const res = await apiFetch(url)
       const data: TreeResult = await res.json()
       if (data.ok) {
         treeCache.value = { ...treeCache.value, [key]: data.entries.length ? data.entries : [] }
@@ -329,9 +346,11 @@ export const useRepoBrowserStore = defineStore('repoBrowser', () => {
   }
 
   async function loadDiff(subPath: string) {
+    if (!repoId.value || !projects.currentId) return
     diffLoading.value = true
     try {
-      const res = await apiFetch(`/api/repo-browser/${repoId.value}/diff?path=${encodeURIComponent(subPath)}`)
+      const url = `/api/repo-browser/${encodeURIComponent(repoId.value)}/diff?path=${encodeURIComponent(subPath)}&${qs()}`
+      const res = await apiFetch(url)
       const data = await res.json()
       if (data.ok) diffLines.value = data.lines
     } catch { diffLines.value = [] }
@@ -343,14 +362,15 @@ export const useRepoBrowserStore = defineStore('repoBrowser', () => {
   }
 
   async function loadMoreFile() {
-    if (!selectedFilePath.value) return
+    if (!selectedFilePath.value || !repoId.value || !projects.currentId) return
     fileLoading.value = true
     fileError.value = ''
 
     try {
       const offset = fileOffset.value + (fileContent.value ? new Blob([fileContent.value]).size : 0)
       const params = `?path=${encodeURIComponent(selectedFilePath.value)}&offset=${offset}&limit=102400`
-      const res = await apiFetch(`/api/repo-browser/${repoId.value}/file${params}`)
+      const url = `/api/repo-browser/${encodeURIComponent(repoId.value)}/file${params}&${qs()}`
+      const res = await apiFetch(url)
       const data: FileChunk = await res.json()
 
       if (!data.ok) {

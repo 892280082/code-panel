@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useGitStore, gitPullStatusIcon, gitFormatLogTime } from '@/stores/git'
+import { useProjectsStore } from '@/stores/projects'
 import { useRepoBrowserStore } from '@/stores/repo-browser'
 import { useCopySelection } from '@/composables/useCopySelection'
 import { copyToClipboard } from '@/utils/clipboard'
@@ -8,6 +9,8 @@ import Sidebar from '@/components/Sidebar.vue'
 import StatusDot from '@/components/StatusDot.vue'
 
 const store = useGitStore()
+const projects = useProjectsStore()
+const hasProject = computed(() => !!projects.currentProject)
 const browser = useRepoBrowserStore()
 const currentFilePath = () => store.selectedFile || ''
 
@@ -108,14 +111,12 @@ onMounted(() => store.init())
 
 const newRepoName = ref('')
 const newRepoPath = ref('')
-const newRepoGroup = ref('')
 
 async function handleAdd() {
   try {
-    await store.addRepo(newRepoName.value, newRepoPath.value, undefined, newRepoGroup.value || undefined)
+    await store.addRepo(newRepoName.value, newRepoPath.value)
     newRepoName.value = ''
     newRepoPath.value = ''
-    newRepoGroup.value = ''
   } catch (e: any) { alert('添加失败: ' + e.message) }
 }
 
@@ -171,21 +172,10 @@ function switchToLog() {
   <div class="app">
     <!-- ═══════ SIDEBAR ═══════ -->
     <Sidebar>
-      <!-- 分组选择（复用日志分组） -->
-      <div class="git-group-wrap">
-        <select
-          class="group-select"
-          :value="store.currentGroup"
-          @change="store.setGroup(($event.target as HTMLSelectElement).value)"
-        >
-          <option value="">全部</option>
-          <option v-for="gk in store.groupList" :key="gk" :value="gk">{{ gk }}</option>
-        </select>
-      </div>
-
       <!-- Repo list -->
       <div class="repo-scroll">
-        <div v-if="!store.repos.length" class="empty">No git repos configured</div>
+        <div v-if="!hasProject" class="empty">无项目,请先添加项目</div>
+        <div v-else-if="!store.repos.length" class="empty">No git repos configured</div>
         <div
           v-for="r in store.repos" :key="r.id"
           class="repo-section"
@@ -263,15 +253,11 @@ function switchToLog() {
       </div>
 
       <!-- Add repo -->
-      <div class="add-section">
+      <div v-if="hasProject" class="add-section">
         <button class="add-btn" @click="store.showAddRepo = !store.showAddRepo">+ Add Repo</button>
         <div v-if="store.showAddRepo" class="add-form">
           <input v-model="newRepoName" placeholder="名称" class="input-sm" @keyup.enter="handleAdd" />
           <input v-model="newRepoPath" placeholder="路径" class="input-sm" @keyup.enter="handleAdd" />
-          <select v-model="newRepoGroup" class="input-sm" title="所属分组(日志分组)">
-            <option value="">未分组</option>
-            <option v-for="gk in store.groupList" :key="gk" :value="gk">{{ gk }}</option>
-          </select>
           <button class="btn-sm btn-primary" @click="handleAdd">Add</button>
         </div>
       </div>
@@ -340,7 +326,11 @@ function switchToLog() {
         <!-- Diff View -->
         <template v-if="store.repoViewMode === 'diff'">
         <!-- Empty -->
-        <div v-if="!store.expandedRepos.size" class="empty-state">
+        <div v-if="!hasProject" class="empty-state">
+          <span class="icon">⎇</span>
+          <span>还没有项目,请先在侧栏「项目」添加一个项目</span>
+        </div>
+        <div v-else-if="!store.expandedRepos.size" class="empty-state">
           <span class="icon">⎇</span>
           <span>Select a repository from the sidebar</span>
         </div>

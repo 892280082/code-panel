@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { apiFetch } from '@/utils/api-fetch'
 import { ref, computed, watch } from 'vue'
-import { useLogStore } from '@/stores/logs'
+import { useProjectsStore } from '@/stores/projects'
 
-const logStore = useLogStore()
+const projects = useProjectsStore()
 const open = ref(false)
 const links = ref<any[]>([])
 const showForm = ref(false)
@@ -11,13 +12,8 @@ const newUrl = ref('')
 const newTag = ref('')
 const formError = ref('')
 
-/** 当前日志分组 key */
-const currentGroup = computed(() => logStore.currentGroup || '')
-/** 当前分组显示名称 */
-const groupLabel = computed(() => {
-  const g = logStore.groupNames[currentGroup.value]
-  return g?.name || currentGroup.value || '全局'
-})
+/** 当前项目显示名称 */
+const groupLabel = computed(() => projects.currentProject?.name || '全局')
 
 /** 补全链接协议:无 scheme 时默认 https,以 / 开头的相对路径原样保留 */
 function normalizeUrl(url: string): string {
@@ -28,10 +24,10 @@ function normalizeUrl(url: string): string {
 }
 
 async function loadLinks() {
+  if (!projects.currentId) { links.value = []; return }
   try {
-    const group = currentGroup.value
-    const url = group ? `/api/launch/links?group=${encodeURIComponent(group)}` : '/api/launch/links'
-    const res = await fetch(url)
+    const url = `/api/launch/links?project=${encodeURIComponent(projects.currentId)}`
+    const res = await apiFetch(url)
     const data = await res.json()
     if (data.ok) links.value = data.data
   } catch { /* ignore */ }
@@ -42,8 +38,9 @@ function toggle() {
   if (open.value) loadLinks()
 }
 
-// 分组切换时重新加载
-watch(currentGroup, () => {
+// 项目切换时重新加载
+watch(() => projects.currentId, () => {
+  links.value = []
   if (open.value) loadLinks()
 })
 
@@ -57,15 +54,15 @@ async function handleCreate() {
   formError.value = ''
   if (!newLabel.value.trim()) { formError.value = '请输入名称'; return }
   if (!newUrl.value.trim()) { formError.value = '请输入链接'; return }
+  if (!projects.currentId) { formError.value = '无当前项目'; return }
   try {
-    const res = await fetch('/api/launch/links', {
+    const res = await apiFetch(`/api/launch/links?project=${encodeURIComponent(projects.currentId)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         label: newLabel.value.trim(),
         url: newUrl.value.trim(),
-        tag: newTag.value.trim() || undefined,
-        group: currentGroup.value || undefined
+        tag: newTag.value.trim() || undefined
       })
     })
     const data = await res.json()
@@ -100,15 +97,15 @@ async function handleEditSave() {
   editError.value = ''
   if (!editLabel.value.trim()) { editError.value = '请输入名称'; return }
   if (!editUrl.value.trim()) { editError.value = '请输入链接'; return }
+  if (!projects.currentId) { editError.value = '无当前项目'; return }
   try {
-    const res = await fetch(`/api/launch/links/${editingLink.value.id}`, {
+    const res = await apiFetch(`/api/launch/links/${editingLink.value.id}?project=${encodeURIComponent(projects.currentId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         label: editLabel.value.trim(),
         url: editUrl.value.trim(),
-        tag: editTag.value.trim() || undefined,
-        group: currentGroup.value || undefined
+        tag: editTag.value.trim() || undefined
       })
     })
     const data = await res.json()
@@ -126,7 +123,8 @@ async function handleEditSave() {
 // ── 删除 ──────────────────────────────────────────────
 async function handleDelete(link: any) {
   if (!confirm(`确定删除「${link.label}」?`)) return false
-  await fetch(`/api/launch/links/${link.id}`, { method: 'DELETE' })
+  if (!projects.currentId) return false
+  await apiFetch(`/api/launch/links/${link.id}?project=${encodeURIComponent(projects.currentId)}`, { method: 'DELETE' })
   loadLinks()
   return true
 }
@@ -145,10 +143,11 @@ function moveDown(index: number) {
   saveReorder(ids)
 }
 async function saveReorder(ids: string[]) {
-  await fetch('/api/launch/links/reorder', {
+  if (!projects.currentId) return
+  await apiFetch(`/api/launch/links/reorder?project=${encodeURIComponent(projects.currentId)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids, group: currentGroup.value || undefined })
+    body: JSON.stringify({ ids })
   })
   loadLinks()
 }

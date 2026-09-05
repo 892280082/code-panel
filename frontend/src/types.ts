@@ -1,10 +1,10 @@
 // ── Shared types (mirrors backend types.ts) ──────────────
 
+/** 日志条目(来自某项目 logs.yaml,按 section 平铺) */
 export interface LogEntry {
   name: string
   file: string
-  groupKey: string
-  groupName: string
+  section?: string
   port?: number
   exists?: boolean
   size?: number
@@ -12,14 +12,11 @@ export interface LogEntry {
   alive?: boolean
 }
 
-export interface LogGroup {
+/** 项目注册表条目 */
+export interface ProjectInfo {
+  id: string
   name: string
-  logs: { name: string; file: string; port?: number }[]
-}
-
-export interface AppConfig {
-  groups: Record<string, LogGroup>
-  reviewMode: boolean
+  root: string
 }
 
 export interface DbConnection {
@@ -91,6 +88,7 @@ export interface SseMessage {
   content: string
   changed: boolean
   timestamp: number
+  project?: string
 }
 
 export interface PortStatusMessage {

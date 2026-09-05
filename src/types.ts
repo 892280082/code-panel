@@ -8,8 +8,8 @@ export interface DbConnection {
   id: string;           // 唯一标识
   name: string;         // 显示名称，如 "生产数据库"
   type: DbType;
-  version: string;      // 版本号，如 "8.0" / "3"
-  group?: string;       // 所属分组，如 "线上环境" / "测试环境"
+  version?: string;      // 版本号，如 "8.0" / "3"（缺省为 ''）
+  group?: string;       // 旧分组字段——已废弃，仅作历史存档，代码不应再读取
   // MySQL 字段
   host?: string;
   port?: number;
@@ -32,24 +32,23 @@ export interface DbConnectionParams {
   path?: string;        // SQLite 文件路径
 }
 
-/** 日志条目 */
+/** 日志条目(来自某项目 logs.yaml,按 section 平铺) */
 export interface LogEntry {
   name: string;
   file: string;
-  groupKey: string;
-  groupName: string;
+  section?: string;       // 所属 logs.yaml section 名
+  projectId?: string;     // 所属项目 id(供 SSE 过滤 / 区分来源)
   port?: number;          // 服务端口号，用于存活检测
 }
 
-/** 日志分组 */
+/** 日志分组(历史类型;P2 起项目内用 section,不再有全局 group) */
 export interface LogGroup {
   name: string;
   logs: { name: string; file: string; port?: number }[];
 }
 
-/** 应用配置（config.json — 仅 reviewMode，groups/databases 已迁 SQLite） */
+/** 应用配置(全局设置——不再含 groups/databases,它们已随项目下沉) */
 export interface AppConfig {
-  groups: Record<string, LogGroup>;
   reviewMode: boolean;
 }
 
@@ -156,4 +155,5 @@ export interface SseMessage {
   content: string;
   changed: boolean;
   timestamp: number;
+  project?: string;       // 所属项目 id —— SSE 按项目过滤防串扰
 }

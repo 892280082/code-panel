@@ -1,18 +1,11 @@
 <template>
   <div class="app">
     <Sidebar>
-      <!-- 分组切换：只显示当前分组的文件夹（类似 /log） -->
-      <select
-        class="group-select"
-        :value="currentGroup"
-        @change="setGroup(($event.target as HTMLSelectElement).value)"
-      >
-        <option v-if="!groups.length" disabled>No groups</option>
-        <option v-for="g in groups" :key="g" :value="g">{{ g }}</option>
-      </select>
       <div class="scroll-list">
+        <div v-if="!hasProject" class="empty-hint">无项目,请在顶部「项目」添加</div>
+        <div v-else-if="!folders.length" class="empty-hint">未配置 PRD 文件夹<br>可用 ⚙ 或手改 prd.yaml 添加</div>
         <div
-          v-for="f in filteredFolders" :key="f.dir"
+          v-for="f in folders" :key="f.dir"
           class="list-item file-item"
           :class="{ selected: currentDir === f.dir }"
           @click="selectFolder(f.dir)"
@@ -25,7 +18,6 @@
           </div>
           <span class="port-tag">{{ f.fileCount }}</span>
         </div>
-        <div v-if="!folders.length" class="empty-hint">未配置 PRD 文件夹<br>config.json 加 prd.folders</div>
       </div>
     </Sidebar>
 
@@ -44,7 +36,11 @@
       </div>
 
       <div class="content-area">
-        <div v-if="!currentDir" class="empty-state">
+        <div v-if="!hasProject" class="empty-state">
+          <span class="icon">◈</span>
+          <span>还没有项目,请先在侧栏「项目」添加一个项目</span>
+        </div>
+        <div v-else-if="!currentDir" class="empty-state">
           <span class="icon">◈</span>
           <span>Select a PRD folder from the sidebar</span>
         </div>
@@ -78,91 +74,94 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { apiFetch } from '@/utils/api-fetch'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useProjectsStore } from '@/stores/projects'
 import Sidebar from '@/components/Sidebar.vue'
 
-interface PrdFolder { name: string; dir: string; group?: string; fileCount: number; date: string; done: boolean }
+interface PrdFolder { name: string; dir: string; fileCount: number; date: string; done: boolean }
 interface PrdFile { name: string; path: string }
-const currentDirDone = computed(() => folders.value.find(f => f.dir === currentDir.value)?.done || false)
+
+const projects = useProjectsStore()
+const hasProject = computed(() => !!projects.currentProject)
+
 const folders = ref<PrdFolder[]>([])
 const files = ref<PrdFile[]>([])
 const currentDir = ref('')
 const currentFile = ref('')
 
-// ── 分组切换（类似 /log，只显示当前分组的文件夹）──
-const groups = computed<string[]>(() => {
-  const s = new Set<string>()
-  for (const f of folders.value) s.add(f.group || '未分组')
-  return [...s]
-})
-const currentGroup = ref(localStorage.getItem('prd-group') || '')
-const filteredFolders = computed<PrdFolder[]>(() =>
-  folders.value.filter(f => (f.group || '未分组') === currentGroup.value)
-)
-
-function setGroup(g: string) {
-  currentGroup.value = g
-  localStorage.setItem('prd-group', g)
-  const first = filteredFolders.value[0]
-  if (first) selectFolder(first.dir)   // 切分组后默认选中该组第一个文件夹
-}
+const currentDirDone = computed(() => folders.value.find(f => f.dir === currentDir.value)?.done || false)
+const currentFolderName = computed(() => folders.value.find(f => f.dir === currentDir.value)?.name || '')
 
 const previewUrl = computed(() =>
   currentDir.value && currentFile.value
-    ? '/api/prd/content?dir=' + encodeURIComponent(currentDir.value) + '&file=' + encodeURIComponent(currentFile.value)
+    ? '/api/prd/content?dir=' + encodeURIComponent(currentDir.value) + '&file=' + encodeURIComponent(currentFile.value) + projectQSuffix()
     : ''
 )
 
-const currentFolderName = computed(() => folders.value.find(f => f.dir === currentDir.value)?.name || '')
+/** 当前项目 query 后缀(&project=<id>);无项目返回 '' */
+function projectQSuffix(): string {
+  return projects.currentId ? `&project=${encodeURIComponent(projects.currentId)}` : ''
+}
 
 async function loadFolders() {
+  if (!projects.currentId) { folders.value = []; return }
   try {
-    const res = await fetch('/api/prd/folders')
+    const res = await apiFetch(`/api/prd/folders?project=${encodeURIComponent(projects.currentId)}`)
     const data = await res.json()
     if (data.ok) {
-      folders.value = data.folders
-      // 初始化当前分组：优先记住的选择，否则取第一个分组
-      if (!currentGroup.value || !groups.value.includes(currentGroup.value)) {
-        currentGroup.value = groups.value[0] || ''
-      }
-      const first = filteredFolders.value[0]
-      if (first) selectFolder(first.dir)
+      folders.value = data.folders || []
+      // 保持已选中目录;否则默认选第一个
+      if (currentDir.value && folders.value.some(f => f.dir === currentDir.value)) return
+      const first = folders.value[0]
+      if (first) await selectFolder(first.dir)
+      else { currentDir.value = ''; currentFile.value = '' }
     }
-  } catch { /* ignore */ }
+  } catch { folders.value = [] }
 }
 
 async function selectFolder(dir: string) {
   currentDir.value = dir
+  currentFile.value = ''
   try {
-    const res = await fetch('/api/prd/files?dir=' + encodeURIComponent(dir))
+    const res = await apiFetch('/api/prd/files?dir=' + encodeURIComponent(dir))
     const data = await res.json()
     files.value = data.ok ? data.files : []
   } catch { files.value = [] }
 }
 
 function openPreview(fileName: string) {
-  // 再点同一个 → 收起；点其他 → 展开该文件
+  // 再点同一个 → 收起;点其他 → 展开该文件
   currentFile.value = currentFile.value === fileName ? '' : fileName
 }
 
 function openDoc(fileName: string) {
-  const url = '/api/prd/view?dir=' + encodeURIComponent(currentDir.value) + '&file=' + encodeURIComponent(fileName)
+  const url = '/api/prd/view?dir=' + encodeURIComponent(currentDir.value) + '&file=' + encodeURIComponent(fileName) + projectQSuffix()
   window.open(url, '_blank')
 }
 
 async function toggleDone() {
+  if (!projects.currentId) return
   const target = folders.value.find(f => f.dir === currentDir.value)
   if (!target) return
   const next = !target.done
   try {
-    await fetch('/api/prd/done', {
+    await apiFetch('/api/prd/done', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dir: currentDir.value, done: next }),
+      body: JSON.stringify({ project: projects.currentId, dir: currentDir.value, done: next }),
     })
     target.done = next
   } catch { /* ignore */ }
 }
+
+// 项目切换:清空重载
+watch(() => projects.currentId, async () => {
+  currentDir.value = ''
+  currentFile.value = ''
+  files.value = []
+  await loadFolders()
+})
 
 onMounted(loadFolders)
 </script>
@@ -182,6 +181,7 @@ onMounted(loadFolders)
   outline: none; cursor: pointer;
 }
 .group-select:focus { border-color: var(--glow-dim); }
+.empty-hint { font-size: 11px; color: var(--text-dim); text-align: center; padding: 20px 8px; line-height: 1.8; }
 .list-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 4px; }
 .folder-block { flex: 1; min-width: 0; }
 .fb-name { font-size: 12px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -189,7 +189,6 @@ onMounted(loadFolders)
 .fb-date { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
 .list-item.selected .fb-name { color: var(--glow); }
 .port-tag { font-size: 10px; color: var(--text-dim); border: 1px solid var(--border); padding: 0 5px; border-radius: var(--radius); flex-shrink: 0; }
-.empty-hint { font-size: 11px; color: var(--text-dim); text-align: center; padding: 20px 8px; line-height: 1.8; }
 
 .toolbar {
   display: flex; align-items: center; gap: 8px;

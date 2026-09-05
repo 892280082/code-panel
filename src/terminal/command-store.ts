@@ -1,22 +1,22 @@
-import * as crypto from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
+// ── 命令抽屉:系统预设(全局常量) + 自定义命令(随项目 .code-panel/commands.yaml) ──
+//   commands.yaml 为提交式模块文件(随仓库走,AI/人照模板加);系统预设仍是面板常量。
+
+import crypto from 'crypto';
+import type { ProjectRow } from '../db/global-store';
+import { loadProjectModule, saveProjectModule } from '../projects/project-store';
+import type { CommandsModuleYaml } from '../projects/yaml';
 
 export interface CommandButton {
   id: string;
   label: string;
   command: string;
   cwd?: string;
+  subgroup?: string;
   type: 'system' | 'custom';
-  group?: string;       // 所属日志分组，为空时表示全局命令（与侧栏日志分组联动）
-  subgroup?: string;    // 子分组名（同一日志分组内再分块展示，如「快速启动」「单平台(前后台一体)」），为空时归入默认块
-  createdAt: string;
-  updatedAt: string;
 }
 
-const DATA_FILE = path.resolve(process.cwd(), 'data/terminal-commands.json');
-
-const SYSTEM_PRESETS: Omit<CommandButton, 'createdAt' | 'updatedAt'>[] = [
+/** 系统预设命令 —— 全局常量,不随项目、不入文件 */
+export const SYSTEM_PRESETS: CommandButton[] = [
   { id: 'sys-disk', label: '磁盘空间', command: 'df -h', type: 'system' },
   { id: 'sys-disk-capacity', label: '磁盘容量详情', command: 'df -h /', type: 'system' },
   { id: 'sys-memory', label: '内存使用', command: 'free -h', type: 'system' },
@@ -27,117 +27,82 @@ const SYSTEM_PRESETS: Omit<CommandButton, 'createdAt' | 'updatedAt'>[] = [
   { id: 'sys-io', label: '磁盘 IO', command: 'iostat -x 1 3', type: 'system' },
 ];
 
-function seedSystemPresets(existing: CommandButton[]): CommandButton[] {
-  const now = new Date().toISOString();
-  const existingIds = new Set(existing.map(c => c.id));
-  const existingLabels = new Set(existing.map(c => c.label));
-  const presets: CommandButton[] = [];
-  for (const p of SYSTEM_PRESETS) {
-    if (!existingIds.has(p.id) && !existingLabels.has(p.label)) {
-      presets.push({ ...p, createdAt: now, updatedAt: now });
-    }
-  }
-  if (presets.length > 0) {
-    const systemCmds = existing.filter(c => c.type === 'system');
-    const customCmds = existing.filter(c => c.type === 'custom');
-    return [...systemCmds, ...presets, ...customCmds];
-  }
-  return existing;
+type StoredCommand = { id: string; label: string; command: string; cwd?: string; subgroup?: string };
+
+function readCustom(project: ProjectRow): StoredCommand[] {
+  const yaml = loadProjectModule(project, 'commands') as CommandsModuleYaml;
+  return (yaml?.commands || []).filter(c => c && c.id && c.command);
 }
 
-function readFile(): CommandButton[] {
-  try {
-    if (!fs.existsSync(DATA_FILE)) return [];
-    const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-    const parsed = JSON.parse(raw);
-    const migrated = parsed.map((c: any) => ({ ...c, type: c.type || 'custom' }));
-    const seeded = seedSystemPresets(migrated);
-    if (seeded !== migrated) writeFile(seeded);
-    return seeded;
-  } catch {
-    return [];
-  }
+function writeCustom(project: ProjectRow, list: StoredCommand[]): void {
+  saveProjectModule(project, 'commands', { commands: list });
 }
 
-function writeFile(commands: CommandButton[]): void {
-  const dir = path.dirname(DATA_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(DATA_FILE, JSON.stringify(commands, null, 2), 'utf-8');
+/** 该项目的自定义命令 */
+export function getCustomCommands(project: ProjectRow): CommandButton[] {
+  return readCustom(project).map(c => ({ ...c, type: 'custom' as const }));
 }
 
-/** 获取所有命令，可按 group 筛选 */
-export function getAllCommands(group?: string): CommandButton[] {
-  const all = readFile();
-  if (!group) return all;
-  // system 命令全局可见，custom 命令仅所属分组可见
-  return all.filter(c => c.type === 'system' || c.group === group);
+/** 全部命令 = 系统预设 + 该项目自定义 */
+export function getAllCommands(project: ProjectRow): CommandButton[] {
+  return [...SYSTEM_PRESETS, ...getCustomCommands(project)];
 }
 
-export function addCommand(label: string, command: string, cwd?: string, group?: string, subgroup?: string, type: 'system' | 'custom' = 'custom'): CommandButton {
-  const commands = readFile();
-  const now = new Date().toISOString();
-  const entry: CommandButton = {
+export function addCommand(
+  project: ProjectRow,
+  fields: { label: string; command: string; cwd?: string; subgroup?: string },
+): CommandButton {
+  const entry: StoredCommand = {
     id: crypto.randomUUID(),
-    label: label.trim(),
-    command: command.trim(),
-    cwd: cwd?.trim() || undefined,
-    type,
-    group: group?.trim() || undefined,
-    subgroup: subgroup?.trim() || undefined,
-    createdAt: now,
-    updatedAt: now,
+    label: fields.label.trim(),
+    command: fields.command.trim(),
+    cwd: fields.cwd?.trim() || undefined,
+    subgroup: fields.subgroup?.trim() || undefined,
   };
-  commands.push(entry);
-  writeFile(commands);
-  return entry;
+  const list = readCustom(project);
+  list.push(entry);
+  writeCustom(project, list);
+  return { ...entry, type: 'custom' };
 }
 
-export function deleteCommand(id: string): boolean {
-  const commands = readFile();
-  const idx = commands.findIndex(c => c.id === id);
+export function deleteCommand(project: ProjectRow, id: string): boolean {
+  if (SYSTEM_PRESETS.some(c => c.id === id)) return false;
+  const list = readCustom(project);
+  const idx = list.findIndex(c => c.id === id);
   if (idx === -1) return false;
-  if (commands[idx].type === 'system') return false;
-  commands.splice(idx, 1);
-  writeFile(commands);
+  list.splice(idx, 1);
+  writeCustom(project, list);
   return true;
 }
 
-export function updateCommand(id: string, fields: { label?: string; command?: string; cwd?: string; group?: string; subgroup?: string }): CommandButton | null {
-  const commands = readFile();
-  const idx = commands.findIndex(c => c.id === id);
+export function updateCommand(
+  project: ProjectRow,
+  id: string,
+  fields: { label?: string; command?: string; cwd?: string; subgroup?: string },
+): CommandButton | null {
+  if (SYSTEM_PRESETS.some(c => c.id === id)) return null;
+  const list = readCustom(project);
+  const idx = list.findIndex(c => c.id === id);
   if (idx === -1) return null;
-  const cmd = commands[idx];
-  if (cmd.type === 'system') return null;
+  const cmd = list[idx];
   if (fields.label !== undefined) cmd.label = fields.label.trim();
   if (fields.command !== undefined) cmd.command = fields.command.trim();
   if (fields.cwd !== undefined) cmd.cwd = fields.cwd?.trim() || undefined;
-  if (fields.group !== undefined) cmd.group = fields.group?.trim() || undefined;
   if (fields.subgroup !== undefined) cmd.subgroup = fields.subgroup?.trim() || undefined;
-  cmd.updatedAt = new Date().toISOString();
-  commands[idx] = cmd;
-  writeFile(commands);
-  return cmd;
+  writeCustom(project, list);
+  return { ...cmd, type: 'custom' };
 }
 
-export function reorderCommands(ids: string[], group?: string): boolean {
-  const commands = readFile();
-  const systemCmds = commands.filter(c => c.type === 'system');
-  const customCmds = group
-    ? commands.filter(c => c.type === 'custom' && c.group === group)
-    : commands.filter(c => c.type === 'custom');
-  const customMap = new Map(customCmds.map(c => [c.id, c]));
-  const reordered: CommandButton[] = [];
+/** 重排自定义命令(仅该项目的 custom;系统预设恒在最前) */
+export function reorderCommands(project: ProjectRow, ids: string[]): boolean {
+  const list = readCustom(project);
+  const map = new Map(list.map(c => [c.id, c]));
+  const reordered: StoredCommand[] = [];
   for (const id of ids) {
-    const c = customMap.get(id);
-    if (c) { reordered.push(c); customMap.delete(id); }
+    const c = map.get(id);
+    if (c) { reordered.push(c); map.delete(id); }
   }
-  for (const c of customMap.values()) reordered.push(c);
-
-  // 拼接：保留其它分组的 custom 命令不变
-  const otherCustom = group
-    ? commands.filter(c => c.type === 'custom' && c.group !== group)
-    : [];
-  const all = [...systemCmds, ...reordered, ...otherCustom];
-  writeFile(all);
+  for (const c of map.values()) reordered.push(c);
+  writeCustom(project, reordered);
   return true;
 }

@@ -28,7 +28,7 @@ export interface FileDiff {
 }
 
 export interface RepoDiff {
-  repoId: number;
+  repoId: string;
   repoName: string;
   repoPath: string;
   branch: string;
@@ -181,7 +181,7 @@ function parseDiff(raw: string): FileDiff[] {
 // ── Summary (lightweight, for AI quick check) ─────────────
 
 export interface DiffSummary {
-  repoId: number;
+  repoId: string;
   repoName: string;
   repoPath: string;
   branch: string;
@@ -193,7 +193,7 @@ export interface DiffSummary {
   files: Array<{ path: string; status: string; additions: number; deletions: number }>;
 }
 
-export function getSummary(repoId: number, repoName: string, repoPath: string, staged = false): DiffSummary {
+export function getSummary(repoId: string, repoName: string, repoPath: string, staged = false): DiffSummary {
   if (!fs.existsSync(repoPath)) {
     return { repoId, repoName, repoPath, branch: 'N/A', clean: true, fileCount: 0, additions: 0, deletions: 0, files: [], error: `Path not found: ${repoPath}` };
   }
@@ -223,7 +223,7 @@ export function getSummary(repoId: number, repoName: string, repoPath: string, s
 
 // ── Full diff API ─────────────────────────────────────────
 
-export function getDiff(repoId: number, repoName: string, repoPath: string, staged = false): RepoDiff {
+export function getDiff(repoId: string, repoName: string, repoPath: string, staged = false): RepoDiff {
   // Validate path
   if (!fs.existsSync(repoPath)) {
     return { repoId, repoName, repoPath, branch: 'N/A', stat: '', files: [], error: `Path not found: ${repoPath}` };

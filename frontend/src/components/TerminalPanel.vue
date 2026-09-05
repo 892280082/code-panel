@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { useTerminalStore } from '@/stores/terminal'
+import { useAuthStore } from '@/stores/auth'
 
 const store = useTerminalStore()
+const auth = useAuthStore()
 
 // ── 拖拽 ────────────────────────────────────────
 let dragPort: number | null = null
@@ -53,7 +55,7 @@ function onDragEnd() {
     </div>
     <div class="terminal-body">
       <iframe
-        :src="`/api/terminal/${port}/`"
+        :src="`/api/terminal/${port}/?token=${auth.token}`"
         class="terminal-iframe"
       />
     </div>

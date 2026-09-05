@@ -39,5 +39,9 @@
         "group": "proj"
       }
     ]
+  },
+  "credentials": {
+    "username": "demo",
+    "passwordHash": "d9edfe80393c1d9234e87bdcd9d80d9d09ac8d74984b48421e806f9ebbd8b244"
   }
 }

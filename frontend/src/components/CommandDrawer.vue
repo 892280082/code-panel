@@ -1,12 +1,13 @@
 <script setup lang="ts">
+import { apiFetch } from '@/utils/api-fetch'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useLogStore } from '@/stores/logs'
+import { useProjectsStore } from '@/stores/projects'
 import { useTerminalStore } from '@/stores/terminal'
 
 const terminal = useTerminalStore()
-const logStore = useLogStore()
+const projects = useProjectsStore()
 const commands = ref<any[]>([])
-const activeTab = ref<'custom' | 'system'>('custom')
+const activeTab = ref<'custom' | 'system' | 'tmux'>('custom')
 const showForm = ref(false)
 const newLabel = ref('')
 const newCmd = ref('')
@@ -64,13 +65,10 @@ if (raw && clamped && (raw.x !== clamped.x || raw.y !== clamped.y)) {
 let dragging = false
 let dragStartX = 0, dragStartY = 0, dragOrigX = 0, dragOrigY = 0
 
-/** 当前分组 key */
-const currentGroup = computed(() => logStore.currentGroup || '')
-/** 当前分组显示名称 */
-const groupLabel = computed(() => {
-  const g = logStore.groupNames[currentGroup.value]
-  return g?.name || currentGroup.value || '自定义'
-})
+/** 当前项目 id */
+const currentProject = computed(() => projects.currentProject)
+/** 当前项目显示名称(自定义 Tab 标题) */
+const groupLabel = computed(() => projects.currentProject?.name || '自定义')
 
 function onTriggerDragStart(e: MouseEvent) {
   if (terminal.drawerOpen) return
@@ -94,31 +92,122 @@ function onTriggerDragEnd() {
 }
 
 async function loadCommands() {
+  if (!projects.currentId) { commands.value = []; return }
   try {
-    const group = currentGroup.value
-    const url = group ? `/api/terminal/commands?group=${encodeURIComponent(group)}` : '/api/terminal/commands'
-    const res = await fetch(url)
+    const url = `/api/terminal/commands?project=${encodeURIComponent(projects.currentId)}`
+    const res = await apiFetch(url)
     const data = await res.json()
     if (data.ok) commands.value = data.data
   } catch { /* ignore */ }
 }
 
+// ── Tmux 持久化会话(「会话」Tab)──────────────────────
+const tmuxSessions = ref<any[]>([])
+const showNewTmux = ref(false)
+const newTmuxName = ref('')
+const newTmuxDesc = ref('')
+const tmuxError = ref('')
+
+/** 拉取本项目 tmux 会话(后端带 project 过滤;这里再兜底过滤一次) */
+async function loadTmuxSessions() {
+  if (!projects.currentId) { tmuxSessions.value = []; return }
+  try {
+    const url = `/api/terminal/tmux/list?project=${encodeURIComponent(projects.currentId)}`
+    const res = await apiFetch(url)
+    const data = await res.json()
+    if (data.ok) {
+      const pid = projects.currentId
+      tmuxSessions.value = (data.data || [])
+        .filter((s: any) => s.project === pid)
+        .sort((a: any, b: any) => b.createdAt - a.createdAt)
+    }
+  } catch { /* ignore */ }
+}
+
+/** 该 tmux 会话在本页是否已开窗口(有则返回端口,null=未连接) */
+function attachedTmuxPort(fullName: string): number | null {
+  for (const [port, s] of terminal.sessions) {
+    if (s.kind === 'tmux' && s.tmuxSession === fullName) return port
+  }
+  return null
+}
+
+/** 展示名(后端已去前缀,name 为空时退化为物理名) */
+function prettyTmuxName(s: any): string { return s.name || s.fullName }
+
+async function onConnectTmux(s: any) {
+  if (!projects.currentId) return
+  const port = attachedTmuxPort(s.fullName)
+  if (port !== null) { terminal.restoreSession(port); return }
+  await terminal.attachTmux(s.fullName, prettyTmuxName(s), projects.currentId, s.description || '')
+}
+
+async function handleCreateTmux() {
+  tmuxError.value = ''
+  if (!projects.currentId) { tmuxError.value = '无当前项目'; return }
+  if (!newTmuxName.value.trim()) { tmuxError.value = '请输入会话名称'; return }
+  try {
+    const res = await apiFetch('/api/terminal/tmux/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        project: projects.currentId,
+        name: newTmuxName.value.trim(),
+        description: newTmuxDesc.value.trim() || undefined,
+      }),
+    })
+    const data = await res.json()
+    if (!data.ok) { tmuxError.value = data.error || '创建失败'; return }
+    const { name, fullName } = data.data
+    const desc = newTmuxDesc.value.trim()
+    newTmuxName.value = ''; newTmuxDesc.value = ''
+    showNewTmux.value = false
+    loadTmuxSessions()
+    await terminal.attachTmux(fullName, name, projects.currentId!, desc)
+  } catch {
+    tmuxError.value = '网络错误'
+  }
+}
+
+/** 断开:只 detach 本会话已开窗口(tmux 会话保留) */
+function onDetachTmux(s: any) {
+  const port = attachedTmuxPort(s.fullName)
+  if (port !== null) terminal.closeSession(port)
+}
+
+/** 彻底删除:断开 + kill session + 清备注 */
+function onDeleteTmux(s: any) {
+  if (!projects.currentId) return
+  if (!confirm(`确定删除 tmux 会话「${prettyTmuxName(s)}」?会话内的所有进程将被终止!`)) return
+  terminal.deleteTmuxSession(s.fullName, projects.currentId).then(loadTmuxSessions)
+}
+
+function fmtTime(ms: number): string {
+  if (!ms) return ''
+  const d = new Date(ms)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 function startPolling() {
   loadCommands()
-  pollTimer = setInterval(loadCommands, 5000)
+  loadTmuxSessions()
+  pollTimer = setInterval(() => { loadCommands(); loadTmuxSessions() }, 5000)
 }
 function stopPolling() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
 }
 
-// 分组切换时重新加载命令
-watch(currentGroup, () => {
-  if (terminal.drawerOpen) loadCommands()
+// 项目切换时重新加载命令 + tmux 会话
+watch(() => projects.currentId, () => {
+  commands.value = []
+  tmuxSessions.value = []
+  if (terminal.drawerOpen) { loadCommands(); loadTmuxSessions() }
 })
 
 watch(() => terminal.drawerOpen, (open) => {
   if (open) startPolling()
-  else { stopPolling(); showForm.value = false }
+  else { stopPolling(); showForm.value = false; showNewTmux.value = false }
 })
 
 function clampToViewport() {
@@ -146,15 +235,15 @@ async function handleCreate() {
   formError.value = ''
   if (!newLabel.value.trim()) { formError.value = '请输入名称'; return }
   if (!newCmd.value.trim()) { formError.value = '请输入命令'; return }
+  if (!projects.currentId) { formError.value = '无当前项目'; return }
   try {
-    const res = await fetch('/api/terminal/commands', {
+    const res = await apiFetch(`/api/terminal/commands?project=${encodeURIComponent(projects.currentId)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         label: newLabel.value.trim(),
         command: newCmd.value.trim(),
         cwd: newCwd.value.trim() || undefined,
-        group: currentGroup.value || undefined,
         subgroup: newSubgroup.value.trim() || undefined
       })
     })
@@ -192,15 +281,15 @@ async function handleEditSave() {
   editError.value = ''
   if (!editLabel.value.trim()) { editError.value = '请输入名称'; return }
   if (!editCmd.value.trim()) { editError.value = '请输入命令'; return }
+  if (!projects.currentId) { editError.value = '无当前项目'; return }
   try {
-    const res = await fetch(`/api/terminal/commands/${editingCmd.value.id}`, {
+    const res = await apiFetch(`/api/terminal/commands/${editingCmd.value.id}?project=${encodeURIComponent(projects.currentId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         label: editLabel.value.trim(),
         command: editCmd.value.trim(),
         cwd: editCwd.value.trim() || undefined,
-        group: currentGroup.value || undefined,
         subgroup: editSubgroup.value.trim() || undefined
       })
     })
@@ -219,7 +308,8 @@ async function handleEditSave() {
 // ── 删除 ──────────────────────────────────────────────
 async function handleDelete(cmd: any) {
   if (!confirm(`确定删除「${cmd.label}」?`)) return false
-  await fetch(`/api/terminal/commands/${cmd.id}`, { method: 'DELETE' })
+  if (!projects.currentId) return false
+  await apiFetch(`/api/terminal/commands/${cmd.id}?project=${encodeURIComponent(projects.currentId)}`, { method: 'DELETE' })
   loadCommands()
   return true
 }
@@ -243,7 +333,8 @@ function moveInGroup(cmd: any, dir: -1 | 1) {
 function moveUp(cmd: any) { moveInGroup(cmd, -1) }
 function moveDown(cmd: any) { moveInGroup(cmd, 1) }
 async function saveReorder(ids: string[]) {
-  await fetch('/api/terminal/commands/reorder', {
+  if (!projects.currentId) return
+  await apiFetch(`/api/terminal/commands/reorder?project=${encodeURIComponent(projects.currentId)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids })
@@ -281,6 +372,7 @@ async function saveReorder(ids: string[]) {
         <div class="drawer-tabs">
           <button class="tab-btn" :class="{ active: activeTab === 'custom' }" @click="activeTab = 'custom'">{{ groupLabel }}</button>
           <button class="tab-btn" :class="{ active: activeTab === 'system' }" @click="activeTab = 'system'">系统</button>
+          <button class="tab-btn" :class="{ active: activeTab === 'tmux' }" @click="activeTab = 'tmux'">会话</button>
         </div>
 
         <!-- 滚动内容区 -->
@@ -335,6 +427,43 @@ async function saveReorder(ids: string[]) {
               <span class="cmd-label">{{ cmd.label }}</span>
               <span class="cmd-preview">{{ cmd.command }}</span>
             </button>
+          </template>
+
+          <!-- 会话 Tab(Tmux 持久化终端) -->
+          <template v-if="activeTab === 'tmux'">
+            <button class="new-btn" @click="showNewTmux = !showNewTmux">
+              <span v-if="showNewTmux">− 取消</span>
+              <span v-else>+ 新建 Tmux 会话</span>
+            </button>
+
+            <div v-if="showNewTmux" class="form-card">
+              <input v-model="newTmuxName" class="form-input mono" placeholder="会话名称" @keyup.enter="handleCreateTmux" />
+              <input v-model="newTmuxDesc" class="form-input" placeholder="备注（可选）" @keyup.enter="handleCreateTmux" />
+              <div v-if="tmuxError" class="form-error">{{ tmuxError }}</div>
+              <button class="form-submit" @click="handleCreateTmux">创建并连接</button>
+            </div>
+
+            <div v-if="tmuxSessions.length === 0 && !showNewTmux" class="section-hint">
+              没有 tmux 会话。创建后终端会常驻服务器，刷新页面 / 重启服务后也能重连。
+            </div>
+
+            <div v-for="s in tmuxSessions" :key="s.fullName" class="tmux-item">
+              <div class="tmux-body" @click="onConnectTmux(s)">
+                <span class="cmd-label">
+                  {{ prettyTmuxName(s) }}
+                  <span v-if="attachedTmuxPort(s.fullName) !== null" class="tmux-badge">● 已连接</span>
+                </span>
+                <span class="cmd-preview">
+                  {{ s.description || `${s.windows} 个窗口` }} · {{ s.attached ? '已有接入' : '空闲' }} · {{ fmtTime(s.createdAt) }}
+                </span>
+              </div>
+              <div class="tmux-actions">
+                <button v-if="attachedTmuxPort(s.fullName) !== null" class="foot-btn" @click.stop="onDetachTmux(s)">
+                  断开
+                </button>
+                <button class="foot-btn danger" @click.stop="onDeleteTmux(s)">删除</button>
+              </div>
+            </div>
           </template>
 
           <!-- 活跃终端 -->
@@ -562,6 +691,36 @@ async function saveReorder(ids: string[]) {
   overflow: hidden;
 }
 .sys-card:hover { border-color: var(--glow, #22ee66); background: rgba(34,238,102,0.05); }
+
+/* ── Tmux 会话列表 ─────────────────────────────────────── */
+.tmux-item {
+  background: var(--bg, #09090b);
+  border: 1px solid var(--border, #23232a);
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex; flex-direction: column;
+  transition: border-color 0.15s;
+}
+.tmux-item:hover { border-color: rgba(34,238,102,0.3); }
+.tmux-body {
+  padding: 10px 12px 8px;
+  cursor: pointer;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.tmux-body:hover { background: rgba(34,238,102,0.03); }
+.tmux-badge {
+  font-size: 10px; font-weight: 600;
+  color: #3fb950;
+  margin-left: 4px;
+}
+.tmux-actions {
+  display: flex; justify-content: flex-end; gap: 2px;
+  padding: 4px 6px;
+  border-top: 1px solid var(--border, #23232a);
+  background: rgba(0,0,0,0.15);
+}
+.foot-btn.danger:hover { color: #f44747; }
 
 /* ── 编辑弹窗 ─────────────────────────────────────────── */
 .modal-backdrop {

@@ -1,6 +1,8 @@
-// ── SSE connection composable ─────────────────────────────
+// ── SSE connection composable(带 JWT ?token=,可选 ?project= 过滤) ──
+//   EventSource 无法自定义 Header,后端 authMiddleware 支持 query token。
 
 import { ref } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import type { SseMessage, PortStatusMessage } from '@/types'
 
 export function useSSE() {
@@ -16,9 +18,14 @@ export function useSSE() {
   function onLog(fn: LogHandler) { logHandlers.push(fn) }
   function onPortStatus(fn: PortHandler) { portHandlers.push(fn) }
 
-  function connect() {
+  function connect(projectId?: string) {
     if (es) es.close()
-    es = new EventSource('/api/stream')
+    const auth = useAuthStore()
+    const params = new URLSearchParams()
+    if (auth.token) params.set('token', auth.token)
+    if (projectId) params.set('project', projectId)
+    const qs = params.toString()
+    es = new EventSource(qs ? `/api/stream?${qs}` : '/api/stream')
     es.onopen = () => { connected.value = true }
     es.onerror = () => { connected.value = false }
     es.onmessage = (e) => {
@@ -44,5 +51,5 @@ export function useSSE() {
   // (this composable is called inside a Pinia store, not a component)
   connect()
 
-  return { connected, onLog, onPortStatus }
+  return { connected, onLog, onPortStatus, connect }
 }

@@ -1,42 +1,35 @@
-// ── 定期备份管理:data/backup-config.json 配置 + tar.gz 打包 ──
+// ── 定期备份管理 ─────────────────────────────────────────
+//   备份内容(严格两层模型):
+//     ① 全局层 ~/.code-panel/(data.db + jwt.secret + 其它)
+//     ② 每个已注册项目的 .code-panel/(yaml 配置 + data/ 运行数据)
+//   打包为 backup-YYYY-MM-DD.tar.gz(同天同名覆盖),保留最近 MAX_KEEP 份。
+//   备份路径存全局 settings.backup.path(不再读 data/backup-config.json)。
 
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import { globalDataDir } from '../paths';
+import { getSetting, setSetting } from '../db/global-store';
+import { allProjects } from '../projects/project-store';
 
-const CONFIG_FILE = path.resolve(process.cwd(), 'data/backup-config.json');
-export const DEFAULT_BACKUP_DIR = '/Users/owner/upload/code-panel-db-backup';
 export const MAX_KEEP = 20;
+const DEFAULT_BACKUP_DIR = '/Users/owner/upload/code-panel-db-backup';
 
-interface BackupConfig { path: string }
-
-/** 读取配置;首次运行(无配置)写入默认备份路径 */
-function getConfig(): BackupConfig {
-  try {
-    if (fs.existsSync(CONFIG_FILE)) {
-      const c = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
-      if (c && typeof c.path === 'string' && c.path.trim()) return { path: c.path.trim() };
-    }
-  } catch { /* ignore */ }
-  const cfg = { path: DEFAULT_BACKUP_DIR };
-  try {
-    const dir = path.dirname(CONFIG_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf-8');
-  } catch { /* ignore */ }
-  return cfg;
+function backupConfig(): { path: string } {
+  const c = getSetting<{ path?: string }>('backup', { path: DEFAULT_BACKUP_DIR });
+  const dir = c?.path?.trim();
+  return { path: dir || DEFAULT_BACKUP_DIR };
 }
 
 export function getBackupPath(): string {
-  return getConfig().path;
+  return backupConfig().path;
 }
 
 export function setBackupPath(dir: string): string {
-  const cfg = { path: dir.trim() };
-  const dirPath = path.dirname(CONFIG_FILE);
-  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf-8');
-  return cfg.path;
+  const p = dir.trim();
+  setSetting('backup', { path: p });
+  return p;
 }
 
 /** 今天的备份文件名:backup-YYYY-MM-DD.tar.gz(本地时区) */
@@ -46,25 +39,35 @@ function todayName(): string {
   return `backup-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}.tar.gz`;
 }
 
-/** 执行一次备份:打包 data/ + sql-history.json + sql-queue.json,同天同名自动覆盖替换 */
+/** 递归拷贝(含隐藏文件),目标自动创建 */
+function copyDir(src: string, dest: string): void {
+  if (!fs.existsSync(src)) return;
+  fs.mkdirSync(dest, { recursive: true });
+  fs.cpSync(src, dest, { recursive: true, force: true });
+}
+
+/** 执行一次备份;返回 dest 文件(供调用方展示) */
 export function runBackup(): { ok: boolean; file?: string; error?: string } {
   const dir = getBackupPath();
   if (!dir) return { ok: false, error: '备份路径未配置' };
   try {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const cwd = process.cwd();
-    // 收集存在的备份源(data 目录 + 根目录运行时 json)
-    const sources: string[] = [];
-    if (fs.existsSync(path.join(cwd, 'data'))) sources.push('data');
-    for (const f of ['sql-history.json', 'sql-queue.json']) {
-      if (fs.existsSync(path.join(cwd, f))) sources.push(f);
+
+    // 暂存目录,规整目录名后统一 tar,保证恢复结构清晰
+    const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'code-panel-bak-'));
+    copyDir(globalDataDir(), path.join(stage, 'global.code-panel'));
+    for (const p of allProjects()) {
+      copyDir(path.join(p.root, '.code-panel'), path.join(stage, `${p.id}.code-panel`));
     }
+
     const dest = path.join(dir, todayName());
-    execSync(`tar -czf "${dest}" ${sources.map(s => `"${s}"`).join(' ')}`, { cwd, stdio: 'pipe' });
+    execSync(`tar -czf "${dest}" -C "${stage}" .`, { stdio: 'pipe' });
+    fs.rmSync(stage, { recursive: true, force: true });
+
     pruneOldBackups(dir);
     return { ok: true, file: dest };
-  } catch (e: any) {
-    return { ok: false, error: e?.message || String(e) };
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
 

@@ -1,10 +1,16 @@
 // ── Terminal routes: status, sessions, commands ─────────────
 
 import { Router, Request, Response } from 'express';
+import type { ProjectRow } from '../db/global-store';
+import { requireProject } from '../projects/context';
 import { getTTYDStatus, createSession, killSession, getSessions } from '../terminal/ttyd-manager';
 import { getAllCommands, addCommand, deleteCommand, updateCommand, reorderCommands } from '../terminal/command-store';
 
 const router = Router();
+
+function reqProject(req: Request): ProjectRow {
+  return (req as Request & { project: ProjectRow }).project;
+}
 
 // ── Status ────────────────────────────────────────────────
 
@@ -72,18 +78,19 @@ router.delete('/api/terminal/sessions/:port', (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
-// ── Commands ──────────────────────────────────────────────
+// ── Commands(自定义命令随项目;系统预设全局)────────────────
 
-// GET /api/terminal/commands?group=xxx — 查询命令按钮（按分组筛选）
-router.get('/api/terminal/commands', (req: Request, res: Response) => {
-  const group = req.query.group as string | undefined;
-  const commands = getAllCommands(group || undefined);
+// GET /api/terminal/commands?project=xxx — 系统预设 + 该项目自定义命令
+router.get('/api/terminal/commands', requireProject, (req: Request, res: Response) => {
+  const project = reqProject(req);
+  const commands = getAllCommands(project);
   res.json({ ok: true, data: commands });
 });
 
-// POST /api/terminal/commands — 注册命令按钮
-router.post('/api/terminal/commands', (req: Request, res: Response) => {
-  const { label, command, cwd, group, subgroup } = req.body;
+// POST /api/terminal/commands — 注册命令按钮(落该项目 data/commands.json)
+router.post('/api/terminal/commands', requireProject, (req: Request, res: Response) => {
+  const project = reqProject(req);
+  const { label, command, cwd, subgroup } = req.body;
 
   if (!label || typeof label !== 'string' || !label.trim() || label.trim().length > 100) {
     res.status(400).json({ ok: false, error: 'label is required and must be 1-100 characters' });
@@ -102,32 +109,33 @@ router.post('/api/terminal/commands', (req: Request, res: Response) => {
     }
   }
 
-  const entry = addCommand(
-    label.trim(),
-    command.trim(),
-    cwd && typeof cwd === 'string' ? cwd.trim() : undefined,
-    group && typeof group === 'string' ? group.trim() : undefined,
-    subgroup && typeof subgroup === 'string' ? subgroup.trim() : undefined
-  );
+  const entry = addCommand(project, {
+    label: label.trim(),
+    command: command.trim(),
+    cwd: cwd && typeof cwd === 'string' ? cwd.trim() : undefined,
+    subgroup: subgroup && typeof subgroup === 'string' ? subgroup.trim() : undefined,
+  });
 
   res.status(201).json({ ok: true, data: entry });
 });
 
-// PUT /api/terminal/commands/reorder — 重排自定义命令
-router.put('/api/terminal/commands/reorder', (req: Request, res: Response) => {
-  const { ids, group } = req.body;
+// PUT /api/terminal/commands/reorder — 重排该项目自定义命令
+router.put('/api/terminal/commands/reorder', requireProject, (req: Request, res: Response) => {
+  const project = reqProject(req);
+  const { ids } = req.body;
   if (!Array.isArray(ids) || ids.some((id: any) => typeof id !== 'string')) {
     res.status(400).json({ ok: false, error: 'ids must be a string array' });
     return;
   }
-  reorderCommands(ids, group || undefined);
+  reorderCommands(project, ids);
   res.json({ ok: true });
 });
 
 // PUT /api/terminal/commands/:id — 编辑命令按钮
-router.put('/api/terminal/commands/:id', (req: Request, res: Response) => {
+router.put('/api/terminal/commands/:id', requireProject, (req: Request, res: Response) => {
+  const project = reqProject(req);
   const { id } = req.params;
-  const { label, command, cwd, group, subgroup } = req.body;
+  const { label, command, cwd, subgroup } = req.body;
 
   if (label !== undefined && (typeof label !== 'string' || !label.trim() || label.trim().length > 100)) {
     res.status(400).json({ ok: false, error: 'label must be 1-100 characters' });
@@ -142,7 +150,7 @@ router.put('/api/terminal/commands/:id', (req: Request, res: Response) => {
     return;
   }
 
-  const updated = updateCommand(id, { label, command, cwd, group, subgroup });
+  const updated = updateCommand(project, id, { label, command, cwd, subgroup });
   if (!updated) {
     res.status(404).json({ ok: false, error: 'command not found or is system command' });
     return;
@@ -151,9 +159,10 @@ router.put('/api/terminal/commands/:id', (req: Request, res: Response) => {
 });
 
 // DELETE /api/terminal/commands/:id — 删除命令按钮
-router.delete('/api/terminal/commands/:id', (req: Request, res: Response) => {
+router.delete('/api/terminal/commands/:id', requireProject, (req: Request, res: Response) => {
+  const project = reqProject(req);
   const { id } = req.params;
-  const deleted = deleteCommand(id);
+  const deleted = deleteCommand(project, id);
   if (!deleted) {
     res.status(404).json({ ok: false, error: 'command not found or is system command' });
     return;

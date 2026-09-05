@@ -6,7 +6,7 @@ import { useRepoBrowserStore } from '@/stores/repo-browser'
 
 const props = defineProps<{
   visible: boolean
-  repoId: number | null
+  repoId: string | null
   repoName: string
 }>()
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, computed } from 'vue'
 import { useSqlStore } from '@/stores/sql'
+import { useProjectsStore } from '@/stores/projects'
 import Sidebar from '@/components/Sidebar.vue'
 import DbHealthList from '@/components/DbHealthList.vue'
 import DrawerPanel from '@/components/DrawerPanel.vue'
@@ -8,6 +9,8 @@ import RejectModal from '@/components/RejectModal.vue'
 import type { SqlHistoryEntry } from '@/types'
 
 const store = useSqlStore()
+const projects = useProjectsStore()
+const hasProject = computed(() => !!projects.currentProject)
 
 onMounted(() => store.init())
 onUnmounted(() => store.stopPolling())
@@ -52,30 +55,24 @@ async function handleApprove(id: string) {
 <template>
   <div class="app">
     <Sidebar>
-      <!-- 分组选择 — 跟日志页一模一样 -->
-      <select
-        class="group-select"
-        :value="store.currentDbGroup"
-        @change="store.setDbGroup(($event.target as HTMLSelectElement).value)"
-      >
-        <option v-for="g in store.dbGroups" :key="g" :value="g">{{ g }}</option>
-      </select>
+      <!-- 当前项目的数据库连接列表(展示全部,无分组概念) -->
+      <div v-if="!hasProject" class="empty-hint">无项目,请先添加项目</div>
+      <template v-else>
+        <DbHealthList />
 
-      <!-- 当前分组下的数据库列表 -->
-      <DbHealthList />
-
-      <!-- Section tabs -->
-      <div class="section-tabs">
-        <div
-          v-for="s in (['pending','executed','rejected','failed'] as const)" :key="s"
-          class="section-tab"
-          :class="{ active: store.currentSection === s }"
-          @click="store.setSection(s)"
-        >
-          {{ s.toUpperCase() }}
-          <span v-if="s === 'pending' && store.pendingCount" class="badge warn">{{ store.pendingCount }}</span>
+        <!-- Section tabs -->
+        <div class="section-tabs">
+          <div
+            v-for="s in (['pending','executed','rejected','failed'] as const)" :key="s"
+            class="section-tab"
+            :class="{ active: store.currentSection === s }"
+            @click="store.setSection(s)"
+          >
+            {{ s.toUpperCase() }}
+            <span v-if="s === 'pending' && store.pendingCount" class="badge warn">{{ store.pendingCount }}</span>
+          </div>
         </div>
-      </div>
+      </template>
 
       <!-- Job list -->
       <div class="scroll-list">
@@ -128,7 +125,11 @@ async function handleApprove(id: string) {
       </div>
 
       <!-- SQL Detail -->
-      <div v-if="!store.selectedJob" class="sql-panel empty-panel">
+      <div v-if="!hasProject" class="sql-panel empty-panel">
+        <span>还没有项目,请先在侧栏「项目」添加一个项目</span>
+      </div>
+
+      <div v-else-if="!store.selectedJob" class="sql-panel empty-panel">
         <span>Select a SQL job from the sidebar</span>
       </div>
 
@@ -271,6 +272,7 @@ async function handleApprove(id: string) {
 .scroll-list::-webkit-scrollbar-track { background: transparent; }
 .scroll-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 .empty-jobs { padding: 20px; text-align: center; color: var(--text-dim); font-size: 11px; }
+.empty-hint { font-size: 11px; color: var(--text-dim); text-align: center; padding: 20px 8px; line-height: 1.8; }
 
 .sql-item {
   padding: 6px 8px; margin: 1px 4px;

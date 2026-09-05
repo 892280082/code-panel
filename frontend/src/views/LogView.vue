@@ -1,25 +1,25 @@
 <script setup lang="ts">
 import { onMounted, watch, ref, computed, nextTick } from 'vue'
 import { useLogStore } from '@/stores/logs'
+import { useProjectsStore } from '@/stores/projects'
 import { ansiToHtml, ansiStrip } from '@/composables/useAnsi'
+import type { LogEntry } from '@/types'
 import Sidebar from '@/components/Sidebar.vue'
 import StatusDot from '@/components/StatusDot.vue'
-import ConfigModal from '@/components/ConfigModal.vue'
 import QuickLaunchDrawer from '@/components/QuickLaunchDrawer.vue'
 import BackupDrawer from '@/components/BackupDrawer.vue'
 
 const store = useLogStore()
+const projects = useProjectsStore()
+const hasProject = computed(() => !!projects.currentProject)
 const ansiLabels: Record<string, string> = { strip: '🎨 strip', raw: '🔤 raw', color: '🌈 color' }
 const logEl = ref<HTMLElement | null>(null)
 
 onMounted(() => {
-  store.loadConfig().then(() => store.loadSortedLogs())
+  store.refreshAll()
   // Periodic update of activity indicators
   setInterval(() => { /* triggers reactivity for activity dots */ }, 500)
 })
-
-// Watch for group changes to reload files
-watch(() => store.currentGroup, () => store.loadSortedLogs())
 
 function renderContent(text: string): string {
   if (store.ansiMode === 'strip') return ansiStrip(text)
@@ -27,7 +27,7 @@ function renderContent(text: string): string {
   return text
 }
 
-function getLogStatus(log: any) {
+function getLogStatus(log: LogEntry) {
   // SSE 实时端口状态优先（比 /api/logs 的初始 alive 字段更新）
   if (log.port && store.portStatusMap[log.port] !== undefined) {
     return store.portStatusMap[log.port] ? 'alive' : 'dead'
@@ -39,14 +39,12 @@ function getLogStatus(log: any) {
 }
 
 /** 端口号数字亮/暗：与圆点同源（SSE 实时 portStatusMap），避免定时检测只亮圆点不亮数字 */
-function getPortAlive(log: any): boolean {
+function getPortAlive(log: LogEntry): boolean {
   if (log.port && store.portStatusMap[log.port] !== undefined) {
     return store.portStatusMap[log.port]
   }
   return !!log.alive
 }
-
-function escFileName(fp: string) { return fp.replace(/[^a-zA-Z0-9]/g, '_') }
 
 const activityNow = ref(Date.now())
 function isActive(fp: string): boolean {
@@ -86,20 +84,13 @@ watch(currentContent, () => {
 <template>
   <div class="app">
     <Sidebar>
-      <!-- Group Select -->
-      <select
-        class="group-select"
-        :value="store.currentGroup"
-        @change="store.setGroup(($event.target as HTMLSelectElement).value)"
-      >
-        <option v-if="!store.groups.length" disabled>No groups</option>
-        <option v-for="gk in store.groups" :key="gk" :value="gk">
-          {{ store.groupNames[gk]?.name }}
-        </option>
-      </select>
-
-      <!-- File List -->
+      <!-- 文件列表 -->
+      <div class="log-list-head">
+        <span>日志文件</span>
+        <span class="count" v-if="store.filteredLogs.length">{{ store.filteredLogs.length }}</span>
+      </div>
       <div class="scroll-list">
+        <div v-if="!hasProject" class="empty-hint">无项目,请在顶部「项目」添加</div>
         <div
           v-for="log in store.filteredLogs" :key="log.file"
           class="list-item file-item"
@@ -108,6 +99,7 @@ watch(currentContent, () => {
         >
           <StatusDot :status="getLogStatus(log)" />
           <span class="name">{{ log.name }}</span>
+          <span v-if="log.section" class="section-tag" :title="log.section">{{ log.section }}</span>
           <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
           <span v-if="log.port" class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
         </div>
@@ -118,7 +110,6 @@ watch(currentContent, () => {
     <main class="main">
       <!-- Toolbar -->
       <div class="toolbar">
-        <button @click="store.showConfig = true">⚙ Config</button>
         <button @click="store.refreshAll()">↻ Refresh</button>
         <button
           :class="{ on: store.ansiMode === 'strip', danger: store.ansiMode === 'color' }"
@@ -145,8 +136,15 @@ watch(currentContent, () => {
 
       <!-- Content -->
       <div class="content-area">
-        <!-- Empty state -->
-        <div v-if="!store.activeFile" class="empty-state">
+        <!-- Empty state:无项目 -->
+        <div v-if="!hasProject" class="empty-state">
+          <span class="icon">◈</span>
+          <span>还没有项目</span>
+          <span class="hint">点左上角 ⚙ →「项目」添加/切换一个项目</span>
+        </div>
+
+        <!-- Empty state:有项目但未打开文件 -->
+        <div v-else-if="!store.activeFile" class="empty-state">
           <span class="icon">◈</span>
           <span>Select a log file from the sidebar</span>
           <span class="hint">● 端口存活 &nbsp; 3003 端口号 &nbsp; <b class="txt-blink-hint">T</b> 新日志写入</span>
@@ -173,8 +171,6 @@ watch(currentContent, () => {
         </div>
       </div>
     </main>
-
-    <ConfigModal />
   </div>
 </template>
 
@@ -194,6 +190,17 @@ watch(currentContent, () => {
   background-position: right 10px center;
 }
 
+.log-list-head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 12px 4px; font-size: 10px; color: var(--text-dim);
+  letter-spacing: 0.06em;
+}
+.log-list-head .count {
+  font-size: 9px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0 6px; line-height: 16px;
+}
+.empty-hint { font-size: 11px; color: var(--text-dim); text-align: center; padding: 20px 8px; line-height: 1.8; }
+
 .scroll-list { flex: 1; overflow-y: auto; padding: 8px; min-height: 25vh; }
 .scroll-list::-webkit-scrollbar { width: 4px; }
 .scroll-list::-webkit-scrollbar-track { background: transparent; }
@@ -209,6 +216,12 @@ watch(currentContent, () => {
 .list-item.selected { background: #1a1a28; border-color: var(--glow-dim); }
 
 .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.section-tag {
+  flex-shrink: 0; font-size: 9px; color: var(--text-dim);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 3px; padding: 0 5px; max-width: 90px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 .toolbar {
   display: flex; align-items: center; gap: 8px;
@@ -305,6 +318,7 @@ watch(currentContent, () => {
   background: var(--surface); color: var(--text-dim);
   border: 1px solid var(--border);
   font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 .port-tag.alive {
   color: var(--glow);

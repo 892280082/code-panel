@@ -40,7 +40,7 @@ function validateRepo(repoPath: string): string | null {
 // ── Pull ──────────────────────────────────────────────────
 
 export interface PullResult {
-  repoId: number;
+  repoId: string;
   repoName: string;
   branch: string;
   status: 'pulled' | 'up-to-date' | 'conflict' | 'error' | 'no-remote';
@@ -48,7 +48,7 @@ export interface PullResult {
   pulledCount?: number;  // number of new commits pulled
 }
 
-export function pullRepo(repoId: number, repoName: string, repoPath: string): PullResult {
+export function pullRepo(repoId: string, repoName: string, repoPath: string): PullResult {
   const pathErr = validateRepo(repoPath);
   if (pathErr) {
     return { repoId, repoName, branch: 'N/A', status: 'error', message: pathErr };
@@ -106,7 +106,7 @@ export interface DayGroup {
 }
 
 export interface RepoLog {
-  repoId: number;
+  repoId: string;
   repoName: string;
   branch: string;
   error?: string;
@@ -115,7 +115,7 @@ export interface RepoLog {
 }
 
 export function getCommitLog(
-  repoId: number,
+  repoId: string,
   repoName: string,
   repoPath: string,
   limit = 100,

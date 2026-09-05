@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { apiFetch } from '@/utils/api-fetch'
 import { ref, watch } from 'vue'
 
 const open = ref(false)
@@ -12,7 +13,7 @@ const runMsg = ref('')
 
 async function loadConfig() {
   try {
-    const res = await fetch('/api/backup/config')
+    const res = await apiFetch('/api/backup/config')
     const data = await res.json()
     if (data.ok) {
       pathInput.value = data.data.path
@@ -23,7 +24,7 @@ async function loadConfig() {
 
 async function loadList() {
   try {
-    const res = await fetch('/api/backup/list')
+    const res = await apiFetch('/api/backup/list')
     const data = await res.json()
     if (data.ok) backups.value = data.data
   } catch { /* ignore */ }
@@ -39,7 +40,7 @@ async function handleSavePath() {
   if (!pathInput.value.trim()) { pathError.value = '请输入备份路径'; return }
   saving.value = true
   try {
-    const res = await fetch('/api/backup/config', {
+    const res = await apiFetch('/api/backup/config', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: pathInput.value.trim() })
@@ -59,7 +60,7 @@ async function handleRun() {
   running.value = true
   runMsg.value = ''
   try {
-    const res = await fetch('/api/backup/run', { method: 'POST' })
+    const res = await apiFetch('/api/backup/run', { method: 'POST' })
     const data = await res.json()
     if (data.ok) {
       runMsg.value = '✓ 备份完成:' + (data.data.file || '').split('/').pop()

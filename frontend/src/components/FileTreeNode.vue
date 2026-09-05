@@ -6,7 +6,7 @@ import { useRepoBrowserStore } from '@/stores/repo-browser'
 import { copyToClipboard } from '@/utils/clipboard'
 
 const props = defineProps<{
-  repoId: number
+  repoId: string
   subPath: string
   entries: DirEntry[]
   depth: number

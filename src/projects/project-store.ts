@@ -1,0 +1,178 @@
+// ── 项目注册表封装 + .code-panel 骨架 + 模块 YAML / 运行时数据读写 ──
+
+import fs from 'fs';
+import path from 'path';
+import type { ProjectRow } from '../db/global-store';
+import {
+  listProjects, getProject, addProject, updateProject, deleteProject,
+} from '../db/global-store';
+import { projectCodePanelDir, projectDataDir, projectModuleYamlFile, projectDataFile } from '../paths';
+import {
+  ensureDefaultYaml, loadModuleYaml, writeModuleYaml,
+} from './yaml';
+import type { ModuleName, ModuleYaml } from './yaml';
+
+// ── 注册表(薄封装) ─────────────────────────────────────
+
+export function allProjects(): ProjectRow[] { return listProjects(); }
+export function projectById(id: string): ProjectRow | undefined { return getProject(id); }
+export function removeProject(id: string): void { deleteProject(id); }
+
+export interface CreateProjectInput {
+  name: string;
+  root: string;
+}
+
+/** 下一个整型自增项目 id(现有个数内取 max+1;无视非数字 id) */
+function nextProjectId(): string {
+  const max = listProjects().reduce<number>((m, p) => {
+    const n = parseInt(p.id, 10);
+    return Number.isFinite(n) ? Math.max(m, n) : m;
+  }, 0);
+  return String(max + 1);
+}
+
+export function createProject(input: CreateProjectInput): ProjectRow {
+  if (!input.name || !input.name.trim()) throw new Error('name 必填');
+  const root = path.resolve(input.root);
+  if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) {
+    throw new Error(`项目根目录不存在或不是目录: ${root}`);
+  }
+  const id = nextProjectId();
+  const project = addProject(id, input.name.trim(), root);
+  ensureProjectSkeleton(project);
+  return project;
+}
+
+export function renameProject(id: string, updates: { name?: string; root?: string }): ProjectRow {
+  return updateProject(id, updates);
+}
+
+/** .code-panel/README.md —— 给本项目目录里的 AI/人看,照着模板添加即可 */
+const README_TEMPLATE = `# .code-panel —— 本项目在 code-panel 面板里的配置
+
+面板按本项目读取此目录;**修改即生效**,无需重启面板。
+
+> 📐 **路径规则:一律写「相对项目根的相对路径」**(如 code/backend/apps/main/logs/a.log),
+> 面板读取时自动转成绝对路径;这样本目录可随仓库换机器/换目录直接用。
+> 仅当目标确在项目根之外时才用绝对路径(但那样的路径不随仓库迁移)。
+
+## 文件说明
+| 文件 | 作用 | 想加什么就编辑它 |
+|------|------|------------------|
+| \`logs.yaml\`      | 日志清单(面板 /log) | 加日志文件:name/file/可选 port |
+| \`sql.yaml\`       | 数据库连接(面板 /sql) | 加连接:mysql/sqlite 均支持 |
+| \`prd.yaml\`       | PRD 目录(面板 /prd)   | 加 PRD 文档目录 {name,dir} |
+| \`git.yaml\`       | git 仓库(面板 /git)   | 加本机 git 仓库 {id,name,path} |
+| \`commands.yaml\`  | 命令抽屉「自定义命令」 | 加启动/停止/单模块命令按钮(见下) |
+| \`data/\`          | 运行时数据(SQL 历史/队列、PRD 完成态、tmux 备注) | 面板自动写,勿手改 |
+
+每个 yaml 文件顶部注释就是完整字段说明 + 示例(把注释里的例子打开就能用)。
+
+## 自定义命令 commands.yaml
+提交式、随仓库走,仓库里的 AI 照 \`commands.yaml\` 顶部注释即可为这个项目加启动/停止按钮。
+面板「命令终端」抽屉会读到它;新增 id 取唯一值即可。
+`;
+
+/** 生成/补齐 .code-panel 骨架(.gitignore + README + 4 个模块默认 yaml + 命令模板 + data/)。
+ *  幂等:已有内容不覆盖,只补齐缺失文件。 */
+export function ensureProjectSkeleton(project: ProjectRow): void {
+  const dir = projectCodePanelDir(project.root);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const dataDir = projectDataDir(project.root);
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+
+  const gitignore = path.join(dir, '.gitignore');
+  if (!fs.existsSync(gitignore)) fs.writeFileSync(gitignore, 'data/\n', 'utf8');
+
+  const readme = path.join(dir, 'README.md');
+  if (!fs.existsSync(readme)) fs.writeFileSync(readme, README_TEMPLATE, 'utf8');
+
+  for (const m of ['logs', 'sql', 'prd', 'git', 'commands'] as ModuleName[]) {
+    ensureDefaultYaml(projectModuleYamlFile(project.root, m), m);
+  }
+}
+
+/** 读取/切换前补齐骨架:缺目录建目录、缺模板补模板;已有内容不覆盖 */
+function ensureScaffolded(project: ProjectRow): void {
+  ensureProjectSkeleton(project);
+}
+
+// ── 模块 YAML ──────────────────────────────────────────
+
+// ── 路径规则:配置文件里只写「相对项目根」的路径 ───────────
+//   读取时 → 绝对(供面板/命令用);保存时 → 若在项目根内则存相对。
+//   项目根之外的特殊路径仍容忍(保留绝对),但不会随仓库迁移。
+function absOf(root: string, p: unknown): string | undefined {
+  if (typeof p !== 'string' || !p.trim()) return undefined;
+  const v = p.trim();
+  return path.isAbsolute(v) ? v : path.resolve(root, v);
+}
+function relOf(root: string, p: unknown): string | undefined {
+  if (typeof p !== 'string' || !p.trim()) return undefined;
+  const v = p.trim();
+  if (!path.isAbsolute(v)) return v;
+  const r = path.relative(root, v);
+  if (r.startsWith('..')) return v;            // 根外特殊路径:保留绝对(不随仓库迁移)
+  return r === '' ? '.' : r;                   // 根本身存 '.',其余相对
+}
+function walkAbs(root: string, v: any): any {
+  if (!v) return v;
+  for (const f of ['file', 'path', 'dir', 'cwd']) if (typeof v[f] === 'string') v[f] = absOf(root, v[f]);
+  return v;
+}
+function walkRel(root: string, v: any): any {
+  if (!v) return v;
+  for (const f of ['file', 'path', 'dir', 'cwd']) if (typeof v[f] === 'string') v[f] = relOf(root, v[f]);
+  return v;
+}
+
+export function loadProjectModule(project: ProjectRow, module: ModuleName): ModuleYaml {
+  ensureScaffolded(project);
+  const root = project.root;
+  const yaml = loadModuleYaml<ModuleYaml>(projectModuleYamlFile(project.root, module), module) as any;
+  if (module === 'logs') (yaml.sections || []).forEach((s: any) => (s.logs || []).forEach((l: any) => walkAbs(root, l)));
+  else if (module === 'sql') (yaml.connections || []).forEach((c: any) => walkAbs(root, c));
+  else if (module === 'prd') { if (typeof yaml.dir === 'string') yaml.dir = absOf(root, yaml.dir) || ''; (yaml.folders || []).forEach((f: any) => walkAbs(root, f)); }
+  else if (module === 'git') (yaml.repos || []).forEach((r: any) => walkAbs(root, r));
+  else if (module === 'commands') (yaml.commands || []).forEach((c: any) => walkAbs(root, c));
+  return yaml as ModuleYaml;
+}
+
+export function saveProjectModule(project: ProjectRow, module: ModuleName, value: ModuleYaml): void {
+  ensureScaffolded(project);
+  const root = project.root;
+  const v = value as any;
+  if (module === 'logs') (v.sections || []).forEach((s: any) => (s.logs || []).forEach((l: any) => walkRel(root, l)));
+  else if (module === 'sql') (v.connections || []).forEach((c: any) => walkRel(root, c));
+  else if (module === 'prd') { if (typeof v.dir === 'string') v.dir = relOf(root, v.dir) || ''; (v.folders || []).forEach((f: any) => walkRel(root, f)); }
+  else if (module === 'git') (v.repos || []).forEach((r: any) => walkRel(root, r));
+  else if (module === 'commands') (v.commands || []).forEach((c: any) => walkRel(root, c));
+  writeModuleYaml(projectModuleYamlFile(project.root, module), v);
+}
+
+// ── 项目运行时数据(.code-panel/data/,gitignore) ────────
+
+export function projectRuntimePath(project: ProjectRow, rel: string): string {
+  return projectDataFile(project.root, rel);
+}
+
+export function readRuntimeJson<T>(project: ProjectRow, rel: string, fallback: T): T {
+  ensureScaffolded(project);
+  const file = projectDataFile(project.root, rel);
+  try {
+    if (!fs.existsSync(file)) return fallback;
+    return JSON.parse(fs.readFileSync(file, 'utf8')) as T;
+  } catch (e) {
+    console.warn(`[runtime] 读取失败回退默认(${file}):`, (e as Error).message);
+    return fallback;
+  }
+}
+
+export function writeRuntimeJson(project: ProjectRow, rel: string, value: unknown): void {
+  ensureScaffolded(project);
+  const file = projectDataFile(project.root, rel);
+  const dir = path.dirname(file);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(value, null, 2), 'utf8');
+}

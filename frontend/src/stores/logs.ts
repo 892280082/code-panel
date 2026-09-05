@@ -1,15 +1,18 @@
-// ── Log viewer store ─────────────────────────────────────
+// ── Log viewer store(按当前项目作用域) ────────────────────
+//   数据源 = GET /api/logs?project=<id>;SSE 随项目重连;切换项目自动重置。
 
+import { apiFetch } from '@/utils/api-fetch'
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import type { AppConfig, LogEntry } from '@/types'
+import { ref, computed, watch } from 'vue'
+import type { LogEntry } from '@/types'
 import { useSSE } from '@/composables/useSSE'
+import { useProjectsStore } from './projects'
 
 export const useLogStore = defineStore('logs', () => {
+  const projects = useProjectsStore()
+
   // ── State ──────────────────────────────────────────────
-  const config = ref<AppConfig>({ groups: {}, reviewMode: true })
-  const sortedLogs = ref<LogEntry[]>([])
-  const currentGroup = ref<string>('')
+  const logs = ref<LogEntry[]>([])
   const tabs = ref<Record<string, { name: string; content: string; lines: number }>>({})
   const activeFile = ref<string | null>(null)
   const activityMap = ref<Record<string, number>>({})
@@ -22,25 +25,18 @@ export const useLogStore = defineStore('logs', () => {
   const showConfig = ref(false)
 
   // ── Computed ───────────────────────────────────────────
-  const groups = computed(() => Object.keys(config.value.groups || {}))
-  const groupNames = computed(() => config.value.groups || {})
-  const currentLogs = computed(() => {
-    if (!currentGroup.value) return []
-    return config.value.groups[currentGroup.value]?.logs || []
-  })
-  const filteredLogs = computed(() => {
-    const groupFiles = new Set(currentLogs.value.map(l => l.file))
-    return sortedLogs.value.filter(s => groupFiles.has(s.file))
-  })
+  const filteredLogs = computed(() => logs.value)
   const hasTabs = computed(() => Object.keys(tabs.value).length > 0)
 
   // ── SSE ────────────────────────────────────────────────
-  const { connected, onLog, onPortStatus } = useSSE()
+  const { connected, onLog, onPortStatus, connect } = useSSE()
 
   onLog(msg => {
+    // 消息带 project 时,只处理当前项目的文件(双保险,服务端已按项目过滤)
+    if (msg.project && msg.project !== projects.currentId) return
     activityMap.value[msg.file] = msg.timestamp || Date.now()
     if (msg.content) {
-      // changed=true 才是真正的增量新日志，初始加载的 content 不触发 T 图标
+      // changed=true 才是真正的增量新日志,初始加载的 content 不触发 T 图标
       if (msg.changed) {
         newContentMap.value[msg.file] = true
       }
@@ -54,39 +50,41 @@ export const useLogStore = defineStore('logs', () => {
     Object.assign(portStatusMap.value, ports)
   })
 
-  // ── Actions ────────────────────────────────────────────
-  async function loadConfig() {
-    const res = await fetch('/api/config')
-    config.value = await res.json()
-    // Restore last group
-    const saved = localStorage.getItem('log-group')
-    if (saved && groups.value.includes(saved)) {
-      currentGroup.value = saved
-    } else if (groups.value.length) {
-      currentGroup.value = groups.value[0]
-    }
+  // ── 项目切换:重置打开文件,重连 SSE,重拉列表 ──────────────
+  function resetAll() {
+    logs.value = []
+    tabs.value = {}
+    activeFile.value = null
+    activityMap.value = {}
+    autoScroll.value = {}
+    newContentMap.value = {}
   }
 
-  async function loadSortedLogs() {
+  watch(() => projects.currentId, async (id) => {
+    resetAll()
+    if (id) connect(id)
+    await loadLogs()
+  })
+
+  // ── Actions ────────────────────────────────────────────
+  async function loadLogs() {
+    if (!projects.currentId) { logs.value = []; return }
     try {
-      const res = await fetch('/api/logs')
-      sortedLogs.value = await res.json()
-      // Sync port status
-      for (const log of sortedLogs.value) {
+      const res = await apiFetch(`/api/logs?project=${encodeURIComponent(projects.currentId)}`)
+      const data = await res.json()
+      if (data?.ok) logs.value = data.data || []
+      // 同步端口状态(SSE 未覆盖前先用列表初始 alive 值)
+      for (const log of logs.value) {
         if (log.port !== undefined && log.port !== null) {
           portStatusMap.value[log.port] = log.alive ?? false
         }
       }
-    } catch { /* ignore */ }
-  }
-
-  function setGroup(key: string) {
-    currentGroup.value = key
-    localStorage.setItem('log-group', key)
+    } catch { logs.value = [] }
   }
 
   async function openFile(fp: string, name: string) {
-    // Clear new-content flag when user opens the file
+    if (!projects.currentId) return
+    // 清除 new-content 标记:用户点开即视为已读
     newContentMap.value[fp] = false
     if (tabs.value[fp]) {
       activeFile.value = fp
@@ -97,13 +95,15 @@ export const useLogStore = defineStore('logs', () => {
     activeFile.value = fp
 
     try {
-      const res = await fetch(`/api/log/content?file=${encodeURIComponent(fp)}`)
+      const q = `project=${encodeURIComponent(projects.currentId)}&file=${encodeURIComponent(fp)}`
+      const res = await apiFetch(`/api/log/content?${q}`)
       const data = await res.json()
-      if (data.content) {
-        tabs.value[fp].content = data.content
-        tabs.value[fp].lines = (data.content.match(/\n/g) || []).length
+      const content = data?.data?.content ?? data?.content ?? ''
+      if (content) {
+        tabs.value[fp].content = content
+        tabs.value[fp].lines = (content.match(/\n/g) || []).length
       }
-    } catch { /* */ }
+    } catch { /* ignore */ }
   }
 
   function closeTab(fp: string) {
@@ -121,13 +121,14 @@ export const useLogStore = defineStore('logs', () => {
   }
 
   async function clearLog(fp: string) {
+    if (!projects.currentId) return
     try {
-      await fetch('/api/log/clear', {
+      await apiFetch(`/api/log/clear?project=${encodeURIComponent(projects.currentId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file: fp }),
       })
-    } catch { /* */ }
+    } catch { /* ignore */ }
     if (tabs.value[fp]) {
       tabs.value[fp].content = ''
       tabs.value[fp].lines = 0
@@ -135,28 +136,25 @@ export const useLogStore = defineStore('logs', () => {
   }
 
   async function reloadContent(fp: string) {
+    if (!projects.currentId) return
     try {
-      const res = await fetch(`/api/log/content?file=${encodeURIComponent(fp)}`)
+      const q = `project=${encodeURIComponent(projects.currentId)}&file=${encodeURIComponent(fp)}`
+      const res = await apiFetch(`/api/log/content?${q}`)
       const data = await res.json()
-      if (data.content && tabs.value[fp]) {
-        tabs.value[fp].content = data.content
-        tabs.value[fp].lines = (data.content.match(/\n/g) || []).length
+      const content = data?.data?.content ?? data?.content ?? ''
+      if (content && tabs.value[fp]) {
+        tabs.value[fp].content = content
+        tabs.value[fp].lines = (content.match(/\n/g) || []).length
       }
-    } catch { /* */ }
+    } catch { /* ignore */ }
   }
 
+  /** 初始化:项目未就绪则等 watch,就绪直接拉列表 + 连 SSE */
   async function refreshAll() {
-    await Promise.all([loadConfig(), loadSortedLogs()])
-  }
-
-  async function saveConfig() {
-    await fetch('/api/config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config.value),
-    })
-    await refreshAll()
-    showConfig.value = false
+    if (projects.currentId) {
+      connect(projects.currentId)
+      await loadLogs()
+    }
   }
 
   function clearNewContent(fp: string) {
@@ -168,16 +166,15 @@ export const useLogStore = defineStore('logs', () => {
     const idx = modes.indexOf(ansiMode.value)
     ansiMode.value = modes[(idx + 1) % 3]
     localStorage.setItem('log-ansi', ansiMode.value)
-    // Reload all open tabs
+    // 重载所有打开的 Tab(换渲染模式)
     Object.keys(tabs.value).forEach(fp => reloadContent(fp))
   }
 
   return {
-    config, sortedLogs, currentGroup, tabs, activeFile, activityMap,
+    logs, tabs, activeFile, activityMap,
     autoScroll, portStatusMap, newContentMap, ansiMode, showConfig,
-    groups, groupNames, currentLogs, filteredLogs, hasTabs, connected,
-    loadConfig, loadSortedLogs, setGroup, openFile, closeTab,
-    appendContent, clearLog, reloadContent, refreshAll, saveConfig,
-    clearNewContent, cycleAnsi,
+    filteredLogs, hasTabs, connected,
+    loadLogs, openFile, closeTab, appendContent, clearLog,
+    reloadContent, refreshAll, clearNewContent, cycleAnsi, resetAll,
   }
 })

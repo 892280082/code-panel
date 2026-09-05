@@ -1,108 +1,62 @@
-# Code Panel — Claude Skill
+# Code Panel (v3) — Claude Skill
 
-> **日志查看 + SQL 执行面板**，这是一个 Claude Code Skill，放置在用户级 `~/.claude/skills/` 目录下。
+> **多项目运维控制面板**:JWT 登录 + 每项目 `.code-panel` 配置 + 实时日志 + SQL 评审 + Git + PRD + tmux 持久终端 + 自动备份。Claude Code Skill,位于 `~/.claude/skills/code-panel/`。
 
-## 这是什么？
-
-一个本地运行的面板工具，提供两大核心功能：
-
-| 功能 | 路径 | 用途 |
-|------|------|------|
-| **📋 日志查看器** | `http://localhost:3008/log` | 实时追踪日志文件、分组管理、端口存活检测、SSE 实时推送 |
-| **🗄️ SQL 执行面板** | `http://localhost:3008/sql` | SQL 查询/审批、多数据库连接管理、审批铃声提醒、AI 查询历史记录 |
-
-## 一键启动
+## 快速上手
 
 ```bash
-bash ~/.claude/skills/code-panel/read-log.sh
+bash ~/.claude/skills/code-panel/start.sh      # 安装依赖 + 构建前端 + 启动(3008)
+open http://localhost:3008                      # 登录:demo / change-me(首启由 config.json credentials 播种)
 ```
 
-启动脚本会自动完成：
-1. ✅ 安装后端 Node.js 依赖
-2. ✅ 安装前端 Vue 3 依赖
-3. ✅ 构建前端（仅首次或代码变更后）
-4. ✅ 启动服务 → 自动打开浏览器
+登录后左上「项目」下拉:切换 / 添加项目。每个项目根目录维护 `.code-panel/`(logs.yaml、sql.yaml、prd.yaml、git.yaml + data/ 运行数据),随 git 走、可手改。
 
-如果是首次使用，确保已安装 Node.js >= 18。
+| 功能 | 路径 |
+|------|------|
+| 日志实时追踪(SSE + 端口存活) | `/log` |
+| SQL 查询 / 审批 / 历史 | `/sql` |
+| 项目内 Git(diff/历史/文件浏览) | `/git` |
+| PRD 文档(MD→HTML + 原型 iframe + 完成态) | `/prd` |
+| tmux 持久终端 + 命令抽屉 | 左下「命令终端」 |
 
-## 面板截图
+## 存储(严格两层)
 
-```
-┌──────────────────────────────────────────────────┐
-│  [🛡 Review Mode: ON] [↻ Refresh]  Token: a1b2c3  │
-├──────────────┬───────────────────┬───────────────┤
-│  proj ▼      │                   │  📋 AI 查询   │
-│              │   SQL 详情区域     │  ✅ 审批记录   │
-│  ● opencode  │                   │  🔔           │
-│  ● zc-main   │                   │               │
-│  ● zc-exam   │                   │               │
-├──────────────┤                   │               │
-│ PENDING│DONE │                   │               │
-│ job list...  │                   │               │
-└──────────────┴───────────────────┴───────────────┘
-```
+- **全局** `~/.code-panel/data.db`(users 账号 / projects 注册表 / settings 公共配置)+ `jwt.secret`;`CODE_PANEL_HOME` 可覆盖根目录。
+- **项目** `<项目根>/.code-panel/`:`logs.yaml` `sql.yaml` `prd.yaml` `git.yaml`(配置,提交式)+ `data/`(sql 历史/队列、prd 完成态、命令、launch、tmux 备注;gitignore)。
+- 旧中央 sqlite 分组(proj/… 等)已废弃;旧数据可从 `backup-*.tar.gz` 查回。
+
+## 认证
+
+- JWT 保护除 `/api/auth/login` 外全部 `/api/*`;令牌三通道:Bearer 头 / `?token=`(SSE/iframe/下载)/ `cp_auth` cookie。
+- 「记住我」= 记住登录态(localStorage);不勾 = sessionStorage(关标签登出)。错误 14 次锁定。
 
 ## 给 AI 的说明
 
-这是一个 **Claude Code Skill**，位于用户 `~/.claude/skills/code-panel/` 下。
+- Skill 元数据与**完整 API 清单、AI 行为规范**见 [`SKILL.md`](SKILL.md)。
+- 数据库写入在 Review Mode 下必须 `/api/sql/submit` 进队列并通知用户审批;**AI 禁止自行审批/拒绝/开关评审模式**。
+- 项目级接口记得带 `?project=<id>`。
 
-- Skill 元数据在 [`SKILL.md`](SKILL.md) 中定义
-- 启动脚本来 [`read-log.sh`](read-log.sh)
-- 后端代码 `src/`，前端代码 `frontend/src/`
+## 技术栈 / 端口
 
-### AI 使用该 Skill 的行为规则
+- 后端 Node + Express 5 + TS(tsx);前端 Vue 3 + Pinia + Vue Router + Vite;sql.js 全局库;js-yaml 配置;MySQL/SQLite 连接。
+- 服务 3008;ttyd 终端 9001 + 页面终端 9002-9011 + tmux 接入 9020-9029。
 
-详见 [`SKILL.md`](SKILL.md#-ai-绝对行为规范严格遵守)，核心要点：
-
-| 操作 | 评审模式 ON | 评审模式 OFF |
-|------|-----------|------------|
-| **SELECT 查询** | ✅ AI 可直接调用 | ✅ AI 可直接调用 |
-| **写入操作** | ❌ 只能提交到队列，通知用户审批 | ✅ 可直接执行 |
-| **审批/拒绝** | 🚫 **AI 绝对禁止**（只有管理员可以） | — |
-| **开关评审模式** | 🚫 **AI 绝对禁止** | — |
-
-> 每次 SQL 操作都需提供 `title`（标题）说明原因。
-> 评审模式下有新的待审批 SQL 时，浏览器会持续叮叮提醒，直到管理员处理完毕。
-
-## 技术栈
-
-- **后端**: Node.js + Express 5 + TypeScript (tsx)
-- **前端**: Vue 3 + Pinia + Vue Router + Vite
-- **数据库**: MySQL（连接执行）/ SQLite（本地配置存储）
-- **实时推送**: SSE (Server-Sent Events)
-
-## 端口
-
-服务运行在 **3008 端口**，可通过修改 `src/server.ts` 中的 `PORT` 变更。
-
-## 项目结构
+## 结构
 
 ```
 code-panel/
-├── SKILL.md              # Skill 元数据 + AI 行为规范
-├── read-log.sh            # 一键启动脚本
-├── config.json            # 仅存储 reviewMode
-├── sql-queue.json         # SQL 审批队列
-├── sql-history.json       # AI 查询历史记录
-├── src/                   # 后端源码
-│   ├── server.ts          # Express 服务入口
-│   ├── routes/            # API 路由
-│   │   ├── logs.ts        # 日志相关
-│   │   ├── sql-exec.ts    # SQL 查询/提交
-│   │   ├── sql-review.ts  # SQL 审批
-│   │   ├── sql-history.ts # 查询历史
-│   │   └── databases.ts   # 数据库连接管理
-│   ├── db/                # 数据库层
-│   │   ├── connector.ts   # MySQL/SQLite 连接器
-│   │   └── db-config-store.ts  # 连接配置 SQLite 存储
-│   ├── sql-queue.ts       # 审批队列存储
-│   └── sql-history.ts     # 历史记录存储
-├── data/                  # SQLite 数据文件
-│   └── db-config.sqlite   # 数据库+日志配置
-└── frontend/              # 前端源码
-    └── src/
-        ├── views/         # 页面组件
-        ├── stores/        # Pinia 状态管理
-        ├── components/    # 通用组件
-        └── composables/   # 组合式函数
+├── SKILL.md            # 元数据 + API + PRD 规范 + AI 行为
+├── start.sh            # 一键启动
+├── config.json         # reviewMode + credentials(首启播种账号)
+├── src/
+│   ├── server.ts       # Express 入口(auth → 代理 → 路由)
+│   ├── auth/           # jwt / lockout / routes-auth
+│   ├── db/global-store.ts   # ~/.code-panel/data.db(users/projects/settings)
+│   ├── projects/       # yaml 加载、项目骨架、sql 运行数据、请求项目上下文
+│   ├── paths.ts        # 全局路径统一解析
+│   ├── terminal/       # ttyd / tmux / proxy(JWT 收紧)
+│   ├── backup/         # 全局库 + 各项目 .code-panel 打包
+│   └── routes/
+├── frontend/src/       # views / stores / components / composables
+└── data/               # 旧中央配置归档(不再读取)
 ```

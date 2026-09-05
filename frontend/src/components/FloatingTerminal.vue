@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { apiFetch } from '@/utils/api-fetch'
 import { ref, onMounted, onUnmounted } from 'vue'
 
 const visible = ref(false)
@@ -67,7 +68,7 @@ function onDragEnd() {
 // ── 终端状态轮询 ─────────────────────────────────────
 async function checkStatus() {
   try {
-    const res = await fetch('/api/terminal/status')
+    const res = await apiFetch('/api/terminal/status')
     const data = await res.json()
     if (data.ok) {
       status.value = data.status

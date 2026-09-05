@@ -1,10 +1,14 @@
 // ── Log file monitor + Port check + SSE broadcast ─────────
+//   数据源 = 全部已注册项目的 logs.yaml(sections 平铺,条目带 projectId)。
+//   SSE 按项目过滤:每条日志推送带 project 字段,客户端只收所属项目的文件。
 
 import fs from 'fs';
 import net from 'net';
 import type { Response } from 'express';
 import type { FileState, SseMessage, LogEntry } from './types';
-import { getAllLogEntries } from './log-config-store';
+import type { ProjectRow } from './db/global-store';
+import { allProjects } from './projects/project-store';
+import { logsFlatEntries } from './projects/adapters';
 
 const POLL_MS = 500;
 const PORT_CHECK_MS = 5000;     // ★ 5 秒后台轮询端口
@@ -14,21 +18,33 @@ const ACTIVE_THRESHOLD = 5000;   // 5 秒内有写入 = 活跃
 /** 文件状态缓存 */
 const fileState: Record<string, FileState> = {};
 
-/** SSE 客户端列表 */
-let clients: Response[] = [];
+/** SSE 客户端列表(每个绑定所属 project;全局 port-status 推送仍广播全部) */
+interface SseClient { res: Response; project?: string }
+let clients: SseClient[] = [];
 
 /** 端口存活缓存: port → { alive, ts } */
 const portStatusCache: Map<number, { alive: boolean; ts: number }> = new Map();
 
-// ── 获取所有日志文件（从 SQLite 读取） ───────────────────
+// ── 获取所有日志文件(全部项目 logs.yaml 并集,带 projectId) ──
 
-export function getAllLogs(): LogEntry[] {
-  return getAllLogEntries();
+interface MonitoredLog extends LogEntry {
+  section: string;
+  projectId: string;
+}
+
+function getAllLogs(): MonitoredLog[] {
+  const out: MonitoredLog[] = [];
+  for (const p of allProjects()) {
+    for (const e of logsFlatEntries(p)) {
+      out.push({ name: e.name, file: e.file, port: e.port, section: e.section, projectId: p.id });
+    }
+  }
+  return out;
 }
 
 // ── 清理已从配置中移除的文件状态 ─────────────────────────
 
-function cleanStaleStates(logs: LogEntry[]): void {
+function cleanStaleStates(logs: MonitoredLog[]): void {
   const activeFiles = new Set(logs.map(l => l.file));
   for (const fp of Object.keys(fileState)) {
     if (!activeFiles.has(fp)) delete fileState[fp];
@@ -82,7 +98,7 @@ function poll(): void {
     }
 
     if (nt || ch) {
-      batch.push({ file: fp, name: log.name, exists: ok, content: nt, changed: ch, timestamp: now });
+      batch.push({ file: fp, name: log.name, exists: ok, content: nt, changed: ch, timestamp: now, project: log.projectId });
     }
   }
 
@@ -107,31 +123,40 @@ function readTail(fp: string, sz?: number): string {
 
 // ── SSE 广播 ─────────────────────────────────────────────
 
-/** 发送单条 SSE 消息（端口状态） */
-function broadcast(data: SseMessage | PortStatusMessage): void {
-  const msg = `data: ${JSON.stringify(data)}\n\n`;
-  clients = clients.filter(res => {
-    try { res.write(msg); return true; }
-    catch { return false; }
-  });
-}
-
-/** 批量发送日志变更（减少 JSON.stringify + write 次数） */
-function broadcastBatch(messages: SseMessage[]): void {
-  if (!messages.length) return;
-  const msg = `data: ${JSON.stringify(messages)}\n\n`;
-  clients = clients.filter(res => {
-    try { res.write(msg); return true; }
-    catch { return false; }
-  });
-}
-
-// ── 端口存活检测（5 秒后台轮询）───────────────────────────
-
 interface PortStatusMessage {
   type: 'port-status';
   ports: Record<number, boolean>;  // port → alive
 }
+
+function writeRaw(client: SseClient, msg: string): boolean {
+  try { client.res.write(msg); return true; }
+  catch { return false; }
+}
+
+/** 发送单条 SSE 消息（端口状态 — 全局,推给所有客户端） */
+function broadcast(data: SseMessage | PortStatusMessage): void {
+  const msg = `data: ${JSON.stringify(data)}\n\n`;
+  clients = clients.filter(c => writeRaw(c, msg));
+}
+
+/** 批量发送日志变更 — 按客户端所属 project 过滤,防止跨项目串扰 */
+function broadcastBatch(messages: SseMessage[]): void {
+  if (!messages.length) return;
+  // 按 project 预分组,减少重复 JSON.stringify
+  const byProject = new Map<string | undefined, SseMessage[]>();
+  for (const m of messages) {
+    const key = m.project;
+    if (!byProject.has(key)) byProject.set(key, []);
+    byProject.get(key)!.push(m);
+  }
+  clients = clients.filter(c => {
+    const list = byProject.get(c.project) || [];
+    if (!list.length) return true;           // 没有属于该客户端的日志,保留连接
+    return writeRaw(c, `data: ${JSON.stringify(list)}\n\n`);
+  });
+}
+
+// ── 端口存活检测（5 秒后台轮询）───────────────────────────
 
 /** TCP 端口存活检测（单次） */
 function checkPort(port: number): Promise<boolean> {
@@ -193,30 +218,30 @@ export function clearFileState(fp: string): void {
   delete fileState[fp];
 }
 
-/** 按活跃度排序的日志列表（供 API 使用） */
-export async function getLogsSorted(): Promise<Array<LogEntry & { exists: boolean; size: number; active: boolean; alive: boolean }>> {
+/** 单项目日志列表(按活跃度排序,供 GET /api/logs?project 使用) */
+export function getLogsSorted(project: ProjectRow): Array<{
+  name: string; file: string; port?: number; section: string;
+  exists: boolean; size: number; active: boolean; alive: boolean;
+}> {
   const now = Date.now();
-  const logs = getAllLogs();
-
-  return logs.map(log => {
+  return logsFlatEntries(project).map(e => {
     let exists = false, size = 0;
-    try { const st = fs.statSync(log.file); exists = true; size = st.size; } catch { /* */ }
-    const st = fileState[log.file];
+    try { const st = fs.statSync(e.file); exists = true; size = st.size; } catch { /* */ }
+    const st = fileState[e.file];
     const active = (now - (st ? st.lastActive : 0)) < ACTIVE_THRESHOLD;
-    const port = log.port ?? undefined;
-    const alive = port ? getPortStatus(port) : false;
-    return { ...log, exists, size, active, port, alive };
+    const alive = e.port ? getPortStatus(e.port) : false;
+    return { name: e.name, file: e.file, port: e.port, section: e.section, exists, size, active, alive };
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // ── SSE 连接管理 ─────────────────────────────────────────
 
-export function addClient(res: Response): void {
-  clients.push(res);
+export function addClient(res: Response, project?: string): void {
+  clients.push({ res, project });
 }
 
 export function removeClient(res: Response): void {
-  clients = clients.filter(c => c !== res);
+  clients = clients.filter(c => c.res !== res);
 }
 
 // ── 读取指定文件内容（供 API 使用） ───────────────────────

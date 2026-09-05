@@ -1,104 +1,64 @@
-// ── Config manager — config.json (reviewMode + ttyd) ────────
-//   数据库连接 + 日志分组配置已迁移到 SQLite
+// ── 全局面板设置(reviewMode / ttyd / terminalDefaultCwd / jwt) ──
+//   全部落在 ~/.code-panel/data.db settings 表(global-store)。
+//   不再读 config.json 的 prd/groups/databases —— 那些已随项目下沉到 <项目根>/.code-panel/*.yaml。
 
-import fs from 'fs';
-import path from 'path';
-import type { AppConfig, DbConnection, RawConfig } from './types';
-import {
-  listConnections, getConnection,
-  listConnectionsSafe,
-} from './db/db-config-store';
-import { getAllGroupsAndLogs } from './log-config-store';
+import { getSetting, setSetting } from './db/global-store';
 
-const CFG = path.join(__dirname, '..', 'config.json');
-
-/** 读取原始 config.json（含 ttyd、terminalDefaultCwd 等） */
-export function getRawConfig(): RawConfig {
-  try {
-    return JSON.parse(fs.readFileSync(CFG, 'utf8'));
-  } catch {
-    return { reviewMode: true };
-  }
+export interface GlobalSettings {
+  reviewMode: boolean;
+  ttyd?: { port: number; command: string; args?: string };
+  terminalDefaultCwd?: string;
+  jwt?: { expiryHours?: number };
 }
 
-/** 向后兼容别名 */
-export function getConfig(): RawConfig {
-  return getRawConfig();
-}
-
-/** 加载完整配置（groups 从 SQLite 读取，reviewMode 从 config.json 读取） */
-export function loadConfig(): AppConfig {
-  let reviewMode = true;
-  try {
-    const raw = JSON.parse(fs.readFileSync(CFG, 'utf8'));
-    reviewMode = raw.reviewMode ?? true;
-  } catch { /* use default */ }
-
+/** 读取全局设置(合并默认值) */
+export function getGlobalSettings(): GlobalSettings {
   return {
-    groups: getAllGroupsAndLogs(),
-    reviewMode,
+    reviewMode: getReviewMode(),
+    ttyd: getSetting<GlobalSettings['ttyd']>('ttyd', undefined),
+    terminalDefaultCwd: getSetting<string>('terminalDefaultCwd', ''),
+    jwt: getSetting<GlobalSettings['jwt']>('jwt', { expiryHours: 24 }),
   };
 }
 
-/** 保存配置（保留 reviewMode + ttyd + terminalDefaultCwd，groups/databases 已在 SQLite） */
-export function saveConfig(cfg: AppConfig): void {
-  const raw = getRawConfig();
-  raw.reviewMode = cfg.reviewMode;
-  const tmp = CFG + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(raw, null, 2), 'utf8');
-  fs.renameSync(tmp, CFG);
+/** 兼容别名(ttyd-manager / proxy 仍用 getConfig) */
+export function getConfig(): GlobalSettings {
+  return getGlobalSettings();
 }
 
-/** 读取终端默认工作目录 */
-export function getTerminalDefaultCwd(): string {
-  const raw = getRawConfig();
-  return raw.terminalDefaultCwd || '';
+/** 兼容别名 */
+export function getRawConfig(): GlobalSettings {
+  return getGlobalSettings();
 }
 
-/** 设置终端默认工作目录 */
-export function setTerminalDefaultCwd(cwd: string): void {
-  const raw = getRawConfig();
-  raw.terminalDefaultCwd = cwd.trim() || undefined;
-  const tmp = CFG + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(raw, null, 2), 'utf8');
-  fs.renameSync(tmp, CFG);
+/** 完整配置(仅含全局设置;groups/databases 已下沉项目,不再返回) */
+export function loadConfig(): GlobalSettings {
+  return getGlobalSettings();
 }
 
-/** 原子写入 config.json（仅保留 reviewMode） */
-function saveReviewMode(reviewMode: boolean): void {
-  const raw = getRawConfig();
-  raw.reviewMode = reviewMode;
-  const tmp = CFG + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(raw, null, 2), 'utf8');
-  fs.renameSync(tmp, CFG);
+/** 保存配置:仅收 reviewMode(全局);其它字段改走 /api/projects/:id/yaml 或 settings */
+export function saveConfig(cfg: { reviewMode?: boolean }): GlobalSettings {
+  if (typeof cfg?.reviewMode === 'boolean') setReviewMode(cfg.reviewMode);
+  return getGlobalSettings();
 }
 
-// ── DB 连接查询（委托 SQLite store） ──────────────────────
-
-export function getDatabases(): DbConnection[] {
-  return listConnections();
-}
-
-export function getDatabase(id: string): DbConnection | undefined {
-  return getConnection(id);
-}
-
-export function getDatabasesSafe(): Array<Omit<DbConnection, 'password'> & { hasPassword: boolean }> {
-  return listConnectionsSafe();
-}
-
-// ── Review mode ───────────────────────────────────────────
+// ── Review mode(全局开关,存在 settings 表) ───────────────
 
 export function getReviewMode(): boolean {
-  try {
-    const raw = JSON.parse(fs.readFileSync(CFG, 'utf8'));
-    return raw.reviewMode ?? true;
-  } catch {
-    return true;
-  }
+  return getSetting<boolean>('reviewMode', true);
 }
 
-export function setReviewMode(enabled: boolean): AppConfig {
-  saveReviewMode(enabled);
-  return loadConfig();
+export function setReviewMode(enabled: boolean): boolean {
+  setSetting('reviewMode', !!enabled);
+  return getReviewMode();
+}
+
+// ── 终端默认工作目录(全局设置) ────────────────────────────
+
+export function getTerminalDefaultCwd(): string {
+  return getSetting<string>('terminalDefaultCwd', '');
+}
+
+export function setTerminalDefaultCwd(cwd: string): void {
+  setSetting('terminalDefaultCwd', (cwd || '').trim() || '');
 }
