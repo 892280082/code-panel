@@ -25,6 +25,26 @@ async function runService(log: LogEntry) {
     await terminal.createSession(`${log.name} · ${alive ? '停止' : '启动'}`, cmd, projects.currentProject.root)
   } catch { /* 端口池满等错误忽略 */ }
 }
+
+// ── 右键菜单:启动/停止(随状态显示) ─────────────────────
+const ctxMenu = ref<{ x: number; y: number; log: LogEntry } | null>(null)
+function openCtx(e: MouseEvent, log: LogEntry) {
+  if (!log.start && !log.stop) return // 无脚本不弹
+  ctxMenu.value = { x: e.clientX, y: e.clientY, log }
+}
+function closeCtx() { ctxMenu.value = null }
+const ctxLabel = computed(() => {
+  const m = ctxMenu.value
+  if (!m) return ''
+  return m.log.port !== undefined && m.log.port !== null && getPortAlive(m.log) ? '停止' : '启动'
+})
+function ctxAction() {
+  const m = ctxMenu.value
+  if (!m) return
+  const log = m.log
+  closeCtx()
+  runService(log)
+}
 const ansiLabels: Record<string, string> = { strip: '🎨 strip', raw: '🔤 raw', color: '🌈 color' }
 const logEl = ref<HTMLElement | null>(null)
 
@@ -136,6 +156,7 @@ watch(currentContent, () => {
                   class="list-item file-item"
                   :class="{ selected: store.activeFile === log.file }"
                   @click="store.openFile(log.file, log.name)"
+                  @contextmenu.prevent="openCtx($event, log)"
                 >
                   <div class="tile-top">
                     <StatusDot :status="getLogStatus(log)" @click.stop="runService(log)" />
@@ -153,6 +174,7 @@ watch(currentContent, () => {
                   class="list-item file-item"
                   :class="{ selected: store.activeFile === log.file }"
                   @click="store.openFile(log.file, log.name)"
+                  @contextmenu.prevent="openCtx($event, log)"
                 >
                   <div class="tile-top">
                     <StatusDot :status="getLogStatus(log)" @click.stop="runService(log)" />
@@ -235,6 +257,14 @@ watch(currentContent, () => {
         </div>
       </div>
     </main>
+
+    <!-- 右键菜单:启动/停止 -->
+    <Teleport to="body">
+      <div v-if="ctxMenu" class="ctx-backdrop" @click="closeCtx" @contextmenu.prevent="closeCtx" />
+      <div v-if="ctxMenu" class="ctx-menu" :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }">
+        <button class="ctx-item" :class="{ stop: ctxLabel === '停止' }" @click="ctxAction">{{ ctxLabel }}</button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -481,4 +511,20 @@ watch(currentContent, () => {
   background: #1a1a28; border-color: var(--glow-dim);
 }
 
+/* 右键菜单(Teleport,仍带本组件 scope) */
+.ctx-backdrop { position: fixed; inset: 0; z-index: 9000; background: transparent; }
+.ctx-menu {
+  position: fixed; z-index: 9001; min-width: 120px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 4px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.ctx-item {
+  display: block; width: 100%; text-align: left;
+  padding: 8px 12px; background: transparent;
+  color: var(--glow); border: none; border-radius: 6px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.ctx-item.stop { color: #ff6b6b; }
+.ctx-item:hover { background: #1a1a28; }
 </style>
