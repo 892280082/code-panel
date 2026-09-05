@@ -62,7 +62,7 @@ const README_TEMPLATE = `# .code-panel —— 本项目在 code-panel 面板里�
 ## 文件说明
 | 文件 | 作用 | 想加什么就编辑它 |
 |------|------|------------------|
-| \`logs.yaml\`      | 日志清单(面板 /log) | 加日志文件:name/file/可选 port |
+| \`apps.yaml\`      | 应用服务日志(面板 Apps,/log) | 加平台/应用:backend/frontend + 日志文件/端口/启停(旧 logs.yaml 兼容) |
 | \`sql.yaml\`       | 数据库连接(面板 /sql) | 加连接:mysql/sqlite 均支持 |
 | \`prd.yaml\`       | PRD 目录(面板 /prd)   | 加 PRD 文档目录 {name,dir} |
 | \`git.yaml\`       | git 仓库(面板 /git)   | 加本机 git 仓库 {id,name,path} |
@@ -79,13 +79,18 @@ const README_TEMPLATE = `# .code-panel —— 本项目在 code-panel 面板里�
 面板「命令终端」抽屉会读到它;新增 id 取唯一值即可。
 `;
 
-/** 生成/补齐 .code-panel 骨架(.gitignore + README + 4 个模块默认 yaml + 命令模板 + data/)。
- *  幂等:已有内容不覆盖,只补齐缺失文件。 */
+/** 生成/补齐 .code-panel 骨架(.gitignore + README + 6 个模块默认 yaml(apps/sql/prd/git/commands/links)+ uploads/downloads + data/)。
+ *  幂等:已有内容不覆盖,只补齐缺失文件/目录。 */
 export function ensureProjectSkeleton(project: ProjectRow): void {
   const dir = projectCodePanelDir(project.root);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const dataDir = projectDataDir(project.root);
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  // ☁ 上传/下载目录:加项目即建好(AI/命令可立即往里读写文件;空目录不随 git 提交无妨)
+  for (const sub of ['uploads', 'downloads']) {
+    const d = path.join(dir, sub);
+    if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+  }
 
   // .gitignore 幂等保证含 data/ uploads/ downloads/(运行时数据 + 云上传下载目录都不进仓库)
   const gitignore = path.join(dir, '.gitignore');

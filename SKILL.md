@@ -1,12 +1,13 @@
 ---
 name: code-panel
 description: >-
-  运维控制面板(改版 v3):JWT 登录 + 多项目(.code-panel YAML)+ 实时日志追踪、SQL 查询/审批、
-  项目内 git 管理(变更 diff/历史/文件浏览)、PRD 文档面板(MD→HTML+原型 iframe)、
-  持久化终端(命令抽屉 + tmux 会话 + ttyd 接入)、系统资源监控、云文件上传/下载(☁)、自动备份。
-  用户说"看日志、追踪日志、查数据库、执行 SQL、审批 SQL、配置数据库、看 git、git diff、浏览仓库代码、
-  看PRD、写PRD、打开PRD、开终端、tmux 会话、添加项目、切换项目、备份、云文件、上传、下载、CPU 内存"时触发。
-  启动端口 3008。前端 Vue 3 + Pinia + Vue Router;全局数据 ~/.code-panel/data.db,项目数据在 <项目根>/.code-panel/。
+  运维控制面板(v3):JWT 登录 + 多项目(配置 = 项目内 .code-panel/*.yaml 文件)+ 应用服务实时日志与启停(Apps)、
+  SQL 查询/审批、项目内 git 管理(diff/历史/文件浏览)、PRD 文档面板(MD→HTML+原型 iframe)、
+  命令终端(项目自定义命令 + 系统预设 + tmux 持久会话)、浮动终端窗口、系统资源监控、
+  云文件上传/下载(☁)、快捷方式 Quick Links(links.yaml)、自动备份。
+  用户说"看日志、追踪日志、查数据库、执行 SQL、审批 SQL、配数据库、看 git、git diff、浏览仓库代码、
+  看PRD、写PRD、打开PRD、开终端、命令、tmux 会话、快捷方式、加项目、切换项目、备份、云文件、上传、下载、CPU 内存"时触发。
+  启动端口 3008。全局唯一库 ~/.code-panel/data.db;项目配置文件在 <项目根>/.code-panel/。
 ---
 
 ## 认证(⭐ 先登录)
@@ -29,38 +30,44 @@ bash ~/.claude/skills/code-panel/start.sh     # 端口 3008
 | 路径 | 用途 |
 |------|------|
 | `http://localhost:3008/login` | 登录页 |
-| `http://localhost:3008/log` | 日志查看(实时 SSE + 端口存活) |
-| `http://localhost:3008/sql` | SQL 评审(审批/拒绝 + DB 存活 + 查询历史) |
-| `http://localhost:3008/git` | Git 管理(仓库 diff/历史/文件浏览) |
-| `http://localhost:3008/prd` | PRD 文档面板(分组目录 + MD 渲染 + 原型 iframe + 完成状态) |
+| `http://localhost:3008/log`  | **Apps**:平台应用卡片 = 实时日志 + 圆点存活 + 右键 启动/停止 |
+| `http://localhost:3008/sql`  | SQL 评审(查询/审批/DB 存活/历史) |
+| `http://localhost:3008/prd`  | PRD 文档面板(分组目录 + MD 渲染 + 原型 iframe) |
+| `http://localhost:3008/git`  | Git 管理(仓库 diff/历史/文件浏览/提交) |
 
-> 登录后:左侧「项目」下拉切换当前项目 → 四模块(logs/sql/prd/git)+ 命令抽屉/快捷启动全部跟随该项目。「＋」添加项目(填 name+root,自动生成 `.code-panel/` 骨架)。当前项目存 localStorage `panel-project`。
+- 左侧栏:**🗂 项目名 + 中文备注**(当前项目)→ 四个页签 Apps/SQL/PRD/Git;左上 ⚙ 打开配置(项目 / 备份 / 文件 / 账号)。
+- **右上角常驻**(切到任意页签都在):🔗 快捷方式 Quick Links + 📈 系统资源圆环(CPU/内存/磁盘)。
+- **右下浮动**:💻 命令终端抽屉(FAB + 1..N 终端芯片)、📂 仓库浏览、☁ 云文件抽屉。各页共用。
+- 「＋ 添加项目」在 ⚙ → 项目:填 name/root/中文备注,自动生成 `.code-panel/` 骨架。当前项目存 localStorage `panel-project`。
 
 ---
 
-## 存储模型(严格两层,⭐ 必懂)
+## 存储模型(两层,⭐ 必懂)
 
 ```
-~/.code-panel/                     # 全局(所有实例共享;CODE_PANEL_HOME 可覆盖)
-├── data.db                        # users 账号 / projects 注册表 / settings 公共配置
+~/.code-panel/                     # 全局(所有面板实例共享;CODE_PANEL_HOME 可覆盖)
+└── data.db                        # 唯一全局库:users 账号 / projects 注册表(含中文备注 note)/ settings 公共配置
 └── jwt.secret                     # JWT 密钥(自动生成 0o600)
 
-<项目根>/.code-panel/
-├── .gitignore                     # data/ uploads/ downloads/
-├── logs.yaml                      # sections:[{name, logs:[{name,file,port?}]}]  —— 日志清单
-├── sql.yaml                       # connections:[{id,name,type,host/port/user/password/database|path,...}] —— 本项目数据库连接
-├── prd.yaml                       # dir + folders:[{name,dir}]  —— PRD 目录清单
-├── git.yaml                       # repos:[{id,name,path,notes?}] —— 本项目 git 仓库(字符串 id)
-├── uploads/                       # ☁ 云上传目录(gitignore)——浏览器传上来,复制绝对路径给终端/AI 用
-├── downloads/                     # ☁ 云下载目录(gitignore)——AI 把文档/产物写进来,用户在面板点下载拿回
-└── data/                          # 运行时数据(gitignore,随项目走)
+<项目根>/.code-panel/              # 项目配置 = 提交式配置文件,随仓库走、可手改、修改即生效
+├── .gitignore                     # data/ uploads/ downloads/(gitignore,不进仓库)
+├── README.md                      # 本目录说明书(自动生成;每个 yaml 顶部注释 = 完整字段+示例)
+├── apps.yaml                      # 「应用服务」:platforms → 每平台 backend/frontend 应用(日志 + 启停脚本)   ← 旧名 logs.yaml,兼容回退
+├── sql.yaml                       # 数据库连接 connections:[{id,name,type,host/port/user/password/database|path,...}]
+├── prd.yaml                       # PRD 目录 dir + folders:[{name,dir}]  —— 面板 /prd 左栏清单
+├── git.yaml                       # 本项目 git 仓库 repos:[{id,name,path,notes?}]
+├── commands.yaml                  # 命令抽屉「自定义命令」(启动/停止/一键…) 按钮
+├── links.yaml                     # 「快捷方式」Quick Links(右上 🔗):groups → items → urls(多地址:域名/内网)
+├── uploads/                       # ☁ 上传目录:浏览器传上来 → 复制绝对路径给终端/AI 用
+├── downloads/                     # ☁ 下载目录:AI/命令把产物写进来 → 用户在面板点下载拿回
+└── data/                          # 运行时数据(gitignore,随项目走;面板自动写,勿手改)
     ├── sql-history.json  sql-queue.json     # SQL 历史 / 审批队列
     ├── prd-status.json                      # PRD 目录完成态(路径→done)
-    ├── commands.json  launch-links.json     # 命令抽屉自定义命令 / 快捷启动
     ├── tmux-notes.json                      # tmux 会话备注(归属本项目)
-    └── cloud-config.json                    # 云上传/下载目录覆盖(默认以上,配置在 ⚙ →「文件」改)
+    └── cloud-config.json                    # ☁ 云上传/下载目录覆盖(默认以上,在 ⚙ →「文件」改)
 ```
 
+- **加配置 = 改文件**:日志/库/命令/快捷方式/PRD/git 一律编辑上面对应的 yaml(每个文件顶部注释就是字段说明 + 示例),面板实时读取,无需走面板配置 API、无需重启。
 - **旧分组(proj/proj-ark/pharma/test 等)已废弃**:不再从中央 sqlite 读取。要恢复某套配置,把它登记成项目并写好 `.code-panel/*.yaml`(旧数据在备份 tar.gz 里可查)。
 - 面板级设置(reviewMode、jwt、ttyd、terminalDefaultCwd、备份路径)在全局 `settings`,不在项目里。
 - 项目级所有接口必须带当前项目:`?project=<id>` 或头 `X-Project-Id`(POST 也接受 body.project)。
@@ -71,10 +78,10 @@ bash ~/.claude/skills/code-panel/start.sh     # 端口 3008
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/projects` | 项目列表 |
-| POST | `/api/projects` | `{id?,name,root}` 添加并生成 `.code-panel/` 骨架 |
-| PUT/DELETE | `/api/projects/:id` | 改名/换 root / 注销(不删项目目录) |
-| GET/PUT | `/api/projects/:id/yaml/:module` | 读写模块 YAML(logs/sql/prd/git;PUT body `{yaml:{...}}`) |
+| GET | `/api/projects` | 项目列表(含 name/root/note 中文备注) |
+| POST | `/api/projects` | `{name, root, note?}` 添加并生成 `.code-panel/` 骨架 |
+| PUT/DELETE | `/api/projects/:id` | 改名/换 root /改备注 / 注销(不删项目目录) |
+| GET/PUT | `/api/projects/:id/yaml/:module` | 读写某模块 YAML(logs/sql/prd/git/commands/links;PUT body `{yaml:{...}}`)—— 等价于直接改项目里的 yaml 文件 |
 
 ## 认证 API
 
@@ -84,22 +91,25 @@ bash ~/.claude/skills/code-panel/start.sh     # 端口 3008
 | POST | `/api/auth/logout` | 清 cookie(需登录) |
 | POST | `/api/auth/change-password` | `{oldPassword,newPassword}`(需登录) |
 
-## 日志 API(作用域 ?project)
+## Apps / 日志 API(作用域 ?project;数据源 = apps.yaml,旧 logs.yaml 兼容)
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/logs?project=` | 该项目 logs.yaml 条目(含 exists/alive/size) |
-| GET | `/api/log/content?project=&file=` | 读文件内容 |
-| POST | `/api/log/clear?project=` | 清空某日志 |
-| GET | `/api/stream?project=&token=` | SSE:只推本项目日志 + 全局端口状态 |
-| GET | `/api/resources` | 系统资源(CPU/内存/磁盘) |
+| GET | `/api/logs?project=` | 该项目应用服务(platform/side/name/file/port/start/stop + exists/alive/active/size) |
+| GET | `/api/log/content?project=&file=` | 读某服务日志文件内容(仅限该项目清单内) |
+| POST | `/api/log/clear?project=` | 清空某日志文件 |
+| GET | `/api/stream?project=&token=` | SSE:只推本项目日志 + 实时端口存活(portStatusMap,圆点与端口号数字同源) |
+| GET | `/api/resources` | 系统资源(CPU/内存/磁盘)——右上资源圆环 |
+| GET | `/api/resources/processes` | 进程 TOP(按内存排序,Linux 读数准) |
 
-## 数据库连接 API(作用域 ?project;连接存 sql.yaml)
+> Apps 页卡:平台一张卡,后端/前端两列;点服务行 = 打开日志页签;**右键**有 start/stop 脚本的服务 → 启动/停止(面板开 ttyd 窗口、在项目根执行该脚本)。`file` 一律写相对项目根,面板补绝对。
+
+## 数据库连接 API(作用域 ?project;连接 = sql.yaml 文件,CRUD 写回该文件)
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/db?project=` | 连接列表(含存活/版本) |
-| POST/PUT/DELETE | `/api/db` 与 `/api/db/:id` | 增/改/删(写回 sql.yaml) |
+| POST/PUT/DELETE | `/api/db` 与 `/api/db/:id` | 增/改/删连接(写回 sql.yaml) |
 | POST | `/api/db/test` | 直连测试(内联参数) |
 | POST | `/api/db/refresh?project=` | 刷新本项目连接健康 |
 
@@ -121,12 +131,12 @@ bash ~/.claude/skills/code-panel/start.sh     # 端口 3008
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET/POST/PUT/DELETE | `/api/git/repos` 与 `/api/git/repos/:id` | 本项目仓库 CRUD |
+| GET/POST/PUT/DELETE | `/api/git/repos` 与 `/api/git/repos/:id` | 本项目仓库 CRUD(写回 git.yaml) |
 | GET | `/api/git/summary\|diff\|log\|source/:id` | 状态/diff/提交历史/源码 |
 | POST | `/api/git/pull-all?project=` | 一键同步本项目仓库 |
 | GET | `/api/repo-browser/:repoId/tree\|file\|diff\|file-log\|...` | 仓库文件树/预览/文件历史(带 ?project) |
 
-## PRD API(作用域 ?project;文件夹清单存 prd.yaml)
+## PRD API(作用域 ?project;目录清单 = prd.yaml)
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -134,31 +144,51 @@ bash ~/.claude/skills/code-panel/start.sh     # 端口 3008
 | GET | `/api/prd/files\|content\|view\|file\|code-file` | MD 渲染/原型 iframe/代码视图(带 ?project 定位目录) |
 | POST | `/api/prd/done` | `{project,dir,done}` 完成态 → 项目 data/prd-status.json |
 
-## 终端 API
+## 命令 / 终端 API
 
-命令抽屉自定义命令按项目存 `data/commands.json`(系统预设为全局只读):
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET/POST/PUT/DELETE/reorder | `/api/terminal/commands` | 自定义命令 CRUD + 排序(带 ?project) |
-| POST | `/api/terminal/sessions` | 页面级命令终端(ttyd 9002-9011) |
-| GET/DELETE | `/api/terminal/sessions` 与 `/api/terminal/sessions/:port` | 列表/关闭 |
-
-tmux 持久会话(会话常驻宿主;备注存归属项目 data/tmux-notes.json;物理名 `p_<项目>_<名字>`):
+命令抽屉三页签:**自定义**(来自 commands.yaml,提交式随仓库)/ **系统**(面板内置常量)/ **会话**(tmux 持久):
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/terminal/tmux/list?project=` | 会话列表(带 project 归属) |
+| GET | `/api/terminal/commands` | 系统预设 + 该项目 commands.yaml 自定义命令(带 ?project) |
+| POST/PUT/DELETE/reorder | `/api/terminal/commands...` | 改自定义命令(写回 commands.yaml);更推荐直接编辑 commands.yaml |
+| POST | `/api/terminal/sessions` | 页面级命令终端(ttyd 9002-9011;`{label,command,cwd}`) |
+| GET/DELETE | `/api/terminal/sessions` 与 `/sessions/:port` | 列表 / 关闭 |
+| GET | `/api/terminal/status` | FAB 终端状态 |
+
+tmux 持久会话(常驻宿主;备注存 data/tmux-notes.json;物理名 `p_<项目>_<名字>`):
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/terminal/tmux/list?project=` | 会话列表 |
 | POST | `/api/terminal/tmux/create` | `{project,name,description?}` 新建 |
 | POST | `/api/terminal/tmux/attach` | `{project,name}` → `{port}`(ttyd 9020-9029) |
 | DELETE | `/api/terminal/tmux-sessions/:port` | 断开接入(不杀会话) |
 | DELETE | `/api/terminal/tmux/:name` | 彻底删除(断开+kill+删备注) |
 
-> 前端 iframe 统一 `/api/terminal/<port>/?token=<jwt>`;终端代理(HTTP+WS)都校验 JWT(`?token=`/cookie/Bearer),未带令牌 401/403。
+> 前端 iframe 统一 `/api/terminal/<port>/?token=<jwt>`;终端代理(HTTP+WS)都校验 JWT(`?token=`/cookie/Bearer)。
+
+## 快捷方式 Quick Links(links.yaml)
+
+右上 🔗 下拉,内容 = 项目 links.yaml `groups`(纯展示 + 打开,提交式随仓库走)。结构:
+
+```yaml
+groups:
+  - name: 域名/内网…            # 组名
+    items:
+      - name: 门户首页
+        urls: [ { label: 域名, url: "dev.example.com" }, { url: "http://127.0.0.1:7165" } ]  # 1..N 多环境地址
+```
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/links?project=` | 读该项目 links.yaml 分组结构 |
+
+改快捷方式 = 编辑项目 `links.yaml`(或 PUT yaml 模块),无需走链接 CRUD API。
 
 ## 文件 API(☁ 云上传/下载;作用域 ?project)
 
-面板右下角 ☁ chip 打开云抽屉 = 与本机换文件的两个目录(默认 `<项目根>/.code-panel/uploads` 与 `downloads`,可在 ⚙ →「文件」改,存 data/cloud-config.json):
+右下 ☁ chip 打开云抽屉 = 与本机换文件的两个目录(默认 `<项目根>/.code-panel/uploads` 与 `downloads`,可在 ⚙ →「文件」改,存 data/cloud-config.json):
 
 | 端点 | 作用 |
 |------|------|
@@ -170,22 +200,23 @@ tmux 持久会话(会话常驻宿主;备注存归属项目 data/tmux-notes.json;
 
 ## 备份 API
 
+备份收进 ⚙ →「备份」Tab:
+
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET/PUT | `/api/backup/config` | 备份路径(存全局 settings.backup.path) |
-| POST | `/api/backup/run` | 立即备份:打包 `global.code-panel/`(data.db+jwt.secret)+ 每个注册项目的 `.code-panel/` |
+| POST | `/api/backup/run` | 立即备份:打包全局 data.db + 每个注册项目的 `.code-panel/` |
 | GET | `/api/backup/list` | 备份列表 |
 | GET | `/api/backup/download/:name` | 下载(`?token=`/cookie) |
 
 > 同日同名覆盖、保留最近 20 份;程序每次启动自动备份一次。
 
----
-
 ## 全局配置(settings)
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET/PUT | `/api/config` | `{reviewMode, ttyd?, terminalDefaultCwd?, jwt?}`(PUT 仅改 reviewMode) |
+| GET | `/api/config` | `{reviewMode, ttyd?, terminalDefaultCwd?, jwt?}` |
+| PUT | `/api/config` | 仅更新 `reviewMode` |
 
 ---
 
@@ -193,21 +224,28 @@ tmux 持久会话(会话常驻宿主;备注存归属项目 data/tmux-notes.json;
 
 > 触发词:PRD、写PRD、设计原型、打开PRD、PRD面板、改版、方案文档。写 PRD 前必读 `references/prd-directory-format.md`;模板在 `templates/prd/`(**复制即用,禁止自创结构**)。
 
-**标准结构**:`<项目>/PRD/` 下总看板 `index.md` + `plan/{todo,doing,done}` 三态目录;子计划放 `plan/doing/<计划名>/`,含入口 `index.md`、每步 `步骤N-<名称>.md`、原型 `原型-<页面>.html`、`伪代码/` 目录。每步文档必备:🖼 原型图(`` `> 原型图:`原型-<页面>.html` `` 面板自动 iframe 内联)、🔀 mermaid 流程图(必须配数据结构+文字流程双份)、📂 菜单清单、📋 表结构(逐字段 + 【库】归属 + 码值)、💻 伪代码(`> @tabs 步骤N` 在 MD 内渲染)。
+**标准结构**:PRD 根目录下总看板 `index.md` + `plan/{todo,doing,done}` 三态目录;子计划放 `plan/doing/<计划名>/`,含入口 `index.md`、每步 `步骤N-<名称>.md`、原型 `原型-<页面>.html`、`伪代码/` 目录。每步文档必备:🖼 原型图(`` `> 原型图:`原型-<页面>.html` `` 面板自动 iframe 内联)、🔀 mermaid 流程图(必须配数据结构+文字流程双份)、📂 菜单清单、📋 表结构(逐字段 + 【库】归属 + 码值)、💻 伪代码(`> @tabs 步骤N` 在 MD 内渲染)。
 
-**创建流程(一条龙,一次到位)**:① `cp -r templates/prd/* <项目>/prd/` → ② 填总看板 index.md → ③ 子计划入口 index.md(背景/目标/核心流程/步骤导航/核心差异)→ ④ 每步一个 md(介绍含原型图/表结构/流程/流程图/菜单/伪代码 Tab)→ ⑤ 写 `伪代码/步骤N-<端>-<功能>.ts` → ⑥ 在 **该项目 `.code-panel/prd.yaml`** 的 folders 注册目录 → ⑦ 面板 /prd 验收。
+**创建流程(一条龙,一次到位)**:① `cp -r templates/prd/* <PRD根>/` → ② 填总看板 index.md → ③ 子计划入口 index.md(背景/目标/核心流程/步骤导航/核心差异)→ ④ 每步一个 md(介绍含原型图/表结构/流程/流程图/菜单/伪代码 Tab)→ ⑤ 写 `伪代码/步骤N-<端>-<功能>.ts` → ⑥ 在 **该项目 `.code-panel/prd.yaml`** 的 folders 注册目录 → ⑦ 面板 /prd 验收。
 
-> 渲染:MD 里 `` `> 原型图:`<原型路径>.html` `` 会内联 iframe;原型 HTML 的相对 css/js 子资源靠 `cp_auth` cookie 自动带上,无需 token 参数。
+> 渲染:MD 里 `` `> 原型图:`<原型路径>.html` `` 会内联 iframe;原型 HTML 的相对 css/js 子资源靠 `cp_auth` cookie 自动带上,无需 token 参数。文件夹/原型多放 `<项目根>/.code-panel/prd/` 下(按人分目录),随仓库共享。
 
-## 给 demo 加日志 / 库 / 仓库 / PRD
+## 给 demo 这类项目加日志 / 库 / 命令 / 快捷 / PRD / git
+
+**配置文件放在项目里,AI 直接改文件即可**(面板实时读取,改完即生效;文件随仓库提交)。推荐直接编辑而不是走 curl:
 
 ```bash
-# 示例:改 demo 项目日志(yaml 全量覆盖)
-curl -s -X PUT http://localhost:3008/api/projects/demo/yaml/logs \
-  -H "Authorization: Bearer <jwt>" -H 'Content-Type: application/json' \
-  -d '{"yaml":{"sections":[{"name":"后端","logs":[{"name":"main-platform","file":"<项目根>/code/backend/apps/main-platform/logs/mvn-console.log","port":3100}]}]}}'
-# 库:改 sql.yaml;仓库:改 git.yaml;PRD:改 prd.yaml(或直接手改项目里 .code-panel/*.yaml,面板实时读取)
+# 例:给项目加一个应用服务(日志+启停)→ 编辑 <项目根>/.code-panel/apps.yaml(旧 logs.yaml 兼容)
+#   platforms:
+#     - name: 主平台
+#       backend:  [ { name: main, file: .logs/main.log, port: 7123,
+#                      start: "bash .claude/skills/fast-start/start.sh start main",
+#                      stop:  "bash .claude/skills/fast-start/start.sh stop main" } ]
+#       frontend: [ { name: main-vue, file: .logs/main-front.log, port: 7124 } ]
+# 库:改 sql.yaml;命令:改 commands.yaml;快捷方式:改 links.yaml;PRD:改 prd.yaml;git:改 git.yaml
 ```
+
+> 每份 yaml 顶部注释 = 完整字段说明 + 示例(去掉注释即生效)。程序化写全量时才用 `PUT /api/projects/:id/yaml/:module`。
 
 ---
 
@@ -231,7 +269,7 @@ curl -s -X PUT http://localhost:3008/api/projects/demo/yaml/logs \
 
 ## 实现细节备忘
 
-- 全局数据根统一走 `src/paths.ts`(`os.homedir()/.code-panel`);项目 `.code-panel` 与运行数据在项目内。
-- 模块加载即读 `.code-panel/*.yaml`(js-yaml,容错默认空);写即全量重写 yaml。
-- 连接池/健康检查 key = `projectId:dbId`;日志监控扫所有注册项目 logs.yaml 并集,SSE 按项目过滤。
+- 全局数据根统一走 `src/paths.ts`(`os.homedir()/.code-panel`);项目 `.code-panel` 在项目内。
+- 模块 YAML:日志 → `apps.yaml`(旧 `logs.yaml` 兼容回退,见 `paths.ts`/`project-store.ts`);sql/prd/git/commands/links 各一文件。加载即读(js-yaml,容错默认空),写即全量重写;文件内路径写「相对项目根」,读取时补绝对。
+- 连接池/健康检查 key = `projectId:dbId`;日志监控扫所有注册项目 apps.yaml 并集,SSE 按项目过滤。
 - JWT 密钥在 `~/.code-panel/jwt.secret`(自动生成,重启 token 仍有效)。`auth-token.ts` 的 REVIEW_TOKEN 用于 SQL 审批,与 JWT 并存。

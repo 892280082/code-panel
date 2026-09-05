@@ -24,17 +24,24 @@
     <main class="main">
       <div class="toolbar">
         <span class="status">{{ currentFolderName || 'PRD 文档' }}</span>
-        <span v-if="files.length" class="status live">● {{ files.length }} 篇 MD</span>
+        <span v-if="currentDir && entryFile" class="status live">● {{ entryFile }}</span>
         <button
           v-if="currentDir"
           class="done-btn"
           :class="{ on: !currentDirDone }"
           @click="toggleDone"
         >{{ currentDirDone ? '未完成' : '✓ 已完成' }}</button>
-        <button @click="loadFolders">↻ Refresh</button>
-        <span class="status">📄 PRD</span>
+        <span class="spacer"></span>
+        <button
+          v-if="viewUrl"
+          class="open-btn"
+          title="在新窗口打开双栏页"
+          @click="openInTab"
+        >新窗口 ↗</button>
+        <button @click="reload">↻ Refresh</button>
       </div>
 
+      <!-- 整屏内容:左侧选中 folder → 右侧一块撑满 iframe = 后台 /api/prd/view 渲染的双栏页 -->
       <div class="content-area">
         <div v-if="!hasProject" class="empty-state">
           <span class="icon">◈</span>
@@ -42,32 +49,19 @@
         </div>
         <div v-else-if="!currentDir" class="empty-state">
           <span class="icon">◈</span>
-          <span>Select a PRD folder from the sidebar</span>
+          <span>从左侧选择 PRD 文件夹</span>
         </div>
-        <div v-else class="prd-file-list">
-          <template v-for="f in files" :key="f.path">
-            <div
-              class="prd-file"
-              :class="{ on: currentFile === f.name }"
-              @click="openPreview(f.name)"
-            >
-              <span class="pf-name">{{ f.name }}</span>
-              <button class="pf-view" @click.stop="openDoc(f.name)">查看 ›</button>
-            </div>
-            <!-- 预览：紧贴点中的文件下方 -->
-            <div v-if="currentFile === f.name" class="pv-area">
-              <div class="pv-head">
-                <span>{{ f.name }}</span>
-                <button class="pf-view" @click.stop="openDoc(f.name)">全屏 ›</button>
-              </div>
-              <iframe :src="previewUrl" class="pv-frame"></iframe>
-            </div>
-          </template>
-          <div v-if="!files.length" class="empty-state">
-            <span class="icon">◌</span>
-            <span>该文件夹无 .md 文档</span>
-          </div>
+        <div v-else-if="!entryFile" class="empty-state">
+          <span class="icon">◌</span>
+          <span>该文件夹无 .md 文档(index.md 或任意 md 均可作为入口)</span>
         </div>
+        <iframe
+          v-else
+          :key="frameKey"
+          :src="viewUrl"
+          class="pv-full"
+          @load="onFrameLoad"
+        ></iframe>
       </div>
     </main>
   </div>
@@ -86,16 +80,17 @@ const projects = useProjectsStore()
 const hasProject = computed(() => !!projects.currentProject)
 
 const folders = ref<PrdFolder[]>([])
-const files = ref<PrdFile[]>([])
 const currentDir = ref('')
-const currentFile = ref('')
+const entryFile = ref('')        // 选中 folder 的默认打开文件(index.md 优先,否则第一篇)
+const frameKey = ref(0)          // 强制 iframe 重新加载
 
 const currentDirDone = computed(() => folders.value.find(f => f.dir === currentDir.value)?.done || false)
 const currentFolderName = computed(() => folders.value.find(f => f.dir === currentDir.value)?.name || '')
 
-const previewUrl = computed(() =>
-  currentDir.value && currentFile.value
-    ? '/api/prd/content?dir=' + encodeURIComponent(currentDir.value) + '&file=' + encodeURIComponent(currentFile.value) + projectQSuffix()
+/** 后台双栏渲染页(自带 MD 文件导航),整屏内嵌;?project= 让正文链接翻页时上下文连续 */
+const viewUrl = computed(() =>
+  currentDir.value && entryFile.value
+    ? '/api/prd/view?dir=' + encodeURIComponent(currentDir.value) + '&file=' + encodeURIComponent(entryFile.value) + projectQSuffix()
     : ''
 )
 
@@ -105,7 +100,7 @@ function projectQSuffix(): string {
 }
 
 async function loadFolders() {
-  if (!projects.currentId) { folders.value = []; return }
+  if (!projects.currentId) { folders.value = []; currentDir.value = ''; entryFile.value = ''; return }
   try {
     const res = await apiFetch(`/api/prd/folders?project=${encodeURIComponent(projects.currentId)}`)
     const data = await res.json()
@@ -115,29 +110,37 @@ async function loadFolders() {
       if (currentDir.value && folders.value.some(f => f.dir === currentDir.value)) return
       const first = folders.value[0]
       if (first) await selectFolder(first.dir)
-      else { currentDir.value = ''; currentFile.value = '' }
+      else { currentDir.value = ''; entryFile.value = '' }
     }
   } catch { folders.value = [] }
 }
 
+/** 选中 folder:右侧整屏 iframe 打开该目录双栏页(入口 = index.md 优先,无则第一篇 md) */
 async function selectFolder(dir: string) {
   currentDir.value = dir
-  currentFile.value = ''
+  entryFile.value = ''
+  frameKey.value++
   try {
     const res = await apiFetch('/api/prd/files?dir=' + encodeURIComponent(dir))
     const data = await res.json()
-    files.value = data.ok ? data.files : []
-  } catch { files.value = [] }
+    const list: PrdFile[] = data.ok ? data.files : []
+    const entry = list.find(f => f.name === 'index.md') || list[0]
+    entryFile.value = entry ? entry.name : ''
+  } catch { entryFile.value = '' }
 }
 
-function openPreview(fileName: string) {
-  // 再点同一个 → 收起;点其他 → 展开该文件
-  currentFile.value = currentFile.value === fileName ? '' : fileName
+function reload() {
+  frameKey.value++
+  loadFolders()
 }
 
-function openDoc(fileName: string) {
-  const url = '/api/prd/view?dir=' + encodeURIComponent(currentDir.value) + '&file=' + encodeURIComponent(fileName) + projectQSuffix()
-  window.open(url, '_blank')
+function onFrameLoad() {
+  // iframe 就绪(内部点击链接由 iframe 自行导航,无需干预)
+}
+
+function openInTab() {
+  if (!viewUrl.value) return
+  window.open(viewUrl.value, '_blank')
 }
 
 async function toggleDone() {
@@ -158,8 +161,8 @@ async function toggleDone() {
 // 项目切换:清空重载
 watch(() => projects.currentId, async () => {
   currentDir.value = ''
-  currentFile.value = ''
-  files.value = []
+  entryFile.value = ''
+  frameKey.value++
   await loadFolders()
 })
 
@@ -172,15 +175,6 @@ onMounted(loadFolders)
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
 .scroll-list { flex: 1; overflow-y: auto; padding: 8px; min-height: 25vh; }
-.group-select {
-  width: calc(100% - 16px); margin: 8px 8px 0;
-  padding: 8px 12px;
-  font-family: var(--font); font-size: 12px;
-  background: var(--surface); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--radius);
-  outline: none; cursor: pointer;
-}
-.group-select:focus { border-color: var(--glow-dim); }
 .empty-hint { font-size: 11px; color: var(--text-dim); text-align: center; padding: 20px 8px; line-height: 1.8; }
 .list-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 4px; }
 .folder-block { flex: 1; min-width: 0; }
@@ -198,6 +192,7 @@ onMounted(loadFolders)
 }
 .toolbar .status { font-size: 11px; color: var(--text-dim); }
 .toolbar .status.live { color: var(--glow); }
+.toolbar .spacer { flex: 1; }
 .toolbar button {
   font-family: var(--font); font-size: 10px;
   padding: 6px 12px;
@@ -208,37 +203,21 @@ onMounted(loadFolders)
 }
 .toolbar button:hover { color: var(--text); border-color: var(--glow-dim); background: rgba(34,238,102,0.04); }
 .toolbar .done-btn.on { color: var(--glow); border-color: var(--glow-dim); background: rgba(34,238,102,0.06); font-weight: 700; }
+.toolbar .open-btn { color: var(--glow); border-color: var(--glow-dim); font-weight: 600; }
 
-.content-area { flex: 1; overflow-y: auto; padding: 12px 16px; position: relative; }
-.prd-file-list { display: flex; flex-direction: column; gap: 6px; }
-.prd-file {
-  display: flex; align-items: center; gap: 10px;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 9px 12px; cursor: pointer;
-  font-family: var(--font); transition: border-color 0.15s;
+/* 整屏 iframe:右侧主区一块撑满 */
+.content-area {
+  flex: 1; min-height: 0;
+  padding: 0;
+  background: #f2f3f5;
+  display: flex; flex-direction: column;
 }
-.prd-file:hover { border-color: var(--glow-dim); background: rgba(34,238,102,0.04); }
-.prd-file.on { border-color: var(--glow-dim); background: rgba(34,238,102,0.06); }
-.prd-file.on .pf-name { color: var(--glow); }
-.pf-done { color: var(--text-dim); font-size: 12px; flex-shrink: 0; }
-.pf-done.ok { color: var(--glow); font-weight: 700; }
-.pf-name { flex: 1; font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pf-view {
-  background: transparent; color: var(--glow); border: 1px solid var(--glow-dim);
-  border-radius: var(--radius); padding: 5px 12px;
-  font-size: 10px; font-family: var(--font); cursor: pointer; font-weight: 600; letter-spacing: 0.04em;
+.pv-full {
+  flex: 1; width: 100%;
+  border: none; display: block;
 }
-.pf-view:hover { color: #000; background: var(--glow); }
-/* 预览区：紧贴点中的文件下方 */
-.pv-area { margin: 4px 0 8px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-.pv-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 7px 12px; background: var(--surface); border-bottom: 1px solid var(--border);
-  font-family: var(--font); font-size: 11px; color: var(--text-dim);
-}
-.pv-frame { width: 100%; height: 360px; border: none; display: block; background: #0d0d10; }
 
-:deep(.empty-state) { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 60px 0; color: var(--text-dim); }
+:deep(.empty-state) { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; height: 100%; color: var(--text-dim); }
 :deep(.empty-state .icon) { font-size: 32px; }
 :deep(.empty-state .hint) { font-size: 11px; color: var(--text-dim); }
 </style>
