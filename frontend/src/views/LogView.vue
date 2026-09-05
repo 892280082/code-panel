@@ -400,8 +400,8 @@ watch(currentContent, () => {
 .platform-grid {
   display: grid;
   grid-template-columns: 100%;
-  gap: 18px;
-  padding: 8px 10px 14px;
+  gap: 10px;
+  padding: 6px 10px 10px;
   align-content: start;
   width: 100%;
   min-width: 0;
@@ -412,9 +412,9 @@ watch(currentContent, () => {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--bg);
-  padding: 24px 12px 12px;
+  padding: 16px 10px 6px;
 }
 .platform-name {
   position: absolute; top: -11px; left: 14px; margin: 0; z-index: 2;
@@ -434,7 +434,7 @@ watch(currentContent, () => {
   background: var(--bg); border: 1px solid var(--border);
   border-radius: 8px; padding: 0 5px; line-height: 14px;
 }
-.pc-cols { display: flex; gap: 12px; align-items: stretch; width: 100%; min-width: 0; }
+.pc-cols { display: flex; gap: 8px; align-items: stretch; width: 100%; min-width: 0; }
 .pc-col { flex: 1 1 0; min-width: 0; overflow: hidden; }
 .pc-col.wide { flex: 1 1 100%; }
 .platform-card .list-item {
@@ -444,18 +444,18 @@ watch(currentContent, () => {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 4px;
-  padding: 10px 12px; margin: 4px 0;
+  gap: 1px;
+  padding: 5px 10px; margin: 2px 0;
   border: 1px solid transparent;
   border-radius: 8px;
 }
 .platform-card .list-item .tile-top {
-  display: flex; align-items: center; gap: 8px; min-width: 0;
+  display: flex; align-items: center; gap: 6px; min-width: 0;
 }
-.platform-card .list-item .name { min-width: 0; font-size: 13px; }
+.platform-card .list-item .name { min-width: 0; font-size: 12px; }
 .platform-card .list-item .tile-sub {
   display: flex; align-items: center;
-  padding-left: 14px; /* 与名字行圆点错位对齐 */
+  padding-left: 12px; /* 与名字行圆点错位对齐 */
 }
 .platform-card .list-item.selected {
   background: #1a1a28; border-color: var(--glow-dim);
