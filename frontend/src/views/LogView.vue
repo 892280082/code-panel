@@ -159,7 +159,7 @@ watch(currentContent, () => {
                   @contextmenu.prevent="openCtx($event, log)"
                 >
                   <div class="tile-top">
-                    <StatusDot :status="getLogStatus(log)" @click.stop="runService(log)" />
+                    <StatusDot :status="getLogStatus(log)" />
                     <span class="name">{{ log.name }}</span>
                     <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
                   </div>
@@ -177,7 +177,7 @@ watch(currentContent, () => {
                   @contextmenu.prevent="openCtx($event, log)"
                 >
                   <div class="tile-top">
-                    <StatusDot :status="getLogStatus(log)" @click.stop="runService(log)" />
+                    <StatusDot :status="getLogStatus(log)" />
                     <span class="name">{{ log.name }}</span>
                     <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
                   </div>
@@ -500,12 +500,10 @@ watch(currentContent, () => {
   display: flex; align-items: center;
   padding-left: 12px; /* 与名字行圆点错位对齐 */
 }
-/* 服务项圆点:放大成「点一下 = 启动/停止」开关 */
+/* 服务项圆点:放大展示状态;启停一律走右键菜单,单击不触发 */
 .platform-card .list-item :deep(.dot) {
   width: 13px; height: 13px;
-  cursor: pointer;
 }
-.platform-card .list-item :deep(.dot):hover { filter: brightness(1.35); }
 .platform-card .list-item:not(:has(.dot.missing)) .tile-sub { /* 无操作留白,保持对齐 */ }
 .platform-card .list-item.selected {
   background: #1a1a28; border-color: var(--glow-dim);
