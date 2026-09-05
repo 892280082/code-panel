@@ -33,7 +33,10 @@ export function projectDataDir(root: string): string {
 }
 
 /** 项目某个模块 YAML 配置文件路径(apps.yaml 取代旧 logs.yaml) */
-export function projectModuleYamlFile(root: string, module: 'logs' | 'sql' | 'prd' | 'git' | 'commands'): string {
+export function projectModuleYamlFile(
+  root: string,
+  module: 'logs' | 'sql' | 'prd' | 'git' | 'commands' | 'links',
+): string {
   const name = module === 'logs' ? 'apps' : module;
   return path.join(projectCodePanelDir(root), `${name}.yaml`);
 }

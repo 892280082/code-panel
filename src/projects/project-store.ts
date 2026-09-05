@@ -65,6 +65,7 @@ const README_TEMPLATE = `# .code-panel —— 本项目在 code-panel 面板里�
 | \`prd.yaml\`       | PRD 目录(面板 /prd)   | 加 PRD 文档目录 {name,dir} |
 | \`git.yaml\`       | git 仓库(面板 /git)   | 加本机 git 仓库 {id,name,path} |
 | \`commands.yaml\`  | 命令抽屉「自定义命令」 | 加启动/停止/单模块命令按钮(见下) |
+| \`links.yaml\`     | 快捷方式(/log 顶栏 🔗) | 加分组 quick links:group→items→多 urls(标签/域名) |
 | \`data/\`          | 运行时数据(SQL 历史/队列、PRD 完成态、tmux 备注) | 面板自动写,勿手改 |
 
 每个 yaml 文件顶部注释就是完整字段说明 + 示例(把注释里的例子打开就能用)。
@@ -88,7 +89,7 @@ export function ensureProjectSkeleton(project: ProjectRow): void {
   const readme = path.join(dir, 'README.md');
   if (!fs.existsSync(readme)) fs.writeFileSync(readme, README_TEMPLATE, 'utf8');
 
-  for (const m of ['logs', 'sql', 'prd', 'git', 'commands'] as ModuleName[]) {
+  for (const m of ['logs', 'sql', 'prd', 'git', 'commands', 'links'] as ModuleName[]) {
     // logs 已写 apps.yaml(新)或还留着旧 logs.yaml(兼容)时,不再生成空 apps.yaml
     if (m === 'logs') {
       const apps = projectModuleYamlFile(project.root, 'logs');

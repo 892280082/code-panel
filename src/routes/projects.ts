@@ -10,7 +10,7 @@ import { getProject } from '../db/global-store';
 import type { ModuleName, ModuleYaml } from '../projects/yaml';
 
 const router = Router();
-const MODULES: ModuleName[] = ['logs', 'sql', 'prd', 'git', 'commands'];
+const MODULES: ModuleName[] = ['logs', 'sql', 'prd', 'git', 'commands', 'links'];
 
 // GET /api/projects — 项目列表
 router.get('/api/projects', (_req: Request, res: Response) => {

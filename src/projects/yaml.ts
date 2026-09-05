@@ -47,7 +47,17 @@ export interface CommandsModuleYaml {
   commands: { id: string; label: string; command: string; cwd?: string; subgroup?: string }[];
 }
 
-export type ModuleYaml = LogsModuleYaml | SqlModuleYaml | PrdModuleYaml | GitModuleYaml | CommandsModuleYaml;
+/** links.yaml:本项目「快捷方式/Quick Links」(/log 顶栏 🔗 下拉;纯展示,提交式随仓库走) */
+export interface LinksModuleYaml {
+  groups?: {
+    name: string;
+    items: { name: string; urls: { label?: string; url: string }[] }[];
+  }[];
+}
+
+export type ModuleYaml =
+  | LogsModuleYaml | SqlModuleYaml | PrdModuleYaml | GitModuleYaml
+  | CommandsModuleYaml | LinksModuleYaml;
 
 const EMPTY: Record<string, ModuleYaml> = {
   logs: { platforms: [] },
@@ -55,6 +65,7 @@ const EMPTY: Record<string, ModuleYaml> = {
   prd: { dir: '', folders: [] },
   git: { repos: [] },
   commands: { commands: [] },
+  links: { groups: [] },
 };
 
 /** 每个模块默认 YAML 模板(注释即说明书,AI/人照着加即可;面板实时读取) */
@@ -149,9 +160,40 @@ repos: []
 #     - { id: c3, label: "🚀 启动后端", command: "bash start.sh start main", subgroup: "单模块", cwd: . }
 commands: []
 `,
+  links: `# ── links.yaml —— 本项目「快捷方式/Quick Links」(/log 顶栏 🔗 下拉) ──────
+# 提交式、随仓库走,想改就编辑本文件,面板只负责「展示 + 打开」。修改即生效。
+# 按「分组」存放常用地址;每个链接可带 1..N 个访问地址(如 内网/域名/测试 多环境)。
+#
+# 字段:
+#   groups:          分组列表,每项:
+#     name           组名(如 认证 / 资源)
+#     items:         组内快捷链接,每项:
+#       name         链接名(如 认证登录 / OSS 控制台)
+#       urls:        该链接可访问的地址列表(1..N),每项:
+#         label      可选,环境/入口标识(如 内网 / 域名);不写则面板直接显示 url
+#         url        访问地址:可完整 URL(带 http:// 或 https://),
+#                    也可只写「裸域名/主机 + 路径」(如 dev.example.com/auth/login),
+#                    面板打开时自动补 http:// 前缀
+#
+# 示例(去掉 # 即生效):
+#   groups:
+#     - name: 认证
+#       items:
+#         - name: 认证登录
+#           urls:
+#             - { label: 内网, url: "http://127.0.0.1:7129/auth/login" }
+#             - { label: 域名, url: "dev.example.com/auth/login" }
+#         - name: HQ 登录
+#           urls:
+#             - { label: 域名, url: "http://dev.example.com/hq/login" }
+#     - name: 资源
+#       items:
+#         - { name: OSS 控制台, urls: [ { url: "http://dev.example.com/resource" } ] }
+groups: []
+`,
 };
 
-export type ModuleName = 'logs' | 'sql' | 'prd' | 'git' | 'commands';
+export type ModuleName = 'logs' | 'sql' | 'prd' | 'git' | 'commands' | 'links';
 
 /** 读模块 YAML(缺失/损坏→默认空结构) */
 export function loadModuleYaml<T extends ModuleYaml>(file: string, module: ModuleName): T {
