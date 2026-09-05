@@ -29,6 +29,7 @@ import { authMiddleware } from './auth/jwt';
 import authRouter, { protectedAuthRouter } from './routes/auth';
 import projectsRouter from './routes/projects';
 import linksRouter from './routes/links';
+import resourcesRouter from './routes/resources';
 
 const app = express();
 const PORT = 3008;
@@ -67,6 +68,7 @@ app.use(gitReposRouter);
 app.use(repoBrowserRouter);
 app.use(projectsRouter);
 app.use(linksRouter);
+app.use(resourcesRouter);
 
 // ── SPA fallback — all non-API routes serve index.html ───
 const indexHtml = path.join(DIST_DIR, 'index.html');
