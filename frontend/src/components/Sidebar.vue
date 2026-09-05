@@ -29,6 +29,14 @@ onMounted(() => {
 <template>
   <aside class="sidebar">
     <div class="sidebar-header">
+      <!-- 项目层:一眼看出当前是哪个项目(文件夹名 + 中文备注) -->
+      <div class="proj-line" :title="projects.currentProject?.root || '当前项目根目录'">
+        <template v-if="projects.currentProject">
+          <span class="proj-folder">🗂 {{ projects.currentProject.name }}</span>
+          <span v-if="projects.currentProject.note" class="proj-note">{{ projects.currentProject.note }}</span>
+        </template>
+        <span v-else class="proj-empty">未选择项目 · ⚙ 添加/切换</span>
+      </div>
       <div class="title-row">
         <h2>▸ {{ route.path === '/sql' ? 'SQL Review' : route.path === '/prd' ? 'PRD Docs' : route.path === '/git' ? 'Git Diff' : 'Apps' }}</h2>
         <button class="gear" title="配置(项目/账号)" @click="showCfg = true">⚙</button>
@@ -61,6 +69,21 @@ onMounted(() => {
   padding: 20px 20px 12px;
   border-bottom: 1px solid var(--border);
 }
+.proj-line {
+  display: flex; align-items: baseline; gap: 8px;
+  margin-bottom: 8px;
+  min-width: 0;
+  overflow: hidden; white-space: nowrap;
+}
+.proj-folder {
+  font-size: 13px; font-weight: 700; color: var(--glow, #22ee66);
+  overflow: hidden; text-overflow: ellipsis;
+}
+.proj-note {
+  font-size: 11px; color: var(--text, #c8c8d0);
+  overflow: hidden; text-overflow: ellipsis;
+}
+.proj-empty { font-size: 11px; color: var(--text-dim); }
 .title-row {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   margin-bottom: 12px;

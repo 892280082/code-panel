@@ -21,25 +21,25 @@ router.get('/api/projects', (_req: Request, res: Response) => {
   }
 });
 
-// POST /api/projects — 添加项目 {name, root}(ID 由系统整型自增)
+// POST /api/projects — 添加项目 {name, root, note?}(ID 由系统整型自增)
 router.post('/api/projects', (req: Request, res: Response) => {
   try {
-    const { name, root } = (req.body ?? {}) as { name?: string; root?: string };
+    const { name, root, note } = (req.body ?? {}) as { name?: string; root?: string; note?: string };
     if (!name || !root) return res.status(400).json({ ok: false, error: 'name 和 root 必填' });
-    const project = createProject({ name, root });
+    const project = createProject({ name, root, note });
     res.status(201).json({ ok: true, data: { project } });
   } catch (e: unknown) {
     res.status(400).json({ ok: false, error: errorMessage(e) });
   }
 });
 
-// PUT /api/projects/:id — 改 {name?, root?}
+// PUT /api/projects/:id — 改 {name?, root?, note?}
 router.put('/api/projects/:id', (req: Request, res: Response) => {
   try {
     const p = getProject(req.params.id);
     if (!p) return res.status(404).json({ ok: false, error: `项目 ${req.params.id} 不存在` });
-    const { name, root } = (req.body ?? {}) as { name?: string; root?: string };
-    const updated = renameProject(p.id, { name, root });
+    const { name, root, note } = (req.body ?? {}) as { name?: string; root?: string; note?: string };
+    const updated = renameProject(p.id, { name, root, note });
     res.json({ ok: true, data: { project: updated } });
   } catch (e: unknown) {
     res.status(400).json({ ok: false, error: errorMessage(e) });

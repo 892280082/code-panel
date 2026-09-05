@@ -28,6 +28,7 @@ export interface ProjectRow {
   id: string;
   name: string;
   root: string;
+  note?: string;
   created_at: number;
   updated_at: number;
 }
@@ -73,6 +74,7 @@ export async function initGlobalStore(): Promise<void> {
       id         TEXT PRIMARY KEY,
       name       TEXT NOT NULL,
       root       TEXT NOT NULL UNIQUE,
+      note       TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
@@ -81,6 +83,11 @@ export async function initGlobalStore(): Promise<void> {
       value TEXT NOT NULL
     );
   `);
+
+  // 老库迁移:projects 表缺 note 列时补上(中文备注)
+  const pcols = db.exec('PRAGMA table_info(projects)');
+  const hasNote = pcols.length && pcols[0].values.some((v) => v[1] === 'note');
+  if (!hasNote) db.run("ALTER TABLE projects ADD COLUMN note TEXT NOT NULL DEFAULT ''");
 
   seedDefaultSettings();
   seedFirstUserFromConfig();
@@ -230,6 +237,7 @@ export function listProjects(): ProjectRow[] {
       id: o.id as string,
       name: o.name as string,
       root: o.root as string,
+      note: o.note ? (o.note as string) : '',
       created_at: o.created_at as number,
       updated_at: o.updated_at as number,
     };
@@ -247,6 +255,7 @@ export function getProject(id: string): ProjectRow | undefined {
       id: o.id as string,
       name: o.name as string,
       root: o.root as string,
+      note: o.note ? (o.note as string) : '',
       created_at: o.created_at as number,
       updated_at: o.updated_at as number,
     };
@@ -255,30 +264,31 @@ export function getProject(id: string): ProjectRow | undefined {
   return row;
 }
 
-export function addProject(id: string, name: string, root: string): ProjectRow {
+export function addProject(id: string, name: string, root: string, note = ''): ProjectRow {
   const d = ensureDb();
   if (getProject(id)) throw new Error(`项目 ${id} 已存在`);
   const now = Date.now();
   d.run(
-    'INSERT INTO projects (id, name, root, created_at, updated_at) VALUES (?,?,?,?,?)',
-    [id, name, root, now, now],
+    'INSERT INTO projects (id, name, root, note, created_at, updated_at) VALUES (?,?,?,?,?,?)',
+    [id, name, root, note, now, now],
   );
   save();
-  return { id, name, root, created_at: now, updated_at: now };
+  return { id, name, root, note, created_at: now, updated_at: now };
 }
 
-export function updateProject(id: string, updates: { name?: string; root?: string }): ProjectRow {
+export function updateProject(id: string, updates: { name?: string; root?: string; note?: string }): ProjectRow {
   const existing = getProject(id);
   if (!existing) throw new Error(`项目 ${id} 不存在`);
   const merged = {
     ...existing,
     name: updates.name ?? existing.name,
     root: updates.root ?? existing.root,
+    note: updates.note ?? existing.note ?? '',
     updated_at: Date.now(),
   };
   ensureDb().run(
-    'UPDATE projects SET name=?, root=?, updated_at=? WHERE id=?',
-    [merged.name, merged.root, merged.updated_at, id],
+    'UPDATE projects SET name=?, root=?, note=?, updated_at=? WHERE id=?',
+    [merged.name, merged.root, merged.note, merged.updated_at, id],
   );
   save();
   return merged;

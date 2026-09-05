@@ -28,6 +28,7 @@ const tabs: { key: TabKey; label: string }[] = [
 // ── 项目 ────────────────────────────────────────────────
 const addName = ref('')
 const addRoot = ref('')
+const addNote = ref('')
 const addErr = ref('')
 const adding = ref(false)
 const showAdd = ref(false) // 添加表单默认折叠
@@ -37,9 +38,10 @@ async function handleAddProject() {
   if (!addName.value.trim() || !addRoot.value.trim()) { addErr.value = '请填写项目名与项目根目录'; return }
   adding.value = true
   try {
-    await projects.addProject({ name: addName.value.trim(), root: addRoot.value.trim() })
+    await projects.addProject({ name: addName.value.trim(), root: addRoot.value.trim(), note: addNote.value.trim() })
     addName.value = ''
     addRoot.value = ''
+    addNote.value = ''
     showAdd.value = false
   } catch (e: any) {
     addErr.value = e.message || '添加失败'
@@ -54,6 +56,34 @@ async function handleRemoveProject(id: string) {
     await projects.removeProject(id)
   } catch (e: any) {
     alert(e.message || '移除失败')
+  }
+}
+
+// ── 编辑项目(名称/备注)──────────────────────────────
+const editingId = ref<string | null>(null)
+const editName = ref('')
+const editNote = ref('')
+const editErr = ref('')
+
+function openEdit(p: { id: string; name: string; note?: string }) {
+  editingId.value = p.id
+  editName.value = p.name
+  editNote.value = p.note || ''
+  editErr.value = ''
+}
+
+async function saveEdit() {
+  if (!editingId.value) return
+  editErr.value = ''
+  if (!editName.value.trim()) { editErr.value = '项目名必填'; return }
+  try {
+    await projects.updateProject(editingId.value, {
+      name: editName.value.trim(),
+      note: editNote.value.trim(),
+    })
+    editingId.value = null
+  } catch (e: any) {
+    editErr.value = e.message || '保存失败'
   }
 }
 
@@ -186,9 +216,24 @@ watch(() => projects.currentId, () => { if (activeTab.value === 'files') loadFil
                   <span class="proj-id">#{{ p.id }}</span>
                 </div>
                 <div class="proj-root" :title="p.root">{{ p.root }}</div>
+                <div v-if="p.note" class="proj-note">📝 {{ p.note }}</div>
+
+                <!-- 编辑(改名称/备注) -->
+                <div v-if="editingId === p.id" class="edit-card">
+                  <input v-model="editName" class="f-input" placeholder="项目名(文件夹名)" />
+                  <input v-model="editNote" class="f-input mono" placeholder="中文备注(可选,便于团队识别)" @keyup.enter="saveEdit" />
+                  <div v-if="editErr" class="err">{{ editErr }}</div>
+                  <div class="edit-btns">
+                    <button class="mini" @click="editingId = null">取消</button>
+                    <button class="mini save" @click="saveEdit">保存</button>
+                  </div>
+                </div>
+
                 <div class="card-foot">
-                  <!-- 次操作在左,主操作「使用」在右 -->
-                  <button class="mini danger" title="移除注册" @click="handleRemoveProject(p.id)">移除</button>
+                  <span class="foot-left">
+                    <button class="mini" title="编辑名称/备注" @click="openEdit(p)">编辑</button>
+                    <button class="mini danger" title="移除注册" @click="handleRemoveProject(p.id)">移除</button>
+                  </span>
                   <button class="use-btn" :disabled="p.id === projects.currentId" @click="projects.setProject(p.id)">
                     {{ p.id === projects.currentId ? '✓ 使用中' : '使用' }}
                   </button>
@@ -201,6 +246,7 @@ watch(() => projects.currentId, () => { if (activeTab.value === 'files') loadFil
               <div class="add-title">+ 添加项目</div>
               <div class="add-fields">
                 <input v-model="addName" class="f-input" placeholder="项目名(如 demo)" />
+                <input v-model="addNote" class="f-input" placeholder="中文备注(可选)" />
                 <input v-model="addRoot" class="f-input mono grow" placeholder="项目根目录绝对路径" />
               </div>
               <div class="add-err-line">
@@ -344,7 +390,13 @@ watch(() => projects.currentId, () => { if (activeTab.value === 'files') loadFil
 .proj-name { font-size: 15px; color: var(--text); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .proj-id { flex-shrink: 0; font-size: 11px; color: var(--text-dim); font-family: var(--font); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1px 8px; }
 .proj-root { font-size: 11px; line-height: 1.5; color: var(--text-dim); font-family: var(--font); word-break: break-all; }
+.proj-note { font-size: 12px; color: var(--text); background: rgba(68,153,238,0.08); border: 1px solid rgba(68,153,238,0.2); border-radius: 6px; padding: 3px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; }
+.foot-left { display: flex; align-items: center; gap: 6px; }
+.edit-card { display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--surface); border: 1px dashed var(--border); border-radius: 8px; }
+.edit-btns { display: flex; justify-content: flex-end; gap: 6px; }
+button.mini.save { color: var(--glow); border-color: var(--glow-dim); }
+button.mini.save:hover { background: rgba(34,238,102,0.1); color: var(--glow); }
 /* 次操作「移除」在左(默认透明),主操作「使用」在右(高亮) */
 .card-foot .mini.danger { padding: 6px 12px; border-radius: 6px; }
 .use-btn { padding: 6px 16px; font-size: 12px; border-radius: 6px; cursor: pointer; }

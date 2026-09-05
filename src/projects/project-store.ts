@@ -21,6 +21,7 @@ export function removeProject(id: string): void { deleteProject(id); }
 export interface CreateProjectInput {
   name: string;
   root: string;
+  note?: string;
 }
 
 /** 下一个整型自增项目 id(现有个数内取 max+1;无视非数字 id) */
@@ -39,13 +40,14 @@ export function createProject(input: CreateProjectInput): ProjectRow {
     throw new Error(`项目根目录不存在或不是目录: ${root}`);
   }
   const id = nextProjectId();
-  const project = addProject(id, input.name.trim(), root);
+  const project = addProject(id, input.name.trim(), root, (input.note || '').trim());
   ensureProjectSkeleton(project);
   return project;
 }
 
-export function renameProject(id: string, updates: { name?: string; root?: string }): ProjectRow {
-  return updateProject(id, updates);
+export function renameProject(id: string, updates: { name?: string; root?: string; note?: string }): ProjectRow {
+  const p = updateProject(id, updates);
+  return p;
 }
 
 /** .code-panel/README.md —— 给本项目目录里的 AI/人看,照着模板添加即可 */

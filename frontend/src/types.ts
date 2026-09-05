@@ -20,6 +20,7 @@ export interface ProjectInfo {
   id: string
   name: string
   root: string
+  note?: string
 }
 
 export interface DbConnection {

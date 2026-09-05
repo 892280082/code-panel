@@ -58,15 +58,25 @@ export const useProjectsStore = defineStore('projects', () => {
   }
 
   /** 添加项目:POST → 刷新列表 → 选中新项目。后端错误向上抛,由调用方提示 */
-  async function addProject(input: { name: string; root: string; id?: string }) {
+  async function addProject(input: { name: string; root: string; id?: string; note?: string }) {
     const data = await apiJson<{ data: { project: ProjectInfo } }>('/api/projects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: input.name, root: input.root, id: input.id }),
+      body: JSON.stringify({ name: input.name, root: input.root, id: input.id, note: input.note }),
     })
     await load()
     const id = data?.data?.project?.id
     if (id) setProject(id)
+  }
+
+  /** 更新项目(name/root/note):PUT → 刷新列表(不切换选中) */
+  async function updateProject(id: string, input: { name?: string; root?: string; note?: string }) {
+    await apiJson(`/api/projects/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    await load()
   }
 
   /** 移除项目注册(不删磁盘 .code-panel)。若删的是当前项则回退到第一个 */
@@ -79,6 +89,6 @@ export const useProjectsStore = defineStore('projects', () => {
 
   return {
     projects, currentId, currentProject, loaded,
-    load, setProject, addProject, removeProject,
+    load, setProject, addProject, updateProject, removeProject,
   }
 })

@@ -7,8 +7,6 @@ import { ansiToHtml, ansiStrip } from '@/composables/useAnsi'
 import type { LogEntry } from '@/types'
 import Sidebar from '@/components/Sidebar.vue'
 import StatusDot from '@/components/StatusDot.vue'
-import QuickLinks from '@/components/QuickLinks.vue'
-import SystemResourceMonitor from '@/components/SystemResourceMonitor.vue'
 
 const store = useLogStore()
 const projects = useProjectsStore()
@@ -202,8 +200,6 @@ watch(currentContent, () => {
           @click="store.cycleAnsi()"
         >{{ ansiLabels[store.ansiMode] }}</button>
         <span class="status">{{ store.connected ? '● connected' : '○ reconnecting' }}</span>
-        <SystemResourceMonitor />
-        <QuickLinks />
       </div>
 
       <!-- Tab Bar -->

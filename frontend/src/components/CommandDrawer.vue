@@ -182,6 +182,13 @@ const newTmuxName = ref('')
 const newTmuxDesc = ref('')
 const tmuxError = ref('')
 
+/** 底部「＋ 新建 Tmux」:切到会话 Tab 并展开表单(再点收起) */
+function onNewTmux() {
+  activeTab.value = 'tmux'
+  showNewTmux.value = !showNewTmux.value
+  if (showNewTmux.value) { newTmuxName.value = ''; newTmuxDesc.value = '' }
+}
+
 /** 拉取本项目 tmux 会话(后端带 project 过滤;这里再兜底过滤一次) */
 async function loadTmuxSessions() {
   if (!projects.currentId) { tmuxSessions.value = []; return }
@@ -529,11 +536,6 @@ async function saveReorder(ids: string[]) {
 
           <!-- 会话 Tab(Tmux 持久化终端) -->
           <template v-if="activeTab === 'tmux'">
-            <button class="new-btn" @click="showNewTmux = !showNewTmux">
-              <span v-if="showNewTmux">− 取消</span>
-              <span v-else>+ 新建 Tmux 会话</span>
-            </button>
-
             <div v-if="showNewTmux" class="form-card">
               <input v-model="newTmuxName" class="form-input mono" placeholder="会话名称" @keyup.enter="handleCreateTmux" />
               <input v-model="newTmuxDesc" class="form-input" placeholder="备注（可选）" @keyup.enter="handleCreateTmux" />
@@ -565,8 +567,13 @@ async function saveReorder(ids: string[]) {
           </template>
         </div>
 
-        <!-- 固定底部 -->
+        <!-- 固定底部:左「新建 Tmux」右「启动终端」 -->
         <div class="drawer-footer">
+          <button
+            class="launch-btn tmux-new"
+            :class="{ on: showNewTmux }"
+            @click="onNewTmux"
+          >{{ showNewTmux ? '− 取消新建' : '＋ 新建 Tmux 会话' }}</button>
           <button class="launch-btn" @click="terminal.createSession('终端', '', '')">+ 启动终端</button>
         </div>
       </div>
@@ -1050,12 +1057,13 @@ async function saveReorder(ids: string[]) {
 /* ── 底部固定按钮 ─────────────────────────────────────── */
 .drawer-footer {
   position: sticky; bottom: 0;
+  display: flex; gap: 8px; align-items: stretch;
   padding: 12px 0 0;
   border-top: 1px solid var(--border, #23232a);
   margin-top: auto;
 }
 .launch-btn {
-  width: 100%;
+  flex: 1 1 0; min-width: 0;
   padding: 10px;
   background: var(--bg, #09090b);
   border: 1px dashed var(--border, #23232a);
@@ -1068,6 +1076,13 @@ async function saveReorder(ids: string[]) {
 .launch-btn:hover {
   border-color: var(--glow, #22ee66);
   background: rgba(34,238,102,0.05);
+}
+/* 左:新建 Tmux(次要一点;展开中 = 实心绿) */
+.launch-btn.tmux-new { color: var(--text-dim, #6b6b78); }
+.launch-btn.tmux-new:hover { color: var(--glow, #22ee66); }
+.launch-btn.tmux-new.on {
+  color: #09090b; background: var(--glow-dim, rgba(34,238,102,0.6));
+  border-color: var(--glow, #22ee66); border-style: solid;
 }
 
 /* ── 命令按钮:一行两个 ───────────────────────────────── */
