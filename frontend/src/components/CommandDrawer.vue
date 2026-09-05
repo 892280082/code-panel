@@ -540,14 +540,6 @@ async function saveReorder(ids: string[]) {
               </div>
             </div>
           </template>
-
-          <!-- 活跃终端 -->
-          <div v-if="terminal.sessions.size > 0" class="divider" />
-          <button v-for="[port, session] in terminal.sessions" :key="port" class="session-item" @click="onClickRestore(port)">
-            <span class="session-dot" />
-            <span class="session-label">{{ session.label }}</span>
-            <button class="session-close" @click.stop="terminal.closeSession(port)">✕</button>
-          </button>
         </div>
 
         <!-- 固定底部 -->
