@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { apiFetch } from '@/utils/api-fetch'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useProjectsStore } from '@/stores/projects'
 import { useTerminalStore } from '@/stores/terminal'
+import { useRepoBrowserStore } from '@/stores/repo-browser'
 
 const terminal = useTerminalStore()
 const projects = useProjectsStore()
+const browser = useRepoBrowserStore()
+const router = useRouter()
 const commands = ref<any[]>([])
 const activeTab = ref<'custom' | 'system' | 'tmux'>('custom')
 const showForm = ref(false)
@@ -34,18 +38,24 @@ const allSubgroups = computed(() =>
   Array.from(new Set(customCmds.value.map((c: any) => c.subgroup).filter(Boolean)) as Set<string>),
 )
 
-// ── 按钮拖拽 ────────────────────────────────────────
+// ── 按钮拖拽 + 左右芯片簇 ───────────────────────────────
+//   FAB 底边定位(right/top 锚定)，默认右下角。左侧排 1..N 终端芯片，
+//   右侧贴 📂 仓库芯片 —— 拖 FAB 时三者联动、位置一起持久化。
 const POS_KEY = 'cmd-drawer-trigger-pos'
-const BTN_SIZE = 44
-const EDGE = 8
+const BTN_SIZE = 44          // FAB 直径
+const CHIP_SIZE = 35         // 左右小圆片直径
+const GAP = 16               // FAB 与芯片间距
+const EDGE = 16              // 芯片簇最外侧距视口右/下边缘的距离
+/** FAB 距右边缘的最小值：保证右侧 📂 仓库芯片始终留在可视区内 */
+const MIN_FAB_RIGHT = EDGE + CHIP_SIZE + GAP
 
 /** 屏幕分辨率变化后，上次记录的位置可能超出可视区域，越界则重置回屏幕内，避免图标丢失 */
 function clampBtnPos(v: { x: number; y: number } | null) {
   if (!v) return null
   const maxX = window.innerWidth - BTN_SIZE - EDGE
   const maxY = window.innerHeight - BTN_SIZE - EDGE
-  if (maxX < EDGE || maxY < EDGE) return null
-  return { x: Math.min(Math.max(v.x, EDGE), maxX), y: Math.min(Math.max(v.y, EDGE), maxY) }
+  if (maxX < MIN_FAB_RIGHT || maxY < EDGE) return null
+  return { x: Math.min(Math.max(v.x, MIN_FAB_RIGHT), maxX), y: Math.min(Math.max(v.y, EDGE), maxY) }
 }
 function readSavedPos() {
   try {
@@ -56,13 +66,15 @@ function readSavedPos() {
 }
 const raw = readSavedPos()
 const clamped = clampBtnPos(raw)
-const btnX = ref(clamped?.x ?? 100)
-const btnY = ref(clamped?.y ?? 12)
+// 默认：右下角 —— 右侧仓库芯片贴边 16px，FAB 再靠左 51px，底部贴边 16px
+const btnX = ref(clamped?.x ?? MIN_FAB_RIGHT)
+const btnY = ref(clamped?.y ?? Math.max(EDGE, window.innerHeight - BTN_SIZE - EDGE))
 // 上次记录已越界 → 用修正后的位置覆盖存储，下次打开直接是正常位置
 if (raw && clamped && (raw.x !== clamped.x || raw.y !== clamped.y)) {
   localStorage.setItem(POS_KEY, JSON.stringify(clamped))
 }
 let dragging = false
+let moved = false            // 拖动超过阈值才算拖拽，否则是普通点击
 let dragStartX = 0, dragStartY = 0, dragOrigX = 0, dragOrigY = 0
 
 /** 当前项目 id */
@@ -70,9 +82,17 @@ const currentProject = computed(() => projects.currentProject)
 /** 当前项目显示名称(自定义 Tab 标题) */
 const groupLabel = computed(() => projects.currentProject?.name || '自定义')
 
+// ── 芯片几何：与 FAB 位置联动 ───────────────────────────
+const sessionList = computed(() => Array.from(terminal.sessions.entries()))
+/** 左侧终端芯片条右缘 = FAB 右缘 + FAB 宽 + 间距 */
+const chipsBarRight = computed(() => btnX.value + BTN_SIZE + GAP)
+/** 右侧仓库芯片右缘 = FAB 右缘 − 芯片宽 − 间距 */
+const repoChipRight = computed(() => btnX.value - CHIP_SIZE - GAP)
+
 function onTriggerDragStart(e: MouseEvent) {
   if (terminal.drawerOpen) return
   dragging = true
+  moved = false
   dragStartX = e.clientX; dragStartY = e.clientY
   dragOrigX = btnX.value; dragOrigY = btnY.value
   document.addEventListener('mousemove', onTriggerDragMove)
@@ -80,15 +100,59 @@ function onTriggerDragStart(e: MouseEvent) {
 }
 function onTriggerDragMove(e: MouseEvent) {
   if (!dragging) return
+  const dx = e.clientX - dragStartX
+  const dy = e.clientY - dragStartY
+  if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return  // 3px 内视为点击
+  moved = true
   e.preventDefault()
-  btnX.value = dragOrigX - (e.clientX - dragStartX)
-  btnY.value = dragOrigY + (e.clientY - dragStartY)
+  btnX.value = dragOrigX - dx
+  btnY.value = dragOrigY + dy
 }
 function onTriggerDragEnd() {
+  if (!dragging) return
   dragging = false
+  const c = clampBtnPos({ x: btnX.value, y: btnY.value })
+  if (c) { btnX.value = c.x; btnY.value = c.y }
   localStorage.setItem(POS_KEY, JSON.stringify({ x: btnX.value, y: btnY.value }))
   document.removeEventListener('mousemove', onTriggerDragMove)
   document.removeEventListener('mouseup', onTriggerDragEnd)
+}
+/** FAB 点击：拖拽过(>3px)则忽略，防止拖完误开抽屉 */
+function onTriggerClick() {
+  if (moved) { moved = false; return }
+  terminal.toggleDrawer()
+}
+
+// ── 终端芯片点击：最小化 → 恢复+置顶；活跃 → 置顶 ──────
+function onChipClick(port: number) {
+  const s = terminal.sessions.get(port)
+  if (!s) return
+  if (s.minimized) terminal.restoreSession(port)
+  else terminal.bringToFront(port)
+}
+
+// ── 📂 仓库芯片：未开 → 打开当前项目第一个仓库；已开 → 最小化则恢复，否则关闭 ──
+const repoChipTitle = computed(() => {
+  if (!browser.visible) return browser.repoId ? `打开：${browser.repoName}` : '去 Git 页面选择仓库'
+  return browser.minimized ? '恢复：Repo Browser' : '关闭：Repo Browser'
+})
+
+async function onRepoChipClick() {
+  if (browser.visible) {
+    if (browser.minimized) browser.restore()
+    else browser.closeModal()
+    return
+  }
+  if (!projects.currentId) { router.push('/git'); return }
+  try {
+    const res = await apiFetch(`/api/git/repos?project=${encodeURIComponent(projects.currentId)}`)
+    const data = await res.json()
+    const repos = (data?.ok ? data.data : []) || []
+    if (repos.length) browser.openModal(repos[0].id, repos[0].name, repos[0].path)
+    else router.push('/git')
+  } catch {
+    router.push('/git')
+  }
 }
 
 async function loadCommands() {
@@ -345,19 +409,50 @@ async function saveReorder(ids: string[]) {
 
 <template>
   <div class="command-drawer-root">
+    <!-- 左侧终端数字芯片：灰=活跃，绿呼吸=最小化；点它恢复/置顶窗口 -->
+    <div
+      v-if="sessionList.length"
+      class="cmd-chips-bar"
+      :style="{ right: chipsBarRight + 'px', top: btnY + 'px' }"
+    >
+      <button
+        v-for="([port, s], i) in sessionList"
+        :key="port"
+        class="cmd-chip"
+        :class="{ minimized: s.minimized }"
+        :title="(s.minimized ? '恢复：' : '切换到：') + s.label"
+        @click="onChipClick(port)"
+      >{{ i + 1 }}</button>
+    </div>
+
+    <!-- FAB 主触发：仍是命令抽屉开关（拖拽与点击分离：>3px 算拖，否则开抽屉） -->
     <button
       class="drawer-trigger"
       :class="{ active: terminal.drawerOpen }"
       :style="{ right: btnX + 'px', top: btnY + 'px' }"
       :title="terminal.drawerOpen ? '关闭抽屉' : '命令终端'"
       @mousedown.prevent="onTriggerDragStart"
-      @click="terminal.toggleDrawer()"
+      @click="onTriggerClick"
     >
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="4 17 10 11 4 5"/>
         <line x1="12" y1="19" x2="20" y2="19"/>
       </svg>
+      <span v-if="sessionList.length" class="drawer-badge-count">{{ sessionList.length }}</span>
     </button>
+
+    <!-- 右侧 📂 仓库浏览芯片：点击开关 Repo Browser -->
+    <div
+      class="cmd-repo-bar"
+      :style="{ right: repoChipRight + 'px', top: btnY + 'px' }"
+    >
+      <button
+        class="cmd-repo-chip"
+        :class="{ closed: !browser.visible, minimized: browser.visible && browser.minimized }"
+        :title="repoChipTitle"
+        @click="onRepoChipClick"
+      >📂</button>
+    </div>
 
     <Teleport to="body">
       <div v-if="terminal.drawerOpen" class="drawer-backdrop" @click="terminal.closeDrawer()" />
@@ -469,19 +564,21 @@ async function saveReorder(ids: string[]) {
 </template>
 
 <style scoped>
-/* ── 触发按钮 ────────────────────────────────────────── */
+/* ── 触发按钮（玻璃拟态，右下角簇主键）─────────────── */
 .drawer-trigger {
   position: fixed;
   z-index: 9990;
   width: 44px; height: 44px;
   border-radius: 50%;
-  border: 1px solid #2ea043;
-  background: #238636;
-  color: #f0f6fc;
+  background: rgba(30,30,50,0.85);
+  color: rgba(255,255,255,0.7);
+  border: 1px solid rgba(255,255,255,0.1);
   cursor: grab;
   display: flex;
   align-items: center;
   justify-content: center;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
   transition: color 0.2s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
   user-select: none;
@@ -489,14 +586,115 @@ async function saveReorder(ids: string[]) {
 .drawer-trigger:active { cursor: grabbing; }
 .drawer-trigger:hover {
   color: #fff;
-  background: #2ea043;
-  border-color: #3fb950;
-  box-shadow: 0 4px 16px rgba(63,185,80,0.4);
+  background: rgba(68,153,238,0.2);
+  border-color: rgba(68,153,238,0.4);
+  box-shadow: 0 4px 16px rgba(68,153,238,0.25);
 }
 .drawer-trigger.active {
-  color: #fff;
-  background: #2ea043;
-  border-color: #3fb950;
+  color: #22ee66;
+  border-color: rgba(34,238,102,0.5);
+  box-shadow: 0 4px 16px rgba(34,238,102,0.2);
+}
+.drawer-badge-count {
+  position: absolute; top: -4px; right: -4px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  background: #ee4444; color: #fff; font-size: 10px; font-weight: 600;
+  border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+}
+
+/* ── 左侧终端数字芯片条：贴在 FAB 左侧等高垂直居中 ── */
+.cmd-chips-bar {
+  position: fixed;
+  z-index: 9989;
+  display: flex; align-items: center; gap: 5px;
+  height: 44px;              /* 与 FAB 等高 → 芯片垂直居中 */
+  pointer-events: none;      /* 容器不拦事件，芯片单独接收点击 */
+}
+.cmd-chip {
+  pointer-events: auto;
+  width: 35px; height: 35px; border-radius: 50%;
+  background: rgba(50,50,68,0.7); color: rgba(255,255,255,0.35);
+  border: 1px solid rgba(255,255,255,0.06);
+  font-size: 15px; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+  flex-shrink: 0;
+  transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.1s, box-shadow 0.2s;
+}
+/* 活跃：灰色低调 */
+.cmd-chip:hover {
+  background: rgba(68,153,238,0.2); color: #ccc;
+  border-color: rgba(68,153,238,0.3);
+  transform: scale(1.05);
+}
+/* 最小化：亮色醒目，绿色呼吸 */
+.cmd-chip.minimized {
+  background: rgba(30,30,50,0.85); color: rgba(255,255,255,0.75);
+  border: 1px solid rgba(34,238,102,0.35);
+  animation: chip-online 2.4s ease-in-out infinite;
+}
+.cmd-chip.minimized:hover {
+  background: rgba(68,153,238,0.25); color: #fff;
+  border-color: rgba(68,153,238,0.6);
+  transform: scale(1.1);
+  animation: none;
+}
+@keyframes chip-online {
+  0%, 100% { border-color: rgba(34,238,102,0.3);  box-shadow: 0 0 0 rgba(34,238,102,0); }
+  50%      { border-color: rgba(34,238,102,0.85); box-shadow: 0 0 8px rgba(34,238,102,0.45); }
+}
+
+/* ── 右侧 📂 仓库芯片条 ────────────────────────────── */
+.cmd-repo-bar {
+  position: fixed;
+  z-index: 9989;
+  display: flex; align-items: center;
+  height: 44px;             /* 与 FAB 等高 → 芯片垂直居中 */
+  pointer-events: none;     /* 容器不拦事件，芯片单独接收点击 */
+}
+.cmd-repo-chip {
+  pointer-events: auto;
+  width: 35px; height: 35px; border-radius: 50%;
+  background: rgba(50,50,68,0.7); color: rgba(255,255,255,0.5);
+  border: 1px solid rgba(255,255,255,0.08);
+  font-size: 15px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+  flex-shrink: 0;
+  transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.1s, box-shadow 0.2s;
+}
+.cmd-repo-chip:hover {
+  background: rgba(242,204,96,0.15); border-color: rgba(242,204,96,0.35);
+  transform: scale(1.05);
+}
+/* 未打开：更暗 */
+.cmd-repo-chip.closed {
+  background: rgba(40,40,58,0.55);
+  color: rgba(255,255,255,0.3);
+  border-color: rgba(255,255,255,0.06);
+}
+.cmd-repo-chip.closed:hover {
+  background: rgba(242,204,96,0.12);
+  color: rgba(255,255,255,0.65);
+  border-color: rgba(242,204,96,0.3);
+  transform: scale(1.05);
+}
+/* 最小化：金色呼吸 */
+.cmd-repo-chip.minimized {
+  background: rgba(30,30,50,0.85);
+  border: 1px solid rgba(242,204,96,0.45);
+  animation: repo-chip-online 2.4s ease-in-out infinite;
+}
+.cmd-repo-chip.minimized:hover {
+  background: rgba(242,204,96,0.25); color: #fff;
+  border-color: rgba(242,204,96,0.8);
+  transform: scale(1.1);
+  animation: none;
+}
+@keyframes repo-chip-online {
+  0%, 100% { border-color: rgba(242,204,96,0.3);  box-shadow: 0 0 0 rgba(242,204,96,0); }
+  50%      { border-color: rgba(242,204,96,0.85); box-shadow: 0 0 8px rgba(242,204,96,0.45); }
 }
 
 /* ── 抽屉 ─────────────────────────────────────────────── */

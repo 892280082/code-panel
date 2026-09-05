@@ -9,6 +9,7 @@
 //             tmux 会话不杀,随时可重连;彻底删除走 deleteTmuxSession)
 
 import { apiFetch } from '@/utils/api-fetch'
+import { raise } from '@/utils/z-layer'
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
 
@@ -18,8 +19,10 @@ export interface TerminalSession {
   command: string
   cwd: string
   minimized: boolean
-  x: number
+  maximized: boolean        // 全屏铺满视口（头部 □ 切换）
+  x: number                 // 居中偏移量（见 TerminalPanel：translate(-50% + x, -50% + y)）
   y: number
+  zIndex: number            // 层级：与 Repo Browser 共用全局计数器，点击置顶
   kind: 'cmd' | 'tmux'
   tmuxSession?: string // tmux 物理会话名(p_<projectId>_<name>),作会话唯一 key
   tmuxDesc?: string
@@ -60,7 +63,13 @@ export const useTerminalStore = defineStore('terminal', () => {
       if (data.ok) {
         const { port } = data.data
         const pos = readSavedPos(port)
-        sessions.set(port, { port, label, command, cwd, minimized: false, x: pos.x, y: pos.y, kind: 'cmd' })
+        sessions.set(port, {
+          port, label, command, cwd,
+          minimized: false, maximized: false,
+          x: pos.x, y: pos.y,
+          zIndex: raise(),
+          kind: 'cmd',
+        })
       } else {
         console.error('Failed to create session:', data.error)
       }
@@ -106,8 +115,10 @@ export const useTerminalStore = defineStore('terminal', () => {
         command: '',
         cwd: '',
         minimized: false,
+        maximized: false,
         x: pos.x,
         y: pos.y,
+        zIndex: raise(),
         kind: 'tmux',
         tmuxSession: sessionName,
         tmuxDesc: desc,
@@ -152,11 +163,27 @@ export const useTerminalStore = defineStore('terminal', () => {
     if (s) s.minimized = true
   }
 
+  /** 置顶：与 Repo Browser 共用全局计数器，点哪个窗口就把谁放最上层 */
+  function bringToFront(port: number) {
+    const s = sessions.get(port)
+    if (s) s.zIndex = raise()
+  }
+
   function restoreSession(port: number) {
     const s = sessions.get(port)
     if (s) {
       s.minimized = false
       drawerOpen.value = false
+      bringToFront(port)
+    }
+  }
+
+  /** □ 最大化 / 还原（几何由 TerminalPanel 纯 CSS 控制，不改 x/y → 还原回原位） */
+  function toggleMaximizeSession(port: number) {
+    const s = sessions.get(port)
+    if (s) {
+      s.maximized = !s.maximized
+      bringToFront(port)
     }
   }
 
@@ -176,6 +203,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     toggleDrawer, closeDrawer,
     createSession, closeSession,
     minimizeSession, restoreSession, cleanupAll,
-    attachTmux, deleteTmuxSession
+    attachTmux, deleteTmuxSession,
+    bringToFront, toggleMaximizeSession
   }
 })

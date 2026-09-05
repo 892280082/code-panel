@@ -6,14 +6,17 @@ const store = useTerminalStore()
 const auth = useAuthStore()
 
 // ── 拖拽 ────────────────────────────────────────
+//   窗口居中定位：left/top 固定 50%，再按 session.x / session.y 平移。
+//   最大化时禁止拖动（□ 全屏铺满，还原后 x/y 不变 → 回到原位）。
 let dragPort: number | null = null
 let dragStartX = 0, dragStartY = 0, dragOrigX = 0, dragOrigY = 0
 
 function onDragStart(e: MouseEvent, port: number) {
+  const s = store.sessions.get(port)
+  if (!s || s.maximized) return
   dragPort = port
   dragStartX = e.clientX; dragStartY = e.clientY
-  const s = store.sessions.get(port)
-  if (s) { dragOrigX = s.x; dragOrigY = s.y }
+  dragOrigX = s.x; dragOrigY = s.y
   document.addEventListener('mousemove', onDragMove)
   document.addEventListener('mouseup', onDragEnd)
 }
@@ -44,13 +47,26 @@ function onDragEnd() {
     :key="port"
     v-show="!session.minimized"
     class="terminal-panel"
-    :style="{ transform: `translate(calc(-50% + ${session.x}px), calc(-50% + ${session.y}px))` }"
+    :class="{ maximized: session.maximized }"
+    :style="session.maximized
+      ? { zIndex: session.zIndex }
+      : {
+          zIndex: session.zIndex,
+          transform: `translate(calc(-50% + ${session.x}px), calc(-50% + ${session.y}px))`,
+        }"
+    @pointerdown.capture="store.bringToFront(port)"
   >
     <div class="terminal-header" @mousedown.prevent="(e) => onDragStart(e, port)">
       <span class="terminal-title">▸ {{ session.label }}</span>
       <div class="terminal-actions">
-        <button class="btn-minimize" title="最小化" @mousedown.stop @click="store.minimizeSession(port)">─</button>
-        <button class="btn-close" title="关闭" @mousedown.stop @click="store.closeSession(port)">✕</button>
+        <button class="btn-minimize" title="最小化" @mousedown.stop @click.stop="store.minimizeSession(port)">─</button>
+        <button
+          class="btn-maximize"
+          :title="session.maximized ? '还原' : '最大化'"
+          @mousedown.stop
+          @click.stop="store.toggleMaximizeSession(port)"
+        >{{ session.maximized ? '❐' : '□' }}</button>
+        <button class="btn-close" title="关闭" @mousedown.stop @click.stop="store.closeSession(port)">✕</button>
       </div>
     </div>
     <div class="terminal-body">
@@ -76,7 +92,18 @@ function onDragEnd() {
   box-shadow: 0 8px 32px rgba(0,0,0,0.5);
   display: flex; flex-direction: column;
   overflow: hidden;
-  z-index: 9990;
+  transition: box-shadow 0.15s;
+}
+.terminal-panel:hover { box-shadow: 0 10px 40px rgba(0,0,0,0.6); }
+/* □ 最大化：铺满视口、去圆角去边框，还原时去掉本类即回到原几何。
+   z 仍用 session.zIndex（~1000 级），FAB/芯片(9990)保持在上层，随时可再操作 */
+.terminal-panel.maximized {
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  max-width: none; max-height: none;
+  transform: none;
+  border-radius: 0;
+  border: none;
 }
 .terminal-header {
   display: flex;
@@ -87,8 +114,9 @@ function onDragEnd() {
   border-bottom: 1px solid var(--border, #23232a);
   cursor: grab;
   user-select: none;
+  flex-shrink: 0;
 }
-.terminal-header:active { cursor: grabbing; }
+.terminal-panel.maximized .terminal-header { cursor: default; }
 .terminal-title {
   font-size: 12px; font-weight: 600;
   color: var(--text-dim, #6b6b78);
@@ -96,7 +124,7 @@ function onDragEnd() {
   pointer-events: none;
 }
 .terminal-actions { display: flex; gap: 4px; pointer-events: auto; }
-.btn-minimize, .btn-close {
+.btn-minimize, .btn-maximize, .btn-close {
   width: 24px; height: 24px;
   border: none; background: transparent;
   color: var(--text-dim, #6b6b78);
@@ -104,8 +132,10 @@ function onDragEnd() {
   font-size: 14px;
   display: flex; align-items: center; justify-content: center;
   line-height: 1;
+  transition: all 0.15s;
 }
-.btn-minimize:hover { color: var(--text, #c8c8d0); background: rgba(255,255,255,0.05); }
+.btn-minimize:hover, .btn-maximize:hover { color: var(--text, #c8c8d0); background: rgba(255,255,255,0.08); }
+.btn-maximize:hover { color: #f2cc60; background: rgba(242,204,96,0.12); }
 .btn-close:hover { color: #f44747; background: rgba(255,68,68,0.1); }
 .terminal-body {
   flex: 1; background: #000;
