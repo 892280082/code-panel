@@ -32,9 +32,10 @@ export function projectDataDir(root: string): string {
   return path.join(projectCodePanelDir(root), 'data');
 }
 
-/** 项目某个模块 YAML 配置文件路径 */
+/** 项目某个模块 YAML 配置文件路径(apps.yaml 取代旧 logs.yaml) */
 export function projectModuleYamlFile(root: string, module: 'logs' | 'sql' | 'prd' | 'git' | 'commands'): string {
-  return path.join(projectCodePanelDir(root), `${module}.yaml`);
+  const name = module === 'logs' ? 'apps' : module;
+  return path.join(projectCodePanelDir(root), `${name}.yaml`);
 }
 
 /** 项目某运行时数据文件路径 */

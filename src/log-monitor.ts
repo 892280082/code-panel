@@ -221,7 +221,8 @@ export function clearFileState(fp: string): void {
 
 /** 单项目日志列表(按活跃度排序,供 GET /api/logs?project 使用) */
 export function getLogsSorted(project: ProjectRow): Array<{
-  name: string; file: string; port?: number; platform: string; side?: string;
+  name: string; file: string; port?: number; start?: string; stop?: string;
+  platform: string; side?: string;
   exists: boolean; size: number; active: boolean; alive: boolean;
 }> {
   const now = Date.now();
@@ -231,7 +232,7 @@ export function getLogsSorted(project: ProjectRow): Array<{
     const st = fileState[e.file];
     const active = (now - (st ? st.lastActive : 0)) < ACTIVE_THRESHOLD;
     const alive = e.port ? getPortStatus(e.port) : false;
-    return { name: e.name, file: e.file, port: e.port, platform: e.platform, side: e.side, exists, size, active, alive };
+    return { name: e.name, file: e.file, port: e.port, start: e.start, stop: e.stop, platform: e.platform, side: e.side, exists, size, active, alive };
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
 

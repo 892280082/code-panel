@@ -14,7 +14,7 @@ const projects = useProjectsStore()
 const showCfg = ref(false)
 
 const tabs = [
-  { path: '/log', label: 'Logs' },
+  { path: '/log', label: 'Apps' },
   { path: '/sql', label: 'SQL' },
   { path: '/prd', label: 'PRD' },
   { path: '/git', label: 'Git' },
@@ -30,7 +30,7 @@ onMounted(() => {
   <aside class="sidebar">
     <div class="sidebar-header">
       <div class="title-row">
-        <h2>▸ {{ route.path === '/sql' ? 'SQL Review' : route.path === '/prd' ? 'PRD Docs' : route.path === '/git' ? 'Git Diff' : 'Log Viewer' }}</h2>
+        <h2>▸ {{ route.path === '/sql' ? 'SQL Review' : route.path === '/prd' ? 'PRD Docs' : route.path === '/git' ? 'Git Diff' : 'Apps' }}</h2>
         <button class="gear" title="配置(项目/账号)" @click="showCfg = true">⚙</button>
       </div>
       <div class="sidebar-nav">

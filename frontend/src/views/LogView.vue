@@ -2,6 +2,7 @@
 import { onMounted, watch, ref, computed, nextTick } from 'vue'
 import { useLogStore } from '@/stores/logs'
 import { useProjectsStore } from '@/stores/projects'
+import { useTerminalStore } from '@/stores/terminal'
 import { ansiToHtml, ansiStrip } from '@/composables/useAnsi'
 import type { LogEntry } from '@/types'
 import Sidebar from '@/components/Sidebar.vue'
@@ -11,7 +12,19 @@ import BackupDrawer from '@/components/BackupDrawer.vue'
 
 const store = useLogStore()
 const projects = useProjectsStore()
+const terminal = useTerminalStore()
 const hasProject = computed(() => !!projects.currentProject)
+
+/** 启动/停止:开一个 ttyd 终端窗口,在项目根目录执行该应用的 start/stop 脚本 */
+async function runService(log: LogEntry) {
+  if (!projects.currentProject) return
+  const alive = log.port !== undefined && log.port !== null && getPortAlive(log)
+  const cmd = alive ? log.stop : log.start
+  if (!cmd) return
+  try {
+    await terminal.createSession(`${log.name} · ${alive ? '停止' : '启动'}`, cmd, projects.currentProject.root)
+  } catch { /* 端口池满等错误忽略 */ }
+}
 const ansiLabels: Record<string, string> = { strip: '🎨 strip', raw: '🔤 raw', color: '🌈 color' }
 const logEl = ref<HTMLElement | null>(null)
 
@@ -106,7 +119,7 @@ watch(currentContent, () => {
     <Sidebar>
       <!-- 文件列表 -->
       <div class="log-list-head">
-        <span>日志文件</span>
+        <span>应用服务</span>
         <span class="count" v-if="store.filteredLogs.length">{{ store.filteredLogs.length }}</span>
       </div>
       <div class="scroll-list">
@@ -125,7 +138,7 @@ watch(currentContent, () => {
                   @click="store.openFile(log.file, log.name)"
                 >
                   <div class="tile-top">
-                    <StatusDot :status="getLogStatus(log)" />
+                    <StatusDot :status="getLogStatus(log)" @click.stop="runService(log)" />
                     <span class="name">{{ log.name }}</span>
                     <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
                   </div>
@@ -142,7 +155,7 @@ watch(currentContent, () => {
                   @click="store.openFile(log.file, log.name)"
                 >
                   <div class="tile-top">
-                    <StatusDot :status="getLogStatus(log)" />
+                    <StatusDot :status="getLogStatus(log)" @click.stop="runService(log)" />
                     <span class="name">{{ log.name }}</span>
                     <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
                   </div>
@@ -457,6 +470,13 @@ watch(currentContent, () => {
   display: flex; align-items: center;
   padding-left: 12px; /* 与名字行圆点错位对齐 */
 }
+/* 服务项圆点:放大成「点一下 = 启动/停止」开关 */
+.platform-card .list-item :deep(.dot) {
+  width: 13px; height: 13px;
+  cursor: pointer;
+}
+.platform-card .list-item :deep(.dot):hover { filter: brightness(1.35); }
+.platform-card .list-item:not(:has(.dot.missing)) .tile-sub { /* 无操作留白,保持对齐 */ }
 .platform-card .list-item.selected {
   background: #1a1a28; border-color: var(--glow-dim);
 }

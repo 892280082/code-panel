@@ -7,6 +7,8 @@ export interface LogEntry {
   platform?: string
   side?: string
   port?: number
+  start?: string
+  stop?: string
   exists?: boolean
   size?: number
   active?: boolean

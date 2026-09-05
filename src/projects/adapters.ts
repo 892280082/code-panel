@@ -92,6 +92,8 @@ export interface FlatLogEntry {
   name: string;
   file: string;
   port?: number;
+  start?: string;
+  stop?: string;
   /** 平台/分组名(新平台式 / 旧 sections 均用它做 UI 分组) */
   platform: string;
   /** 前端/后端 等边标(可选;platforms 式才有) */
@@ -104,15 +106,15 @@ export function logsFlatEntries(project: ProjectRow): FlatLogEntry[] {
   // 新平台式:platforms:[{name, backend:[], frontend:[]}]
   if (Array.isArray((yaml as any).platforms)) {
     for (const p of (yaml as any).platforms) {
-      for (const l of p?.backend ?? []) out.push({ name: l.name, file: l.file, port: l.port, platform: p.name, side: '后端' });
-      for (const l of p?.frontend ?? []) out.push({ name: l.name, file: l.file, port: l.port, platform: p.name, side: '前端' });
+      for (const l of p?.backend ?? []) out.push({ name: l.name, file: l.file, port: l.port, start: l.start, stop: l.stop, platform: p.name, side: '后端' });
+      for (const l of p?.frontend ?? []) out.push({ name: l.name, file: l.file, port: l.port, start: l.start, stop: l.stop, platform: p.name, side: '前端' });
     }
     return out;
   }
   // 旧 sections 平铺(向后兼容):分组名=section 名
   for (const sec of yaml?.sections ?? []) {
     for (const l of sec?.logs ?? []) {
-      out.push({ name: l.name, file: l.file, port: l.port, platform: sec.name });
+      out.push({ name: l.name, file: l.file, port: l.port, start: l.start, stop: l.stop, platform: sec.name });
     }
   }
   return out;

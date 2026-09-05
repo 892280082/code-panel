@@ -7,14 +7,23 @@ import type { DbConnection } from '../types';
 
 // ── 类型 ────────────────────────────────────────────────
 
-/** logs.yaml:按「平台」分组,每个平台含自身 后端/前端(向后兼容旧 sections 平铺) */
+/** 单个应用服务(平台里后端/前端的一项);start/stop 为可执行脚本,面板开终端执行 */
+export interface AppServiceYaml {
+  name: string;
+  file: string;
+  port?: number;
+  start?: string;
+  stop?: string;
+}
+
+/** apps.yaml(旧名 logs.yaml):按「平台」分组,每个平台含自身 后端/前端(向后兼容旧 sections 平铺) */
 export interface LogsModuleYaml {
   platforms?: {
     name: string;
-    backend?: { name: string; file: string; port?: number }[];
-    frontend?: { name: string; file: string; port?: number }[];
+    backend?: AppServiceYaml[];
+    frontend?: AppServiceYaml[];
   }[];
-  sections?: { name: string; logs: { name: string; file: string; port?: number }[] }[];
+  sections?: { name: string; logs: AppServiceYaml[] }[];
 }
 
 /** sql.yaml:本项目数据库连接(group 字段废弃,不再使用) */
@@ -50,21 +59,31 @@ const EMPTY: Record<string, ModuleYaml> = {
 
 /** 每个模块默认 YAML 模板(注释即说明书,AI/人照着加即可;面板实时读取) */
 const DEFAULT_TEXT: Record<string, string> = {
-  logs: `# ── logs.yaml —— 本项目「日志清单」(面板 /log 实时 tail 的文件) ──────────────
-# 按「平台」分组:每个平台一个块,组内含它自己的 后端 / 前端 日志(可只写其一)。
-# ⚠️ file 一律写「相对项目根」的相对路径(如 .logs/a.log 或 code/.../a.log),面板自动补绝对。
+  logs: `# ── apps.yaml(旧名 logs.yaml)—— 本项目「应用服务」:实时日志 + 一键 启动/停止 ──
+# 按「平台」分组:每个平台一个块,组内含它自己的 后端 / 前端 应用(可只写其一)。
+# ⚠️ file 写「相对项目根」的相对路径(如 .logs/a.log),面板自动补绝对;start/stop 同理
+#    写相对脚本(如 .claude/skills/.../start.sh),面板以项目根为工作目录执行。
 #
 # 结构:
-#   platforms:                   平台列表(面板左侧按平台折叠)
+#   platforms:                   平台列表(面板每平台一张卡片)
 #     - name: 平台名             (如 交易总部)
-#       backend:  [该平台后端日志] 每个 { name, file, port? }
-#       frontend: [该平台前端日志]
+#       backend:  [该平台后端应用]  每项字段:
+#         name   应用名(如 main)
+#         file   日志文件(相对项目根)
+#         port   服务端口(端口存活 → 面板判断 启动/停止)
+#         start  启动脚本(相对项目根;如 bash .claude/skills/fast-start/start.sh start main)
+#         stop   停止脚本(同上,stop main)
+#       frontend: [该平台前端应用](同上;名通常带 -vue)
 #
 # 示例(去掉 # 即生效):
 #   platforms:
 #     - name: 交易总部
-#       backend:  [ { name: trade-hall, file: .logs/trade-hall.log, port: 7148 } ]
-#       frontend: [ { name: trade-hall-vue, file: .logs/trade-hall-front.log, port: 7149 } ]
+#       backend:  [ { name: trade-hall, file: .logs/trade-hall.log, port: 7148,
+#                      start: "bash .claude/skills/fast-start/start.sh start trade-hall",
+#                      stop:  "bash .claude/skills/fast-start/start.sh stop trade-hall" } ]
+#       frontend: [ { name: trade-hall-vue, file: .logs/trade-hall-front.log, port: 7149,
+#                      start: "bash .claude/skills/fast-start/start.sh start trade-hall-vue",
+#                      stop:  "bash .claude/skills/fast-start/start.sh stop trade-hall-vue" } ]
 #     - name: 门户
 #       frontend: [ { name: website-vue, file: .logs/website.log, port: 7165 } ]
 platforms: []

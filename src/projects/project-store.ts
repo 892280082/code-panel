@@ -89,6 +89,12 @@ export function ensureProjectSkeleton(project: ProjectRow): void {
   if (!fs.existsSync(readme)) fs.writeFileSync(readme, README_TEMPLATE, 'utf8');
 
   for (const m of ['logs', 'sql', 'prd', 'git', 'commands'] as ModuleName[]) {
+    // logs 已写 apps.yaml(新)或还留着旧 logs.yaml(兼容)时,不再生成空 apps.yaml
+    if (m === 'logs') {
+      const apps = projectModuleYamlFile(project.root, 'logs');
+      const legacy = path.join(projectCodePanelDir(project.root), 'logs.yaml');
+      if (fs.existsSync(apps) || fs.existsSync(legacy)) continue;
+    }
     ensureDefaultYaml(projectModuleYamlFile(project.root, m), m);
   }
 }
@@ -127,10 +133,19 @@ function walkRel(root: string, v: any): any {
   return v;
 }
 
+/** apps.yaml 优先;缺失但有旧 logs.yaml 时读旧文件(向后兼容) */
+function logsYamlFile(root: string): string {
+  const dir = projectCodePanelDir(root);
+  const apps = path.join(dir, 'apps.yaml');
+  const legacy = path.join(dir, 'logs.yaml');
+  return fs.existsSync(apps) ? apps : (fs.existsSync(legacy) ? legacy : apps);
+}
+
 export function loadProjectModule(project: ProjectRow, module: ModuleName): ModuleYaml {
   ensureScaffolded(project);
   const root = project.root;
-  const yaml = loadModuleYaml<ModuleYaml>(projectModuleYamlFile(project.root, module), module) as any;
+  const file = module === 'logs' ? logsYamlFile(root) : projectModuleYamlFile(root, module);
+  const yaml = loadModuleYaml<ModuleYaml>(file, module) as any;
   if (module === 'logs') (yaml.sections || []).forEach((s: any) => (s.logs || []).forEach((l: any) => walkAbs(root, l)));
   else if (module === 'sql') (yaml.connections || []).forEach((c: any) => walkAbs(root, c));
   else if (module === 'prd') { if (typeof yaml.dir === 'string') yaml.dir = absOf(root, yaml.dir) || ''; (yaml.folders || []).forEach((f: any) => walkAbs(root, f)); }
