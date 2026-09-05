@@ -7,7 +7,6 @@ import { ansiToHtml, ansiStrip } from '@/composables/useAnsi'
 import type { LogEntry } from '@/types'
 import Sidebar from '@/components/Sidebar.vue'
 import StatusDot from '@/components/StatusDot.vue'
-import QuickLaunchDrawer from '@/components/QuickLaunchDrawer.vue'
 import QuickLinks from '@/components/QuickLinks.vue'
 
 const store = useLogStore()
@@ -203,7 +202,6 @@ watch(currentContent, () => {
         >{{ ansiLabels[store.ansiMode] }}</button>
         <span class="status">{{ store.connected ? '● connected' : '○ reconnecting' }}</span>
         <QuickLinks />
-        <QuickLaunchDrawer />
       </div>
 
       <!-- Tab Bar -->
