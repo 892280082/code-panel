@@ -7,9 +7,14 @@ import type { DbConnection } from '../types';
 
 // ── 类型 ────────────────────────────────────────────────
 
-/** logs.yaml:按 sections 分组展示(仅 UI 用途;项目级不再有全局 group) */
+/** logs.yaml:按「平台」分组,每个平台含自身 后端/前端(向后兼容旧 sections 平铺) */
 export interface LogsModuleYaml {
-  sections: { name: string; logs: { name: string; file: string; port?: number }[] }[];
+  platforms?: {
+    name: string;
+    backend?: { name: string; file: string; port?: number }[];
+    frontend?: { name: string; file: string; port?: number }[];
+  }[];
+  sections?: { name: string; logs: { name: string; file: string; port?: number }[] }[];
 }
 
 /** sql.yaml:本项目数据库连接(group 字段废弃,不再使用) */
@@ -36,7 +41,7 @@ export interface CommandsModuleYaml {
 export type ModuleYaml = LogsModuleYaml | SqlModuleYaml | PrdModuleYaml | GitModuleYaml | CommandsModuleYaml;
 
 const EMPTY: Record<string, ModuleYaml> = {
-  logs: { sections: [] },
+  logs: { platforms: [] },
   sql: { connections: [] },
   prd: { dir: '', folders: [] },
   git: { repos: [] },
@@ -46,26 +51,23 @@ const EMPTY: Record<string, ModuleYaml> = {
 /** 每个模块默认 YAML 模板(注释即说明书,AI/人照着加即可;面板实时读取) */
 const DEFAULT_TEXT: Record<string, string> = {
   logs: `# ── logs.yaml —— 本项目「日志清单」(面板 /log 实时 tail 的文件) ──────────────
-# ⚠️ 路径一律写「相对项目根」的相对路径(如 code/backend/.../a.log),
-#    面板读取时自动补成绝对路径;换机器/换目录本文件可随仓库直接用。
+# 按「平台」分组:每个平台一个块,组内含它自己的 后端 / 前端 日志(可只写其一)。
+# ⚠️ file 一律写「相对项目根」的相对路径(如 .logs/a.log 或 code/.../a.log),面板自动补绝对。
 #
 # 结构:
-#   sections:              列表,按分组展示(如「后端」「前端」),可多组
-#     - name: 分组名
-#       logs:
-#         - name: 显示名        (必填,面板左侧列表显示)
-#           file: 相对项目根    (必填,日志文件路径;不存在会显示 ○)
-#           port: 服务端口      (可选,填了做端口存活检测,亮●/灭○)
+#   platforms:                   平台列表(面板左侧按平台折叠)
+#     - name: 平台名             (如 交易总部)
+#       backend:  [该平台后端日志] 每个 { name, file, port? }
+#       frontend: [该平台前端日志]
 #
 # 示例(去掉 # 即生效):
-#   sections:
-#     - name: 后端
-#       logs:
-#         - { name: main-api, file: code/backend/apps/main/logs/api.log, port: 8080 }
-#     - name: 前端
-#       logs:
-#         - { name: web, file: code/frontend/web.log }
-sections: []
+#   platforms:
+#     - name: 交易总部
+#       backend:  [ { name: trade-hall, file: .logs/trade-hall.log, port: 7148 } ]
+#       frontend: [ { name: trade-hall-vue, file: .logs/trade-hall-front.log, port: 7149 } ]
+#     - name: 门户
+#       frontend: [ { name: website-vue, file: .logs/website.log, port: 7165 } ]
+platforms: []
 `,
   sql: `# ── sql.yaml —— 本项目「数据库连接」(面板 /sql 查询/审批用) ────────────────
 # 修改即生效。面板执行 SQL 时按本项目连接操作;写操作受全局 ReviewMode 管控。

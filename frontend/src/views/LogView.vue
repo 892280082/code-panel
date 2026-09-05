@@ -15,6 +15,21 @@ const hasProject = computed(() => !!projects.currentProject)
 const ansiLabels: Record<string, string> = { strip: '🎨 strip', raw: '🔤 raw', color: '🌈 color' }
 const logEl = ref<HTMLElement | null>(null)
 
+// 按平台分组(platform 缺失时回退「未分组」);折叠状态仅当前会话
+const collapsed = ref<Record<string, boolean>>({})
+const platformGroups = computed(() => {
+  const m = new Map<string, LogEntry[]>()
+  for (const l of store.filteredLogs) {
+    const k = l.platform || '未分组'
+    if (!m.has(k)) m.set(k, [])
+    m.get(k)!.push(l)
+  }
+  return [...m.entries()].map(([name, logs]) => ({ name, logs }))
+})
+function toggleGroup(name: string) {
+  collapsed.value[name] = !collapsed.value[name]
+}
+
 onMounted(() => {
   store.refreshAll()
   // Periodic update of activity indicators
@@ -91,18 +106,26 @@ watch(currentContent, () => {
       </div>
       <div class="scroll-list">
         <div v-if="!hasProject" class="empty-hint">无项目,请在顶部「项目」添加</div>
-        <div
-          v-for="log in store.filteredLogs" :key="log.file"
-          class="list-item file-item"
-          :class="{ selected: store.activeFile === log.file }"
-          @click="store.openFile(log.file, log.name)"
-        >
-          <StatusDot :status="getLogStatus(log)" />
-          <span class="name">{{ log.name }}</span>
-          <span v-if="log.section" class="section-tag" :title="log.section">{{ log.section }}</span>
-          <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
-          <span v-if="log.port" class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
-        </div>
+        <template v-for="g in platformGroups" :key="g.name">
+          <div class="platform-head" @click="toggleGroup(g.name)">
+            <span class="caret">{{ collapsed[g.name] ? '▸' : '▾' }}</span>
+            <span class="platform-title">{{ g.name }}</span>
+            <span class="count">{{ g.logs.length }}</span>
+          </div>
+          <div
+            v-for="log in g.logs" :key="log.file"
+            v-show="!collapsed[g.name]"
+            class="list-item file-item"
+            :class="{ selected: store.activeFile === log.file }"
+            @click="store.openFile(log.file, log.name)"
+          >
+            <StatusDot :status="getLogStatus(log)" />
+            <span class="name">{{ log.name }}</span>
+            <span v-if="log.side" class="side-tag">{{ log.side }}</span>
+            <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
+            <span v-if="log.port" class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
+          </div>
+        </template>
       </div>
     </Sidebar>
 
@@ -344,5 +367,27 @@ watch(currentContent, () => {
 @keyframes pulse {
   from { opacity: 1; transform: scale(1); }
   to   { opacity: 0.3; transform: scale(1.4); }
+}
+/* 平台分组头 */
+.platform-head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px 4px; cursor: pointer;
+  color: var(--text-dim); user-select: none;
+}
+.platform-head:hover { color: var(--text); }
+.platform-head .caret { font-size: 10px; width: 10px; }
+.platform-head .platform-title {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.05em; text-transform: uppercase;
+}
+.platform-head .count {
+  margin-left: auto; font-size: 9px; color: var(--text-dim);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0 6px; line-height: 14px;
+}
+.side-tag {
+  flex-shrink: 0; font-size: 9px; color: var(--text-dim);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 3px; padding: 0 5px;
 }
 </style>

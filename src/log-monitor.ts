@@ -28,7 +28,8 @@ const portStatusCache: Map<number, { alive: boolean; ts: number }> = new Map();
 // ── 获取所有日志文件(全部项目 logs.yaml 并集,带 projectId) ──
 
 interface MonitoredLog extends LogEntry {
-  section: string;
+  platform: string;
+  side?: string;
   projectId: string;
 }
 
@@ -36,7 +37,7 @@ function getAllLogs(): MonitoredLog[] {
   const out: MonitoredLog[] = [];
   for (const p of allProjects()) {
     for (const e of logsFlatEntries(p)) {
-      out.push({ name: e.name, file: e.file, port: e.port, section: e.section, projectId: p.id });
+      out.push({ name: e.name, file: e.file, port: e.port, platform: e.platform, side: e.side, projectId: p.id });
     }
   }
   return out;
@@ -220,7 +221,7 @@ export function clearFileState(fp: string): void {
 
 /** 单项目日志列表(按活跃度排序,供 GET /api/logs?project 使用) */
 export function getLogsSorted(project: ProjectRow): Array<{
-  name: string; file: string; port?: number; section: string;
+  name: string; file: string; port?: number; platform: string; side?: string;
   exists: boolean; size: number; active: boolean; alive: boolean;
 }> {
   const now = Date.now();
@@ -230,7 +231,7 @@ export function getLogsSorted(project: ProjectRow): Array<{
     const st = fileState[e.file];
     const active = (now - (st ? st.lastActive : 0)) < ACTIVE_THRESHOLD;
     const alive = e.port ? getPortStatus(e.port) : false;
-    return { name: e.name, file: e.file, port: e.port, section: e.section, exists, size, active, alive };
+    return { name: e.name, file: e.file, port: e.port, platform: e.platform, side: e.side, exists, size, active, alive };
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
 

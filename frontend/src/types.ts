@@ -1,10 +1,11 @@
 // ── Shared types (mirrors backend types.ts) ──────────────
 
-/** 日志条目(来自某项目 logs.yaml,按 section 平铺) */
+/** 日志条目(来自某项目 logs.yaml;platform 分组,side=后端/前端) */
 export interface LogEntry {
   name: string
   file: string
-  section?: string
+  platform?: string
+  side?: string
   port?: number
   exists?: boolean
   size?: number
