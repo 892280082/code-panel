@@ -15,7 +15,7 @@ const hasProject = computed(() => !!projects.currentProject)
 const ansiLabels: Record<string, string> = { strip: '🎨 strip', raw: '🔤 raw', color: '🌈 color' }
 const logEl = ref<HTMLElement | null>(null)
 
-// 按平台分组(platform 缺失时回退「未分组」);每组渲染为一张卡片
+// 按平台分组(platform 缺失时回退「未分组」);每组渲染为一张大卡片
 const platformGroups = computed(() => {
   const m = new Map<string, LogEntry[]>()
   for (const l of store.filteredLogs) {
@@ -25,6 +25,15 @@ const platformGroups = computed(() => {
   }
   return [...m.entries()].map(([name, logs]) => ({ name, logs }))
 })
+
+/** 卡片左列:后端(或旧 sections 无 side 的全放左列) */
+function colA(g: { logs: LogEntry[] }) {
+  return g.logs.filter(l => l.side !== '前端')
+}
+/** 卡片右列:前端 */
+function colB(g: { logs: LogEntry[] }) {
+  return g.logs.filter(l => l.side === '前端')
+}
 
 onMounted(() => {
   store.refreshAll()
@@ -106,16 +115,34 @@ watch(currentContent, () => {
         <div v-else class="platform-grid">
           <section v-for="g in platformGroups" :key="g.name" class="platform-card">
             <h3 class="platform-name">{{ g.name }}<span v-if="g.logs.length" class="cnt">{{ g.logs.length }}</span></h3>
-            <div
-              v-for="log in g.logs" :key="log.file"
-              class="list-item file-item"
-              :class="{ selected: store.activeFile === log.file }"
-              @click="store.openFile(log.file, log.name)"
-            >
-              <StatusDot :status="getLogStatus(log)" />
-              <span class="name">{{ log.name }}</span>
-              <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
-              <span v-if="log.port" class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
+            <div class="pc-cols">
+              <!-- 左列:后端(或旧格式全部);右列:前端,二者并排一行 -->
+              <div v-if="colA(g).length" class="pc-col" :class="{ wide: !colB(g).length }">
+                <div
+                  v-for="log in colA(g)" :key="log.file"
+                  class="list-item file-item"
+                  :class="{ selected: store.activeFile === log.file }"
+                  @click="store.openFile(log.file, log.name)"
+                >
+                  <StatusDot :status="getLogStatus(log)" />
+                  <span class="name">{{ log.name }}</span>
+                  <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
+                  <span v-if="log.port" class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
+                </div>
+              </div>
+              <div v-if="colB(g).length" class="pc-col" :class="{ wide: !colA(g).length }">
+                <div
+                  v-for="log in colB(g)" :key="log.file"
+                  class="list-item file-item"
+                  :class="{ selected: store.activeFile === log.file }"
+                  @click="store.openFile(log.file, log.name)"
+                >
+                  <StatusDot :status="getLogStatus(log)" />
+                  <span class="name">{{ log.name }}</span>
+                  <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
+                  <span v-if="log.port" class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
+                </div>
+              </div>
             </div>
           </section>
         </div>
@@ -361,11 +388,11 @@ watch(currentContent, () => {
   from { opacity: 1; transform: scale(1); }
   to   { opacity: 0.3; transform: scale(1.4); }
 }
-/* 平台分组:一行两张卡片,每卡左上角「缺一口」放平台名 */
+/* 平台分组:一行一个大框,每卡左上角「缺一口」放平台名;卡内 后端|前端 并排 */
 .platform-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 10px;
+  grid-template-columns: 1fr;
+  gap: 14px;
   padding: 6px 10px 12px;
   align-content: start;
 }
@@ -374,10 +401,10 @@ watch(currentContent, () => {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--bg);
-  padding: 18px 4px 4px;
+  padding: 16px 8px 6px;
 }
 .platform-name {
-  position: absolute; top: -9px; left: 8px; margin: 0;
+  position: absolute; top: -9px; left: 12px; margin: 0;
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 11px; font-weight: 700;
   letter-spacing: 0.04em;
@@ -394,9 +421,15 @@ watch(currentContent, () => {
   background: var(--bg); border: 1px solid var(--border);
   border-radius: 8px; padding: 0 5px; line-height: 14px;
 }
+.pc-cols { display: flex; gap: 8px; align-items: stretch; }
+.pc-col { flex: 1; min-width: 0; }
+.pc-col.wide { flex: 1 1 100%; }
 .platform-card .list-item {
-  padding: 4px 6px; margin: 1px 0;
-  font-size: 11px;
+  padding: 6px 8px; margin: 1px 0;
+  font-size: 12px;
+  border: 1px solid transparent;
 }
-.platform-card .list-item .name { gap: 4px; }
+.platform-card .list-item.selected {
+  background: #1a1a28; border-color: var(--glow-dim); border-radius: 6px;
+}
 </style>
