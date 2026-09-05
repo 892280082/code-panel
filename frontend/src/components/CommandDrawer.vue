@@ -368,11 +368,11 @@ async function saveReorder(ids: string[]) {
           <button class="drawer-close" @click="terminal.closeDrawer()">✕</button>
         </div>
 
-        <!-- 固定 Tab 栏 -->
+        <!-- 固定 Tab 栏:自定义 / 会话 / 系统 -->
         <div class="drawer-tabs">
-          <button class="tab-btn" :class="{ active: activeTab === 'custom' }" @click="activeTab = 'custom'">{{ groupLabel }}</button>
-          <button class="tab-btn" :class="{ active: activeTab === 'system' }" @click="activeTab = 'system'">系统</button>
+          <button class="tab-btn" :class="{ active: activeTab === 'custom' }" @click="activeTab = 'custom'">自定义</button>
           <button class="tab-btn" :class="{ active: activeTab === 'tmux' }" @click="activeTab = 'tmux'">会话</button>
+          <button class="tab-btn" :class="{ active: activeTab === 'system' }" @click="activeTab = 'system'">系统</button>
         </div>
 
         <!-- 滚动内容区 -->
@@ -839,21 +839,25 @@ async function saveReorder(ids: string[]) {
 .cmd-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
 }
 .cmd-btn {
   min-width: 0;
-  padding: 10px 12px;
+  min-height: 56px;
+  padding: 12px 14px;
   background: var(--bg, #09090b);
   border: 1px solid var(--border, #23232a);
-  border-radius: 6px;
+  border-radius: 14px;
   color: var(--text, #c8c8d0);
   cursor: pointer; text-align: left;
   display: flex; align-items: center;
   overflow: hidden;
   transition: border-color 0.15s, background 0.15s;
 }
-.cmd-btn .cmd-label { font-size: 12px; }
+.cmd-btn .cmd-label {
+  font-size: 13px; line-height: 1.3;
+  word-break: break-word;
+}
 .cmd-btn:hover {
   border-color: var(--glow, #22ee66);
   background: rgba(34,238,102,0.05);
