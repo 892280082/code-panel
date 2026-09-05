@@ -15,8 +15,7 @@ const hasProject = computed(() => !!projects.currentProject)
 const ansiLabels: Record<string, string> = { strip: '🎨 strip', raw: '🔤 raw', color: '🌈 color' }
 const logEl = ref<HTMLElement | null>(null)
 
-// 按平台分组(platform 缺失时回退「未分组」);折叠状态仅当前会话
-const collapsed = ref<Record<string, boolean>>({})
+// 按平台分组(platform 缺失时回退「未分组」);每组渲染为一张卡片
 const platformGroups = computed(() => {
   const m = new Map<string, LogEntry[]>()
   for (const l of store.filteredLogs) {
@@ -26,9 +25,6 @@ const platformGroups = computed(() => {
   }
   return [...m.entries()].map(([name, logs]) => ({ name, logs }))
 })
-function toggleGroup(name: string) {
-  collapsed.value[name] = !collapsed.value[name]
-}
 
 onMounted(() => {
   store.refreshAll()
@@ -105,27 +101,24 @@ watch(currentContent, () => {
         <span class="count" v-if="store.filteredLogs.length">{{ store.filteredLogs.length }}</span>
       </div>
       <div class="scroll-list">
-        <div v-if="!hasProject" class="empty-hint">无项目,请在顶部「项目」添加</div>
-        <template v-for="g in platformGroups" :key="g.name">
-          <div class="platform-head" @click="toggleGroup(g.name)">
-            <span class="caret">{{ collapsed[g.name] ? '▸' : '▾' }}</span>
-            <span class="platform-title">{{ g.name }}</span>
-            <span class="count">{{ g.logs.length }}</span>
-          </div>
-          <div
-            v-for="log in g.logs" :key="log.file"
-            v-show="!collapsed[g.name]"
-            class="list-item file-item"
-            :class="{ selected: store.activeFile === log.file }"
-            @click="store.openFile(log.file, log.name)"
-          >
-            <StatusDot :status="getLogStatus(log)" />
-            <span class="name">{{ log.name }}</span>
-            <span v-if="log.side" class="side-tag">{{ log.side }}</span>
-            <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
-            <span v-if="log.port" class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
-          </div>
-        </template>
+        <div v-if="!hasProject" class="empty-hint">无项目,请点 ⚙ →「项目」添加/切换</div>
+        <div v-else-if="!store.filteredLogs.length" class="empty-hint">该项目暂无日志,在 .code-panel/logs.yaml 添加</div>
+        <div v-else class="platform-grid">
+          <section v-for="g in platformGroups" :key="g.name" class="platform-card">
+            <h3 class="platform-name">{{ g.name }}<span v-if="g.logs.length" class="cnt">{{ g.logs.length }}</span></h3>
+            <div
+              v-for="log in g.logs" :key="log.file"
+              class="list-item file-item"
+              :class="{ selected: store.activeFile === log.file }"
+              @click="store.openFile(log.file, log.name)"
+            >
+              <StatusDot :status="getLogStatus(log)" />
+              <span class="name">{{ log.name }}</span>
+              <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
+              <span v-if="log.port" class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
+            </div>
+          </section>
+        </div>
       </div>
     </Sidebar>
 
@@ -368,26 +361,42 @@ watch(currentContent, () => {
   from { opacity: 1; transform: scale(1); }
   to   { opacity: 0.3; transform: scale(1.4); }
 }
-/* 平台分组头 */
-.platform-head {
-  display: flex; align-items: center; gap: 6px;
-  padding: 8px 12px 4px; cursor: pointer;
-  color: var(--text-dim); user-select: none;
+/* 平台分组:一行两张卡片,每卡左上角「缺一口」放平台名 */
+.platform-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 10px;
+  padding: 6px 10px 12px;
+  align-content: start;
 }
-.platform-head:hover { color: var(--text); }
-.platform-head .caret { font-size: 10px; width: 10px; }
-.platform-head .platform-title {
+.platform-card {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  padding: 18px 4px 4px;
+}
+.platform-name {
+  position: absolute; top: -9px; left: 8px; margin: 0;
+  display: inline-flex; align-items: center; gap: 6px;
   font-size: 11px; font-weight: 700;
-  letter-spacing: 0.05em; text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 10px;
+  white-space: nowrap;
+  cursor: default;
 }
-.platform-head .count {
-  margin-left: auto; font-size: 9px; color: var(--text-dim);
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 8px; padding: 0 6px; line-height: 14px;
+.platform-name .cnt {
+  font-size: 9px; color: var(--text-dim);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0 5px; line-height: 14px;
 }
-.side-tag {
-  flex-shrink: 0; font-size: 9px; color: var(--text-dim);
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 3px; padding: 0 5px;
+.platform-card .list-item {
+  padding: 4px 6px; margin: 1px 0;
+  font-size: 11px;
 }
+.platform-card .list-item .name { gap: 4px; }
 </style>

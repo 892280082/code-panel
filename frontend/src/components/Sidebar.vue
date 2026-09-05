@@ -51,7 +51,7 @@ onMounted(() => {
 
 <style scoped>
 .sidebar {
-  width: 280px; min-width: 280px;
+  width: 336px; min-width: 336px;
   background: var(--surface);
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
