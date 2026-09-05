@@ -146,7 +146,11 @@ export function loadProjectModule(project: ProjectRow, module: ModuleName): Modu
   const root = project.root;
   const file = module === 'logs' ? logsYamlFile(root) : projectModuleYamlFile(root, module);
   const yaml = loadModuleYaml<ModuleYaml>(file, module) as any;
-  if (module === 'logs') (yaml.sections || []).forEach((s: any) => (s.logs || []).forEach((l: any) => walkAbs(root, l)));
+  if (module === 'logs') {
+    // platforms(新格式)+ sections(旧格式)里每个服务项的 file/start 等一律补绝对
+    for (const s of yaml.sections ?? []) for (const l of s.logs ?? []) walkAbs(root, l);
+    for (const p of yaml.platforms ?? []) { for (const l of p.backend ?? []) walkAbs(root, l); for (const l of p.frontend ?? []) walkAbs(root, l); }
+  }
   else if (module === 'sql') (yaml.connections || []).forEach((c: any) => walkAbs(root, c));
   else if (module === 'prd') { if (typeof yaml.dir === 'string') yaml.dir = absOf(root, yaml.dir) || ''; (yaml.folders || []).forEach((f: any) => walkAbs(root, f)); }
   else if (module === 'git') (yaml.repos || []).forEach((r: any) => walkAbs(root, r));
@@ -158,7 +162,10 @@ export function saveProjectModule(project: ProjectRow, module: ModuleName, value
   ensureScaffolded(project);
   const root = project.root;
   const v = value as any;
-  if (module === 'logs') (v.sections || []).forEach((s: any) => (s.logs || []).forEach((l: any) => walkRel(root, l)));
+  if (module === 'logs') {
+    for (const s of v.sections ?? []) for (const l of s.logs ?? []) walkRel(root, l);
+    for (const p of v.platforms ?? []) { for (const l of p.backend ?? []) walkRel(root, l); for (const l of p.frontend ?? []) walkRel(root, l); }
+  }
   else if (module === 'sql') (v.connections || []).forEach((c: any) => walkRel(root, c));
   else if (module === 'prd') { if (typeof v.dir === 'string') v.dir = relOf(root, v.dir) || ''; (v.folders || []).forEach((f: any) => walkRel(root, f)); }
   else if (module === 'git') (v.repos || []).forEach((r: any) => walkRel(root, r));
