@@ -8,6 +8,7 @@ import { requireProject, resolveProject } from '../projects/context';
 import { loadProjectModule } from '../projects/project-store';
 import { prdDoneGet, prdDoneSet } from '../projects/adapters';
 import type { PrdModuleYaml } from '../projects/yaml';
+import hljs from 'highlight.js';
 
 const router = Router();
 
@@ -630,11 +631,40 @@ router.get('/api/prd/code-file', (req, res) => {
 });
 function codeFileHandler(p: string, res: any) {
   if (!fs.existsSync(p)) return res.status(404).send('not found');
-  const content = fs.readFileSync(p, 'utf-8')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const raw = fs.readFileSync(p, 'utf-8');
+  // 扩展名 → highlight.js 语言;未知 → 纯文本转义
+  const ext = path.extname(p).toLowerCase();
+  const LANG: Record<string, string> = {
+    '.ts': 'typescript', '.tsx': 'typescript', '.js': 'javascript', '.mjs': 'javascript', '.cjs': 'javascript',
+    '.java': 'java', '.py': 'python', '.sh': 'bash', '.bash': 'bash', '.sql': 'sql',
+    '.yml': 'yaml', '.yaml': 'yaml', '.json': 'json', '.html': 'xml', '.xml': 'xml', '.vue': 'xml',
+  };
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  let body: string;
+  const lang = LANG[ext];
+  if (lang) {
+    try { body = hljs.highlight(raw, { language: lang }).value; }
+    catch { body = esc(raw); }
+  } else {
+    body = esc(raw);
+  }
   res.type('html').send(`<!DOCTYPE html><html><head><meta charset="utf-8">
-<style>body{margin:0;background:#1e2430;color:#d8dee9;font:12px/1.6 "SF Mono",Menlo,Consolas,monospace;padding:12px 14px}pre{margin:0;white-space:pre-wrap;word-break:break-all}</style>
-</head><body><pre>${content}</pre></body></html>`);
+<style>body{margin:0;background:#1e2430;color:#abb2bf;font:12px/1.7 "SF Mono",Menlo,Consolas,monospace;padding:14px 16px;tab-size:4}
+pre{margin:0;white-space:pre-wrap;word-break:break-all;font:inherit}
+code.hljs{font:inherit}
+.hljs-comment,.hljs-quote{color:#5c6370;font-style:italic}
+.hljs-keyword,.hljs-selector-tag,.hljs-tag{color:#c678dd}
+.hljs-string,.hljs-regexp,.hljs-addition{color:#98c379}
+.hljs-number,.hljs-literal{color:#d19a66}
+.hljs-title,.hljs-title.function_,.hljs-function .hljs-title{color:#61afef}
+.hljs-attr,.hljs-attribute,.hljs-variable,.hljs-template-variable{color:#d19a66}
+.hljs-built_in,.hljs-type,.hljs-class .hljs-title{color:#e6c07b}
+.hljs-params{color:#abb2bf}
+.hljs-meta,.hljs-meta .hljs-keyword{color:#5c6370}
+.hljs-name{color:#e06c75}
+.hljs-selector-id,.hljs-selector-class{color:#e06c75}
+.hljs-symbol,.hljs-bullet{color:#56b6c2}</style>
+</head><body><pre><code class="hljs">${body}</code></pre></body></html>`);
 }
 
 export default router;
