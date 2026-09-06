@@ -85,7 +85,10 @@ const currentProject = computed(() => projects.currentProject)
 const groupLabel = computed(() => projects.currentProject?.name || '自定义')
 
 // ── 芯片几何：与 FAB 位置联动 ───────────────────────────
-const sessionList = computed(() => Array.from(terminal.sessions.entries()))
+/** 浮动终端数字条只列 tmux 常驻会话(Apps 启停一次性会话 / 手动 cmd 终端不占 1/2/3) */
+const sessionList = computed(() =>
+  Array.from(terminal.sessions.entries()).filter(([, s]) => s.kind === 'tmux'),
+)
 /** 左侧终端芯片条右缘 = FAB 右缘 + FAB 宽 + 间距 */
 const chipsBarRight = computed(() => btnX.value + BTN_SIZE + GAP)
 /** 右侧仓库芯片右缘 = FAB 右缘 − 芯片宽 − 间距 */
@@ -750,7 +753,7 @@ async function saveReorder(ids: string[]) {
 .drawer-panel {
   position: fixed;
   top: 0; right: 0;
-  width: 460px; height: 100vh;
+  width: 368px; height: 100vh;   /* 2026-09-07 收窄 20%(460→368) */
   z-index: 10001;
   background: var(--surface, #131316);
   border-left: 1px solid var(--border, #23232a);
@@ -1105,8 +1108,13 @@ async function saveReorder(ids: string[]) {
   transition: border-color 0.15s, background 0.15s;
 }
 .cmd-btn .cmd-label {
-  font-size: 13px; line-height: 1.3;
+  font-size: 13px; line-height: 1.35;
   word-break: break-word;
+  white-space: normal;   /* 允许两行,不受通用 nowrap 影响 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .cmd-btn:hover {
   border-color: var(--glow, #22ee66);
