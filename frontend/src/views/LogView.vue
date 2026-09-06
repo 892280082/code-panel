@@ -58,6 +58,13 @@ const platformGroups = computed(() => {
   return [...m.entries()].map(([name, logs]) => ({ name, logs }))
 })
 
+/** 左上角 chip 导航:已自动最小化的启停一次性会话(点 chip 放大 = 激活看日志,20s 未点自动关) */
+const oneshotChips = computed(() =>
+  Array.from(terminal.sessions.entries())
+    .filter(([, s]) => s.kind === 'cmd' && s.oneshot && s.minimized)
+    .map(([port, s]) => ({ port, label: s.label })),
+)
+
 /** 卡片左列:后端(或旧 sections 无 side 的全放左列) */
 function colA(g: { logs: LogEntry[] }) {
   return g.logs.filter(l => l.side !== '前端')
@@ -211,14 +218,17 @@ watch(currentContent, () => {
 
     <!-- Main -->
     <main class="main">
-      <!-- Toolbar -->
+      <!-- Toolbar:左上 = 启停会话 chip 导航(自动最小化的一次性终端);右上 = 工具组 -->
       <div class="toolbar">
-        <button @click="store.refreshAll()">↻ Refresh</button>
-        <button
-          :class="{ on: store.ansiMode === 'strip', danger: store.ansiMode === 'color' }"
-          @click="store.cycleAnsi()"
-        >{{ ansiLabels[store.ansiMode] }}</button>
-        <span class="status">{{ store.connected ? '● connected' : '○ reconnecting' }}</span>
+        <div v-if="oneshotChips.length" class="os-chip-bar">
+          <button
+            v-for="c in oneshotChips"
+            :key="c.port"
+            class="os-chip"
+            :title="`点击放大看日志(${c.label})——20 秒内不点将自动关闭`"
+            @click="terminal.restoreSession(c.port)"
+          >▸ {{ c.label }}</button>
+        </div>
         <TopRightTools class="trtr" />
       </div>
 
@@ -268,6 +278,12 @@ watch(currentContent, () => {
               @click="store.autoScroll[store.activeFile!] = !store.autoScroll[store.activeFile!]"
             >{{ isAutoScroll ? '● Auto-scroll' : '○ Auto-scroll' }}</button>
             <button @click="store.clearLog(store.activeFile!)">Clear</button>
+            <button
+              class="ansi-btn"
+              :class="{ on: store.ansiMode === 'strip', danger: store.ansiMode === 'color' }"
+              @click="store.cycleAnsi()"
+            >{{ ansiLabels[store.ansiMode] }}</button>
+            <span class="status" :class="{ down: !store.connected }">{{ store.connected ? '● connected' : '○ reconnecting' }}</span>
             <span class="line-count">{{ currentLines.toLocaleString() }} lines</span>
           </div>
         </div>
@@ -339,20 +355,43 @@ watch(currentContent, () => {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
-.toolbar button { height: 26px; padding-top: 0; padding-bottom: 0; box-sizing: border-box; }
-.toolbar .status { font-size: 11px; color: var(--text-dim); }
 .toolbar .trtr { margin-left: auto; }
-.toolbar button {
-  font-family: var(--font); font-size: 10px;
-  padding: 5px 12px;
-  background: transparent; color: var(--text-dim);
-  border: 1px solid var(--border); border-radius: var(--radius);
-  cursor: pointer; letter-spacing: 0.04em;
-  transition: all 0.15s;
+
+/* 左上角启停会话 chip 导航(自动最小化的一次性终端;点 chip 放大看日志) */
+.os-chip-bar {
+  display: flex; align-items: center; gap: 6px;
+  overflow-x: auto; overflow-y: hidden;
+  max-width: 60%;
+  scrollbar-width: none;
+  flex: 0 1 auto;
 }
-.toolbar button:hover { color: var(--text); border-color: var(--glow-dim); background: rgba(34,238,102,0.04); }
-.toolbar button.on { color: var(--glow); border-color: var(--glow-dim); background: rgba(34,238,102,0.06); }
-.toolbar button.danger:hover { color: var(--danger); border-color: var(--danger); }
+.os-chip-bar::-webkit-scrollbar { display: none; }
+.os-chip {
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 6px;
+  max-width: 200px;
+  padding: 3px 10px;
+  font-size: 11px; font-weight: 600;
+  color: var(--glow);
+  background: rgba(34,238,102,0.07);
+  border: 1px solid var(--glow-dim);
+  border-radius: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+  transition: all 0.15s;
+  animation: os-chip-breathe 1.6s ease-in-out infinite;
+}
+.os-chip:hover {
+  background: rgba(34,238,102,0.16);
+  border-color: var(--glow);
+  animation: none;
+  transform: scale(1.03);
+}
+@keyframes os-chip-breathe {
+  0%, 100% { box-shadow: 0 0 0 rgba(34,238,102,0); }
+  50%      { box-shadow: 0 0 6px rgba(34,238,102,0.35); }
+}
 
 .tab-bar {
   display: flex; align-items: flex-end;
@@ -422,6 +461,10 @@ watch(currentContent, () => {
 }
 .log-controls button:hover { color: var(--text); border-color: var(--glow-dim); }
 .log-controls button.on { color: var(--glow); border-color: var(--glow-dim); background: rgba(34,238,102,0.06); }
+.log-controls button.danger, .log-controls button.danger.on { color: var(--danger); border-color: var(--danger); background: rgba(244,71,71,0.06); }
+.log-controls .ansi-btn { min-width: 74px; text-align: center; }
+.log-controls .status { font-size: 11px; color: var(--text-dim); }
+.log-controls .status.down { color: var(--danger); }
 .line-count { margin-left: auto; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 
 .port-tag {

@@ -31,7 +31,7 @@ bash ~/.claude/skills/code-panel/start.sh     # 端口 3008
 | 路径 | 用途 |
 |------|------|
 | `http://localhost:3008/login` | 登录页 |
-| `http://localhost:3008/log`  | **Apps**:平台应用卡片 = 实时日志 + 圆点存活 + 右键 启动/停止 |
+| `http://localhost:3008/log`  | **Apps**:平台应用卡片 = 实时日志 + 圆点存活(右侧圆点 = 启停按钮)+ 日志页签 |
 | `http://localhost:3008/sql`  | SQL 评审(查询/审批/DB 存活/历史) |
 | `http://localhost:3008/prd`  | PRD 文档面板(分组目录 + MD 渲染 + 原型 iframe) |
 | `http://localhost:3008/git`  | Git 管理(仓库 diff/历史/文件浏览/提交) |
@@ -107,8 +107,9 @@ bash ~/.claude/skills/code-panel/start.sh     # 端口 3008
 | GET | `/api/resources` | 系统资源(CPU/内存/磁盘)——右上资源圆环 |
 | GET | `/api/resources/processes` | 进程 TOP(按内存排序,Linux 读数准) |
 
-> Apps 页卡:平台一张卡,后端/前端两列;点服务行 = 打开日志页签;**右键**有 start/stop 脚本的服务 → 启动/停止(面板开 ttyd 窗口、在项目根执行该脚本)。`file` 一律写相对项目根,面板补绝对。
-> 启停为**一次性执行**(keepShell=false):命令跑完窗口自动关闭并回收端口,不留残留常驻;只有「会话/命令终端」类才常驻交互窗口。
+> Apps 页卡:平台一张卡,后端/前端两列;**每行右侧圆点 = 启停按钮**(有 start/stop 脚本时;悬停放大/呼吸,无脚本则纯状态点,点按落整行开日志)。点圆点 = 启动/停止,点服务行 = 打开日志页签,右键仍弹启停菜单。`file` 一律写相对项目根,面板补绝对。
+>
+> **启停 = 一次性会话 + 前端自动收起生命周期**(keepShell=false):点击启停先弹**大窗终端**展示命令/端口 → **2s 后自动最小化**成 LogView 工具栏左上角(原 ansi 按钮位)的 **chip 导航**(绿点呼吸)→ 挂 **20s**:期间用户点 chip(=放大激活看日志)则保留大窗、手动 ✕ 才关;**没点则 20s 后自动关闭会话并回收端口**,不留残留。逻辑在前端 terminal store(oneshot/activated + 2s/20s 计时器),不依赖后端探测命令结束。只有「会话/命令终端」类才常驻交互窗口。
 
 ## 数据库连接 API(作用域 ?project;连接 = sql.yaml 文件,CRUD 写回该文件)
 

@@ -26,6 +26,10 @@ export interface TerminalSession {
   kind: 'cmd' | 'tmux'
   tmuxSession?: string // tmux 物理会话名(p_<projectId>_<name>),作会话唯一 key
   tmuxDesc?: string
+  /** 一次性启停会话(Apps 启动/停止,keepShell=false):大窗展示 2s → 自动最小化到左上角 chip → 20s 未放大自动关闭 */
+  oneshot?: boolean
+  /** 用户已点击 chip 放大(激活看日志):此后不再自动关闭,手动 ✕ */
+  activated?: boolean
 }
 
 /** localStorage 持久化的窗口描述(不含运行态 port/zIndex) */
@@ -148,22 +152,76 @@ export const useTerminalStore = defineStore('terminal', () => {
       if (data.ok) {
         const { port } = data.data
         const pos = readSavedPos(port)
+        const oneshot = !keepShell
         sessions.set(port, {
           port, label, command, cwd,
           minimized: false, maximized: false,
           x: pos.x, y: pos.y,
           zIndex: raise(),
           kind: 'cmd',
+          oneshot,
+          activated: false,
         })
         persistWindows()
-        // keepShell=false(一次性,如 Apps 启停):命令跑完服务端自动关窗并回收端口,这里跟随关闭窗口
-        if (!keepShell) watchAutoClose(port)
+        if (!keepShell) {
+          // keepShell=false 一次性(Apps 启停):大窗展示 2s → 自动最小化到左上角 chip → 20s 未放大自动关闭
+          watchAutoClose(port)
+          scheduleOneshotCollapse(port)
+        }
       } else {
         console.error('Failed to create session:', data.error)
       }
     } catch (err) {
       console.error('Session creation error:', err)
     }
+  }
+
+  // ── 一次性(Apps 启停)生命周期 ──────────────────────────
+  //   oneshot 会话默认 minimized=false(大窗展示);2s 后自动最小化(收起为 chip),
+  //   20s 内用户没点击放大(restoreSession→activated) → 自动关闭清理;
+  //   用户点击放大后 activated=true,不再自动关闭,可看日志,手动 ✕。
+  const lifecycleTimers = new Map<number, { collapse?: ReturnType<typeof setTimeout>; close?: ReturnType<typeof setTimeout> }>()
+
+  function clearLifecycle(port: number) {
+    const t = lifecycleTimers.get(port)
+    if (t) {
+      if (t.collapse) clearTimeout(t.collapse)
+      if (t.close) clearTimeout(t.close)
+      lifecycleTimers.delete(port)
+    }
+  }
+
+  /** 2s 后自动最小化 → 收起为 chip;若已被用户激活(activated)则不再收 */
+  function scheduleOneshotCollapse(port: number) {
+    clearLifecycle(port)
+    const collapse = setTimeout(() => {
+      const s = sessions.get(port)
+      if (!s || s.activated) return
+      s.minimized = true
+      persistWindows()
+      scheduleOneshotClose(port)   // 收起后开始 20s 倒计时
+    }, 2000)
+    lifecycleTimers.set(port, { collapse })
+  }
+
+  /** 收起(chip)状态挂 20s:期间没被放大(activated) → 自动关闭会话 */
+  function scheduleOneshotClose(port: number) {
+    const prev = lifecycleTimers.get(port) || {}
+    const close = setTimeout(() => {
+      const s = sessions.get(port)
+      if (!s || s.activated) return   // 已被激活(在看日志) → 不自动关
+      closeSession(port)
+    }, 20000)
+    lifecycleTimers.set(port, { ...prev, close })
+  }
+
+  /** 用户点击放大(chip → 大窗)= 激活:取消全部自动收起/关闭 */
+  function markActivated(port: number) {
+    const s = sessions.get(port)
+    if (!s) return
+    s.activated = true
+    clearLifecycle(port)
+    persistWindows()
   }
 
   /** 一次性会话:服务端 session 消失(命令已执行完)时,自动收起对应窗口 */
@@ -240,6 +298,7 @@ export const useTerminalStore = defineStore('terminal', () => {
 
   /** 关闭窗口:tmux → 只断开 ttyd 接入(不杀会话);cmd → 杀掉命令终端 */
   async function closeSession(port: number) {
+    clearLifecycle(port)
     const s = sessions.get(port)
     try {
       if (s?.kind === 'tmux') {
@@ -281,6 +340,8 @@ export const useTerminalStore = defineStore('terminal', () => {
   function restoreSession(port: number) {
     const s = sessions.get(port)
     if (s) {
+      // 一次性会话被放大 = 用户激活看日志 → 取消自动收起/20s 自动关
+      if (s.oneshot) markActivated(port)
       s.minimized = false
       drawerOpen.value = false
       bringToFront(port)
@@ -311,5 +372,6 @@ export const useTerminalStore = defineStore('terminal', () => {
     attachTmux, deleteTmuxSession,
     bringToFront, toggleMaximizeSession,
     persistWindows, restorePersisted,
+    markActivated,
   }
 })

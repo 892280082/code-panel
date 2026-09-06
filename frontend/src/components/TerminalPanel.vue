@@ -40,6 +40,12 @@ function onDragEnd() {
   document.removeEventListener('mousemove', onDragMove)
   document.removeEventListener('mouseup', onDragEnd)
 }
+
+// 点击/触碰窗口 = 用户在看它 → 一次性会话标记激活(取消自动收起/自动关闭),并置顶
+function onWindowPointerDown(port: number, session: any) {
+  store.bringToFront(port)
+  if (session?.oneshot && !session.activated) store.markActivated(port)
+}
 </script>
 
 <template>
@@ -55,7 +61,7 @@ function onDragEnd() {
           zIndex: session.zIndex,
           transform: `translate(calc(-50% + ${session.x}px), calc(-50% + ${session.y}px))`,
         }"
-    @pointerdown.capture="store.bringToFront(port)"
+    @pointerdown.capture="onWindowPointerDown(port, session)"
   >
     <div class="terminal-header" @mousedown.prevent="(e) => onDragStart(e, port)">
       <span class="terminal-title">▸ {{ session.label }}</span>
