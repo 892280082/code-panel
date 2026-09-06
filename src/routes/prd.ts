@@ -243,7 +243,8 @@ function inlineProtoSections(body: string, refs: { name: string; url: string }[]
   return b;
 }
 
-/** 伪代码 Tab（模块化）：MD 里 `> @tabs 步骤N` → 读 `伪代码/步骤N*.ext` → 写死模板 + iframe 嵌套每个文件 */
+/** 伪代码 Tab（模块化）：MD 里 `> @tabs 步骤N` → 读 `伪代码/步骤N*.ext` → 每文件一个 Tab(iframe)。
+ *   ⛶ 最大化 = 全屏 overlay：左 = 该步骤全部端文件导航，右 = 大代码 iframe(参考 repo-browser 左树右内容)。 */
 function buildTabWidget(base: string, dir: string): string {
   const codeDir = path.join(dir, '伪代码');
   let files: string[] = [];
@@ -252,16 +253,29 @@ function buildTabWidget(base: string, dir: string): string {
   } catch { /* 目录不存在 */ }
   if (files.length === 0) return `<p class="muted">（伪代码缺失：${esc(base)} 目录下无匹配文件）</p>`;
   const escBase = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const labelOf = (f: string) => (f.replace(new RegExp('^' + escBase + '-?'), '').replace(/\.[^.]+$/, '') || f).replace(/-/g, ' · ');
+  const absOf = (f: string) => path.join(codeDir, f);
+  const urlOf = (f: string) => `/api/prd/code-file/${encodeURI(absOf(f))}`;
+
   let h = '<div class="code-tabs"><div class="tabs-head">';
   files.forEach((f, i) => {
-    const label = (f.replace(new RegExp('^' + escBase + '-?'), '').replace(/\.[^.]+$/, '') || f).replace(/-/g, ' · ');
-    h += `<button class="tab-btn${i === 0 ? ' active' : ''}" data-tab="${i}">${esc(label)}</button>`;
+    h += `<button class="tab-btn${i === 0 ? ' active' : ''}" data-tab="${i}" data-url="${esc(urlOf(f))}">${esc(labelOf(f))}</button>`;
   });
-  h += '</div>';
+  h += `<button class="tabs-max" title="全屏查看代码">⛶</button></div>`;
   files.forEach((f, i) => {
-    const abs = path.join(codeDir, f);
-    h += `<div class="tab-panel" data-tab="${i}"${i === 0 ? '' : ' hidden'}><iframe src="/api/prd/code-file/${encodeURI(abs)}" class="code-frame"></iframe></div>`;
+    h += `<div class="tab-panel" data-tab="${i}"${i === 0 ? '' : ' hidden'}><iframe src="${urlOf(f)}" class="code-frame"></iframe></div>`;
   });
+  // 最大化层:左文件导航 + 右代码 iframe
+  h += `<div class="max-overlay" hidden>
+    <div class="max-head"><span class="max-title">${esc(base)} 伪代码（${files.length} 个文件）</span>
+      <button class="max-close" title="关闭">✕</button></div>
+    <div class="max-body">
+      <div class="max-nav">${files.map((f, i) =>
+        `<button class="max-item${i === 0 ? ' on' : ''}" data-url="${esc(urlOf(f))}">${esc(labelOf(f))}</button>`,
+      ).join('')}</div>
+      <div class="max-code"><iframe src="${urlOf(files[0])}"></iframe></div>
+    </div>
+  </div>`;
   h += '</div>';
   return h;
 }
@@ -365,6 +379,22 @@ body{background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"PingFang
 .tab-btn.active{background:var(--a2);color:#fff}
 .tab-panel pre{margin:0;border-radius:0}
 .tab-panel iframe.code-frame{width:100%;height:340px;border:none;display:block}
+.code-tabs{position:relative}
+.tabs-head{display:flex;align-items:center}
+.tabs-max{margin-left:auto;border:none;background:transparent;font-size:13px;cursor:pointer;color:var(--t2);padding:2px 12px;line-height:1}
+.tabs-max:hover{color:var(--a2)}
+.max-overlay{position:fixed;inset:0;z-index:9999;background:#fff;display:flex;flex-direction:column}
+.max-head{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#f7f8fa;border-bottom:1px solid var(--border);flex-shrink:0}
+.max-title{font-size:13px;font-weight:700;color:#1f2329}
+.max-close{border:none;background:transparent;font-size:16px;cursor:pointer;color:#61666d;line-height:1}
+.max-close:hover{color:#dc2626}
+.max-body{flex:1;display:flex;min-height:0}
+.max-nav{width:240px;flex-shrink:0;background:#1f2430;overflow-y:auto;padding:8px}
+.max-item{display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#a8b2bf;font-size:12px;cursor:pointer;border-radius:6px;margin-bottom:2px;font-family:"SF Mono",Menlo,Consolas,monospace}
+.max-item:hover{background:#2a3040;color:#fff}
+.max-item.on{background:#8b5cf6;color:#fff}
+.max-code{flex:1;min-width:0;background:#1e2430}
+.max-code iframe{width:100%;height:100%;border:none;display:block}
 </style></head><body>
   <nav class="side">
     <div class="side-h">📄 MD 文件（${files.length}）</div>
@@ -380,7 +410,22 @@ document.querySelectorAll('.code-tabs').forEach(function(t){
     bs.forEach(function(x){x.classList.toggle('active',x===b);});
     ps.forEach(function(p){p.hidden=p.getAttribute('data-tab')!==b.getAttribute('data-tab');});
   });});
-});</script>
+  // ⛶ 最大化:左文件导航 + 右大代码 iframe
+  var ov=t.querySelector('.max-overlay'), mx=t.querySelector('.tabs-max'), frame=t.querySelector('.max-code iframe');
+  if(ov&&mx){
+    mx.addEventListener('click',function(){ov.hidden=false;});
+    var cl=t.querySelector('.max-close');
+    if(cl)cl.addEventListener('click',function(){ov.hidden=true;});
+    t.querySelectorAll('.max-item').forEach(function(it){
+      it.addEventListener('click',function(){
+        t.querySelectorAll('.max-item').forEach(function(x){x.classList.toggle('on',x===it);});
+        if(frame)frame.src=it.getAttribute('data-url');
+      });
+    });
+  }
+});
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ document.querySelectorAll('.max-overlay').forEach(function(o){o.hidden=true;}); } });
+</script>
 </body></html>`;
 }
 
@@ -461,6 +506,22 @@ body{background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"PingFang
 .tab-btn.active{background:var(--a2);color:#fff}
 .tab-panel pre{margin:0;border-radius:0}
 .tab-panel iframe.code-frame{width:100%;height:340px;border:none;display:block}
+.code-tabs{position:relative}
+.tabs-head{display:flex;align-items:center}
+.tabs-max{margin-left:auto;border:none;background:transparent;font-size:13px;cursor:pointer;color:var(--t2);padding:2px 12px;line-height:1}
+.tabs-max:hover{color:var(--a2)}
+.max-overlay{position:fixed;inset:0;z-index:9999;background:#fff;display:flex;flex-direction:column}
+.max-head{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#f7f8fa;border-bottom:1px solid var(--border);flex-shrink:0}
+.max-title{font-size:13px;font-weight:700;color:#1f2329}
+.max-close{border:none;background:transparent;font-size:16px;cursor:pointer;color:#61666d;line-height:1}
+.max-close:hover{color:#dc2626}
+.max-body{flex:1;display:flex;min-height:0}
+.max-nav{width:240px;flex-shrink:0;background:#1f2430;overflow-y:auto;padding:8px}
+.max-item{display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#a8b2bf;font-size:12px;cursor:pointer;border-radius:6px;margin-bottom:2px;font-family:"SF Mono",Menlo,Consolas,monospace}
+.max-item:hover{background:#2a3040;color:#fff}
+.max-item.on{background:#8b5cf6;color:#fff}
+.max-code{flex:1;min-width:0;background:#1e2430}
+.max-code iframe{width:100%;height:100%;border:none;display:block}
 </style></head><body>
   <div class="doc">${bodyHtml}</div>
   <script>mermaid.initialize({startOnLoad:true});
@@ -470,7 +531,22 @@ document.querySelectorAll('.code-tabs').forEach(function(t){
     bs.forEach(function(x){x.classList.toggle('active',x===b);});
     ps.forEach(function(p){p.hidden=p.getAttribute('data-tab')!==b.getAttribute('data-tab');});
   });});
-});</script>
+  // ⛶ 最大化:左文件导航 + 右大代码 iframe
+  var ov=t.querySelector('.max-overlay'), mx=t.querySelector('.tabs-max'), frame=t.querySelector('.max-code iframe');
+  if(ov&&mx){
+    mx.addEventListener('click',function(){ov.hidden=false;});
+    var cl=t.querySelector('.max-close');
+    if(cl)cl.addEventListener('click',function(){ov.hidden=true;});
+    t.querySelectorAll('.max-item').forEach(function(it){
+      it.addEventListener('click',function(){
+        t.querySelectorAll('.max-item').forEach(function(x){x.classList.toggle('on',x===it);});
+        if(frame)frame.src=it.getAttribute('data-url');
+      });
+    });
+  }
+});
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ document.querySelectorAll('.max-overlay').forEach(function(o){o.hidden=true;}); } });
+</script>
 </body></html>`;
 }
 
