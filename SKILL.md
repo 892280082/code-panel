@@ -4,9 +4,10 @@ description: >-
   运维控制面板(v3):JWT 登录 + 多项目(配置 = 项目内 .code-panel/*.yaml 文件)+ 应用服务实时日志与启停(Apps)、
   SQL 查询/审批、项目内 git 管理(diff/历史/文件浏览)、PRD 文档面板(MD→HTML+原型 iframe)、
   命令终端(项目自定义命令 + 系统预设 + tmux 持久会话)、浮动终端窗口、系统资源监控、
-  云文件上传/下载(☁)、快捷方式 Quick Links(links.yaml)、自动备份。
+  云文件上传/下载(☁)、快捷方式 Quick Links(links.yaml)、环境变量组切换(右上 🅰,选用即全量重写
+  ~/.code-panel/active-env.sh,新终端全局生效,命名 CODE_PANEL_*)、自动备份。
   用户说"看日志、追踪日志、查数据库、执行 SQL、审批 SQL、配数据库、看 git、git diff、浏览仓库代码、
-  看PRD、写PRD、打开PRD、开终端、命令、tmux 会话、快捷方式、加项目、切换项目、备份、云文件、上传、下载、CPU 内存"时触发。
+  看PRD、写PRD、打开PRD、开终端、命令、tmux 会话、快捷方式、环境变量、环境组、切公司/切家、加项目、切换项目、备份、云文件、上传、下载、CPU 内存"时触发。
   启动端口 3008。全局唯一库 ~/.code-panel/data.db;项目配置文件在 <项目根>/.code-panel/。
 ---
 
@@ -36,7 +37,7 @@ bash ~/.claude/skills/code-panel/start.sh     # 端口 3008
 | `http://localhost:3008/git`  | Git 管理(仓库 diff/历史/文件浏览/提交) |
 
 - 左侧栏:**🗂 项目名 + 中文备注**(当前项目)→ 四个页签 Apps/SQL/PRD/Git;左上 ⚙ 打开配置(项目 / 备份 / 文件 / 账号)。
-- **右上角常驻**(切到任意页签都在):🔗 快捷方式 Quick Links + 📈 系统资源圆环(CPU/内存/磁盘)。
+- **右上角常驻**(切到任意页签都在):📈 系统资源圆环(CPU/内存/磁盘)+ 🔗 快捷方式 Quick Links + 🅰 环境变量(环境组切换)。
 - **右下浮动**:💻 命令终端抽屉(FAB + 1..N 终端芯片)、📂 仓库浏览、☁ 云文件抽屉。各页共用。
 - 「＋ 添加项目」在 ⚙ → 项目:填 name/root/中文备注,自动生成 `.code-panel/` 骨架。当前项目存 localStorage `panel-project`。
 
@@ -47,7 +48,10 @@ bash ~/.claude/skills/code-panel/start.sh     # 端口 3008
 ```
 ~/.code-panel/                     # 全局(所有面板实例共享;CODE_PANEL_HOME 可覆盖)
 └── data.db                        # 唯一全局库:users 账号 / projects 注册表(含中文备注 note)/ settings 公共配置
+                                  #    + project_env 表(记录「项目 → 当前环境组」,source=user/default)
 └── jwt.secret                     # JWT 密钥(自动生成 0o600)
+└── active-env.sh                  # 「当前环境」物化脚本(code-panel 选用环境组时全量重写;
+                                  #    被 shell rc source → 新终端全局生效;命名统一 CODE_PANEL_*)
 
 <项目根>/.code-panel/              # 项目配置 = 提交式配置文件,随仓库走、可手改、修改即生效
 ├── .gitignore                     # data/ uploads/ downloads/(gitignore,不进仓库)
@@ -58,6 +62,7 @@ bash ~/.claude/skills/code-panel/start.sh     # 端口 3008
 ├── git.yaml                       # 本项目 git 仓库 repos:[{id,name,path,notes?}]
 ├── commands.yaml                  # 命令抽屉「自定义命令」(启动/停止/一键…) 按钮
 ├── links.yaml                     # 「快捷方式」Quick Links(右上 🔗):groups → items → urls(多地址:域名/内网)
+├── envs.yaml                      # 「环境变量组」(右上 🅰):groups → [{id,name,default?,vars{KEY:val}}];default=true 为兜底组
 ├── uploads/                       # ☁ 上传目录:浏览器传上来 → 复制绝对路径给终端/AI 用
 ├── downloads/                     # ☁ 下载目录:AI/命令把产物写进来 → 用户在面板点下载拿回
 └── data/                          # 运行时数据(gitignore,随项目走;面板自动写,勿手改)
@@ -103,6 +108,7 @@ bash ~/.claude/skills/code-panel/start.sh     # 端口 3008
 | GET | `/api/resources/processes` | 进程 TOP(按内存排序,Linux 读数准) |
 
 > Apps 页卡:平台一张卡,后端/前端两列;点服务行 = 打开日志页签;**右键**有 start/stop 脚本的服务 → 启动/停止(面板开 ttyd 窗口、在项目根执行该脚本)。`file` 一律写相对项目根,面板补绝对。
+> 启停为**一次性执行**(keepShell=false):命令跑完窗口自动关闭并回收端口,不留残留常驻;只有「会话/命令终端」类才常驻交互窗口。
 
 ## 数据库连接 API(作用域 ?project;连接 = sql.yaml 文件,CRUD 写回该文件)
 
@@ -185,6 +191,26 @@ groups:
 | GET | `/api/links?project=` | 读该项目 links.yaml 分组结构 |
 
 改快捷方式 = 编辑项目 `links.yaml`(或 PUT yaml 模块),无需走链接 CRUD API。
+
+## 环境变量组 Env(右上 🅰;作用域 ?project;数据源 = envs.yaml + 全局库 project_env)
+
+把"公司/家"这类**场景端点**(DB/Redis 的 host/port 等)做成可命名、可切换、启动即注入的**环境组**。托管变量统一 `CODE_PANEL_*` 命名,方便审计已用数量。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/env?project=` | 组列表 + 当前生效组(只读) |
+| POST | `/api/env/ensure` | 打开项目兜底:没设置过 → 自动落 `default:true` 组并物化(零配置可跑) |
+| POST | `/api/env/activate` | `{groupId}` 选用 → 写库(source=user)+ 全量重写 active-env.sh + 确保 shell rc 挂载 |
+| POST | `/api/env/reset` | 清除手动选择 → 回落默认组 |
+| POST | `/api/env/mount` | 手动补挂 shell rc(幂等;一般由 activate 自动做) |
+
+**机制**
+- **定义**:项目 `.code-panel/envs.yaml`(提交式):`groups: [{id,name,default?,vars{CODE_PANEL_*: val}}]`;`default:true` = 该项目默认兜底组。
+- **记录**:全局库 `project_env`(`project_id → group_id`,source `user`/`default`)。
+- **生效 = 全量重写** `~/.code-panel/active-env.sh`(注释头 + export,原子写);被 shell rc source → **新终端全局生效**(已开终端需新开或手动 source)。
+- **code-panel 终端/启停自动带上**:`ttyd-manager` 每次 spawn 把 active-env.sh 的 `CODE_PANEL_*` 合并进进程环境(bash 不 source ~/.zshrc,须显式注入)。
+- **应用侧**:`application.yml` 用 `${CODE_PANEL_DB_HOST:默认}:${CODE_PANEL_DB_PORT:默认}/…` 占位读;**application-dev.yml 一律不提交**(本地自建,已被 gitignore)。
+- 改组 = 直接编辑 `envs.yaml`;切换 = 右上「🅰 环境」选用或 `/api/env/activate`。
 
 ## 文件 API(☁ 云上传/下载;作用域 ?project)
 
