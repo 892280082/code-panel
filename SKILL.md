@@ -13,7 +13,7 @@ description: >-
 
 ## 认证(⭐ 先登录)
 
-- 默认播种账号来自本仓库 `config.json` 的 `credentials`(首次启动 users 表为空时写入;可改):`demo / change-me`。
+- 默认播种账号来自本仓库 `config.json` 的 `credentials`(首次启动 users 表为空时写入;可改):**`admin / change-me`**(2026-09-07 改,旧 change-me 已废弃)。
 - 登录页 `/login`;JWT 24h(settings.jwt.expiryHours 可配);除 `/api/auth/login` 外全部 `/api/*` 需令牌。
 - 令牌三通道:`Authorization: Bearer <jwt>`(常规 fetch)/ `?token=<jwt>`(SSE、iframe、下载)/ `cp_auth` HttpOnly cookie(登录时下发,供同源 iframe 相对子资源自动带上)。
 - 「记住我」= 记住登录态:勾选 → token 存 localStorage(刷新/重开浏览器免登录);不勾 → sessionStorage(关标签即登出)。
