@@ -24,7 +24,7 @@
     <main class="main">
       <div class="toolbar">
         <span class="status">{{ currentFolderName || 'PRD 文档' }}</span>
-        <span v-if="currentDir && entryFile" class="status live">● {{ entryFile }}</span>
+        <span v-if="currentDir && currentFileRel" class="status live mono" :title="currentFileRel">{{ currentFileRel }}</span>
         <button
           v-if="currentDir"
           class="done-btn"
@@ -60,6 +60,7 @@
         <iframe
           v-else
           :key="frameKey"
+          ref="frameEl"
           :src="viewUrl"
           class="pv-full"
           @load="onFrameLoad"
@@ -85,10 +86,20 @@ const hasProject = computed(() => !!projects.currentProject)
 const folders = ref<PrdFolder[]>([])
 const currentDir = ref('')
 const entryFile = ref('')        // 选中 folder 的默认打开文件(index.md 优先,否则第一篇)
+const currentFile = ref('')      // iframe 当前实际显示文件(点左栏文件导航后更新)
 const frameKey = ref(0)          // 强制 iframe 重新加载
+const frameEl = ref<HTMLIFrameElement | null>(null)
 
 const currentDirDone = computed(() => folders.value.find(f => f.dir === currentDir.value)?.done || false)
 const currentFolderName = computed(() => folders.value.find(f => f.dir === currentDir.value)?.name || '')
+/** 当前文件相对项目根路径(如 prd/原型规范/CONSTITUTION.md),供复制定位 */
+const currentFileRel = computed(() => {
+  if (!currentDir.value || !currentFile.value) return ''
+  const root = projects.currentProject?.root
+  let dir = currentDir.value
+  if (root && dir.startsWith(root)) dir = dir.slice(root.length).replace(/^[/\\]+/, '')
+  return `${dir}/${currentFile.value}`.replace(/\/+/g, '/')
+})
 
 /** 后台双栏渲染页(自带 MD 文件导航),整屏内嵌;?project= 让正文链接翻页时上下文连续 */
 const viewUrl = computed(() =>
@@ -129,7 +140,8 @@ async function selectFolder(dir: string) {
     const list: PrdFile[] = data.ok ? data.files : []
     const entry = list.find(f => f.name === 'index.md') || list[0]
     entryFile.value = entry ? entry.name : ''
-  } catch { entryFile.value = '' }
+    currentFile.value = entryFile.value
+  } catch { entryFile.value = ''; currentFile.value = '' }
 }
 
 function reload() {
@@ -137,8 +149,19 @@ function reload() {
   loadFolders()
 }
 
+/** iframe 每次加载(选 folder 或 iframe 内点文件导航)后,从 iframe 当前真实地址解析文件 → 更新顶栏路径。
+ *  ⚠️ 读 contentWindow.location 而非 .src:iframe 内部整页导航不改 DOM src 属性,只改 window.location。 */
 function onFrameLoad() {
-  // iframe 就绪(内部点击链接由 iframe 自行导航,无需干预)
+  const el = frameEl.value
+  const win = el?.contentWindow
+  let href = ''
+  try { href = win ? win.location.href : (el?.src || '') } catch { /* 跨域忽略 */ }
+  if (!href) return
+  try {
+    const u = new URL(href, location.href)
+    const f = u.searchParams.get('file')
+    if (f) currentFile.value = decodeURIComponent(f)
+  } catch { /* 忽略解析失败 */ }
 }
 
 function openInTab() {
@@ -165,6 +188,7 @@ async function toggleDone() {
 watch(() => projects.currentId, async () => {
   currentDir.value = ''
   entryFile.value = ''
+  currentFile.value = ''
   frameKey.value++
   await loadFolders()
 })
@@ -196,6 +220,14 @@ onMounted(loadFolders)
 .toolbar button { height: 26px; padding-top: 0; padding-bottom: 0; box-sizing: border-box; }
 .toolbar .status { font-size: 11px; color: var(--text-dim); }
 .toolbar .status.live { color: var(--glow); }
+/* 当前文件相对路径:monospace 小字,过长视觉截断但 DOM 文本完整可复制 */
+.toolbar .status.live.mono {
+  font-family: var(--font, monospace);
+  font-size: 10px;
+  max-width: 55%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  user-select: text; cursor: text;
+}
 .toolbar .toolbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .toolbar .spacer { flex: 1; }
 .toolbar button {
