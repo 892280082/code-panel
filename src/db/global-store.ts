@@ -82,6 +82,12 @@ export async function initGlobalStore(): Promise<void> {
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS project_env (
+      project_id TEXT PRIMARY KEY,
+      group_id   TEXT NOT NULL,
+      source     TEXT NOT NULL DEFAULT 'user',   -- 'user'(手动选用) | 'default'(默认兜底)
+      updated_at INTEGER NOT NULL
+    );
   `);
 
   // 老库迁移:projects 表缺 note 列时补上(中文备注)
@@ -296,5 +302,53 @@ export function updateProject(id: string, updates: { name?: string; root?: strin
 
 export function deleteProject(id: string): void {
   ensureDb().run('DELETE FROM projects WHERE id = ?', [id]);
+  save();
+}
+
+// ── 项目 · 环境组选择(project_env)—— 记录「项目 → 当前环境组」──────
+
+export interface ProjectEnvSelection {
+  projectId: string;
+  groupId: string;
+  /** user = 手动选用;default = 默认组兜底自动记录 */
+  source: 'user' | 'default';
+  updatedAt: number;
+}
+
+export function getProjectEnvSelection(projectId: string): ProjectEnvSelection | undefined {
+  const d = ensureDb();
+  const stmt = d.prepare('SELECT * FROM project_env WHERE project_id = ?');
+  stmt.bind([projectId]);
+  let row: ProjectEnvSelection | undefined;
+  if (stmt.step()) {
+    const o = stmt.getAsObject() as Record<string, unknown>;
+    row = {
+      projectId: o.project_id as string,
+      groupId: o.group_id as string,
+      source: (o.source as 'user' | 'default') || 'user',
+      updatedAt: (o.updated_at as number) || 0,
+    };
+  }
+  stmt.free();
+  return row;
+}
+
+export function setProjectEnvSelection(
+  projectId: string,
+  groupId: string,
+  source: 'user' | 'default' = 'user',
+): void {
+  ensureDb().run(
+    `INSERT INTO project_env (project_id, group_id, source, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(project_id) DO UPDATE SET group_id = excluded.group_id,
+       source = excluded.source, updated_at = excluded.updated_at`,
+    [projectId, groupId, source, Date.now()],
+  );
+  save();
+}
+
+export function clearProjectEnvSelection(projectId: string): void {
+  ensureDb().run('DELETE FROM project_env WHERE project_id = ?', [projectId]);
   save();
 }

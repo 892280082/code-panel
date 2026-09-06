@@ -137,12 +137,12 @@ export const useTerminalStore = defineStore('terminal', () => {
     persistWindows()
   }
 
-  async function createSession(label: string, command: string, cwd: string) {
+  async function createSession(label: string, command: string, cwd: string, keepShell = true) {
     try {
       const res = await apiFetch('/api/terminal/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label, command, cwd }),
+        body: JSON.stringify({ label, command, cwd, keepShell }),
       })
       const data = await res.json()
       if (data.ok) {
@@ -156,12 +156,32 @@ export const useTerminalStore = defineStore('terminal', () => {
           kind: 'cmd',
         })
         persistWindows()
+        // keepShell=false(一次性,如 Apps 启停):命令跑完服务端自动关窗并回收端口,这里跟随关闭窗口
+        if (!keepShell) watchAutoClose(port)
       } else {
         console.error('Failed to create session:', data.error)
       }
     } catch (err) {
       console.error('Session creation error:', err)
     }
+  }
+
+  /** 一次性会话:服务端 session 消失(命令已执行完)时,自动收起对应窗口 */
+  function watchAutoClose(port: number) {
+    const timer = setInterval(async () => {
+      if (!sessions.has(port)) { clearInterval(timer); return }
+      try {
+        const r = await apiFetch('/api/terminal/sessions')
+        const d = await r.json()
+        const list = (d && d.data) ? d.data : []
+        const alive = list.some((s: any) => s.port === port)
+        if (!alive) {
+          sessions.delete(port)
+          persistWindows()
+          clearInterval(timer)
+        }
+      } catch { /* 网络抖动忽略,下轮再查 */ }
+    }, 1200)
   }
 
   // ── Tmux:连接已有 tmux 会话(持久化终端) ─────────────

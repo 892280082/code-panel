@@ -6,6 +6,7 @@ import RepoBrowserModal from '@/components/RepoBrowserModal.vue'
 import CloudPanel from '@/components/CloudPanel.vue'
 import SystemResourceMonitor from '@/components/SystemResourceMonitor.vue'
 import QuickLinks from '@/components/QuickLinks.vue'
+import EnvSwitcher from '@/components/EnvSwitcher.vue'
 import { useTerminalStore } from '@/stores/terminal'
 import { useRepoBrowserStore } from '@/stores/repo-browser'
 import { useAuthStore } from '@/stores/auth'
@@ -27,10 +28,11 @@ onMounted(() => {
 <template>
   <router-view />
   <template v-if="auth.isLoggedIn">
-    <!-- 右上角常驻:资源监控 + 快捷方式(切到任意 Tab 都在) -->
+    <!-- 右上角常驻:资源监控 + 快捷方式 + 环境变量(切到任意 Tab 都在) -->
     <div class="top-right">
       <SystemResourceMonitor />
       <QuickLinks />
+      <EnvSwitcher />
     </div>
     <CommandDrawer />
     <TerminalPanel />

@@ -13,14 +13,14 @@ const projects = useProjectsStore()
 const terminal = useTerminalStore()
 const hasProject = computed(() => !!projects.currentProject)
 
-/** 启动/停止:开一个 ttyd 终端窗口,在项目根目录执行该应用的 start/stop 脚本 */
+/** 启动/停止:一次性执行(命令跑完窗口自动关闭回收,不留残留常驻窗口) */
 async function runService(log: LogEntry) {
   if (!projects.currentProject) return
   const alive = log.port !== undefined && log.port !== null && getPortAlive(log)
   const cmd = alive ? log.stop : log.start
   if (!cmd) return
   try {
-    await terminal.createSession(`${log.name} · ${alive ? '停止' : '启动'}`, cmd, projects.currentProject.root)
+    await terminal.createSession(`${log.name} · ${alive ? '停止' : '启动'}`, cmd, projects.currentProject.root, false)
   } catch { /* 端口池满等错误忽略 */ }
 }
 

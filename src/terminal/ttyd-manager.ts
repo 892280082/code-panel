@@ -5,6 +5,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import * as net from 'net';
 import { getConfig, getTerminalDefaultCwd } from '../config-manager';
+import { readActiveEnvVars } from '../env/env-store';
 
 interface TTYDState {
   process: ChildProcess | null;
@@ -40,7 +41,7 @@ export function getTTYDStatus(): { status: string; port: number; retryCount: num
   };
 }
 
-function spawnTTYD(port: number, opts?: { cmd?: string; cwd?: string }): ChildProcess {
+function spawnTTYD(port: number, opts?: { cmd?: string; cwd?: string; keepShell?: boolean }): ChildProcess {
   const config = getConfig();
   const shell = config.ttyd?.command ?? 'bash';
   const extraArgs = config.ttyd?.args ? config.ttyd.args.split(/\s+/) : ['-W'];
@@ -49,16 +50,24 @@ function spawnTTYD(port: number, opts?: { cmd?: string; cwd?: string }): ChildPr
   if (opts?.cmd || opts?.cwd) {
     const cdPart = opts.cwd ? `cd ${opts.cwd} && ` : '';
     const cmd = opts.cmd || `exec ${shell}`;
-    spawnArgs = ['-p', String(port), ...extraArgs, shell, '-c', `${cdPart}${cmd}; exec ${shell}`];
+    // keepShell=true(默认):执行完命令再起交互 shell,窗口常驻(命令终端用)。
+    // keepShell=false(一次性):命令跑完即退出 → ttyd 关闭 → 端口自动回收(Apps 启停用,不留残留窗口)。
+    const keepShell = opts?.keepShell !== false;
+    spawnArgs = keepShell
+      ? ['-p', String(port), ...extraArgs, shell, '-c', `${cdPart}${cmd}; exec ${shell}`]
+      : ['-p', String(port), ...extraArgs, shell, '-c', `${cdPart}${cmd}`];
   } else {
     spawnArgs = ['-p', String(port), ...extraArgs, shell];
   }
 
   console.log(`[TTYD] starting on port ${port}: ttyd ${spawnArgs.join(' ')}`);
 
+  // 注入全局 active-env(code-panel 终端是 bash,不 source ~/.zshrc,须显式带上环境组变量)
+  const extraEnv = readActiveEnvVars();
   const proc = spawn('ttyd', spawnArgs, {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
+    env: { ...process.env, ...extraEnv },
   });
 
   proc.stderr?.on('data', (data: Buffer) => {
@@ -167,7 +176,7 @@ function waitForPort(port: number, timeoutMs = 3000): Promise<boolean> {
 }
 
 export async function createSession(
-  label: string, command: string, cwd: string
+  label: string, command: string, cwd: string, keepShell = true
 ): Promise<SessionInfo | null> {
   const port = allocatePort();
   if (port === null) {
@@ -176,7 +185,7 @@ export async function createSession(
   }
 
   const effectiveCwd = cwd || getTerminalDefaultCwd();
-  const proc = spawnTTYD(port, { cmd: command || undefined, cwd: effectiveCwd || undefined });
+  const proc = spawnTTYD(port, { cmd: command || undefined, cwd: effectiveCwd || undefined, keepShell });
 
   const info: SessionInfo = {
     port,

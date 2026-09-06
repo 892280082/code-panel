@@ -24,7 +24,7 @@ router.get('/api/terminal/status', (_req: Request, res: Response) => {
 
 // POST /api/terminal/sessions — 创建命令终端 session
 router.post('/api/terminal/sessions', async (req: Request, res: Response) => {
-  const { label, command, cwd } = req.body;
+  const { label, command, cwd, keepShell } = req.body;
 
   if (!label || typeof label !== 'string' || !label.trim()) {
     res.status(400).json({ ok: false, error: 'label is required' });
@@ -38,7 +38,8 @@ router.post('/api/terminal/sessions', async (req: Request, res: Response) => {
   const session = await createSession(
     label.trim(),
     command.trim(),
-    (cwd && typeof cwd === 'string') ? cwd.trim() : ''
+    (cwd && typeof cwd === 'string') ? cwd.trim() : '',
+    keepShell !== false
   );
 
   if (!session) {
