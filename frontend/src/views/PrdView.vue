@@ -26,11 +26,11 @@
         <span class="status">{{ currentFolderName || 'PRD 文档' }}</span>
         <span v-if="currentDir && currentFileRel" class="status live mono" :title="currentFileRel">{{ currentFileRel }}</span>
         <button
-          v-if="currentDir"
-          class="done-btn"
-          :class="{ on: !currentDirDone }"
-          @click="toggleDone"
-        >{{ currentDirDone ? '未完成' : '✓ 已完成' }}</button>
+          v-if="currentDir && currentFileRel"
+          class="copy-btn"
+          title="复制当前文件相对路径"
+          @click="copyPath"
+        >{{ copied ? '✓ 已复制' : '⧉ 复制路径' }}</button>
         <span class="toolbar-right">
           <button
             v-if="viewUrl"
@@ -87,10 +87,10 @@ const folders = ref<PrdFolder[]>([])
 const currentDir = ref('')
 const entryFile = ref('')        // 选中 folder 的默认打开文件(index.md 优先,否则第一篇)
 const currentFile = ref('')      // iframe 当前实际显示文件(点左栏文件导航后更新)
+const copied = ref(false)        // 复制路径按钮反馈
 const frameKey = ref(0)          // 强制 iframe 重新加载
 const frameEl = ref<HTMLIFrameElement | null>(null)
 
-const currentDirDone = computed(() => folders.value.find(f => f.dir === currentDir.value)?.done || false)
 const currentFolderName = computed(() => folders.value.find(f => f.dir === currentDir.value)?.name || '')
 /** 当前文件相对项目根路径(如 prd/原型规范/CONSTITUTION.md),供复制定位 */
 const currentFileRel = computed(() => {
@@ -169,19 +169,26 @@ function openInTab() {
   window.open(viewUrl.value, '_blank')
 }
 
-async function toggleDone() {
-  if (!projects.currentId) return
-  const target = folders.value.find(f => f.dir === currentDir.value)
-  if (!target) return
-  const next = !target.done
+/** 复制当前文件相对路径到剪贴板(execCommand 主,clipboard API 备用) */
+function copyPath() {
+  const p = currentFileRel.value
+  if (!p) return
+  const flash = () => { copied.value = true; setTimeout(() => { copied.value = false }, 2500) }
+  let ok = false
   try {
-    await apiFetch('/api/prd/done', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project: projects.currentId, dir: currentDir.value, done: next }),
-    })
-    target.done = next
-  } catch { /* ignore */ }
+    const ta = document.createElement('textarea')
+    ta.value = p
+    ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.focus(); ta.select()
+    ok = document.execCommand('copy')
+    document.body.removeChild(ta)
+  } catch { ok = false }
+  if (ok) { flash(); return }
+  // execCommand 不可用(现代浏览器)或失败 → 走 clipboard API
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(p).then(flash).catch(() => {})
+  }
 }
 
 // 项目切换:清空重载
@@ -239,7 +246,8 @@ onMounted(loadFolders)
   transition: all 0.15s;
 }
 .toolbar button:hover { color: var(--text); border-color: var(--glow-dim); background: rgba(34,238,102,0.04); }
-.toolbar .done-btn.on { color: var(--glow); border-color: var(--glow-dim); background: rgba(34,238,102,0.06); font-weight: 700; }
+.toolbar .copy-btn { color: var(--glow); border-color: var(--glow-dim); font-weight: 600; }
+.toolbar .copy-btn:hover { background: rgba(34,238,102,0.1); color: var(--glow); }
 .toolbar .open-btn { color: var(--glow); border-color: var(--glow-dim); font-weight: 600; }
 
 /* 整屏 iframe:右侧主区一块撑满 */
