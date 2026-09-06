@@ -266,7 +266,7 @@ function buildTabWidget(base: string, dir: string): string {
     h += `<div class="tab-panel" data-tab="${i}"${i === 0 ? '' : ' hidden'}><iframe src="${urlOf(f)}" class="code-frame"></iframe></div>`;
   });
   // 最大化层:左文件导航 + 右代码 iframe
-  h += `<div class="max-overlay" hidden>
+  h += `<div class="max-overlay">
     <div class="max-head"><span class="max-title">${esc(base)} 伪代码（${files.length} 个文件）</span>
       <button class="max-close" title="关闭">✕</button></div>
     <div class="max-body">
@@ -383,17 +383,18 @@ body{background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"PingFang
 .tabs-head{display:flex;align-items:center}
 .tabs-max{margin-left:auto;border:none;background:transparent;font-size:13px;cursor:pointer;color:var(--t2);padding:2px 12px;line-height:1}
 .tabs-max:hover{color:var(--a2)}
-.max-overlay{position:fixed;inset:0;z-index:9999;background:#fff;display:flex;flex-direction:column}
+.max-overlay{position:fixed;inset:0;z-index:9999;background:#fff;display:none;flex-direction:column}
+.max-overlay.open{display:flex}
 .max-head{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#f7f8fa;border-bottom:1px solid var(--border);flex-shrink:0}
 .max-title{font-size:13px;font-weight:700;color:#1f2329}
 .max-close{border:none;background:transparent;font-size:16px;cursor:pointer;color:#61666d;line-height:1}
 .max-close:hover{color:#dc2626}
 .max-body{flex:1;display:flex;min-height:0}
-.max-nav{width:240px;flex-shrink:0;background:#1f2430;overflow-y:auto;padding:8px}
-.max-item{display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#a8b2bf;font-size:12px;cursor:pointer;border-radius:6px;margin-bottom:2px;font-family:"SF Mono",Menlo,Consolas,monospace}
-.max-item:hover{background:#2a3040;color:#fff}
+.max-nav{width:240px;flex-shrink:0;background:#fff;border-right:1px solid var(--border);overflow-y:auto;padding:8px}
+.max-item{display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#3a3f47;font-size:12px;cursor:pointer;border-radius:6px;margin-bottom:2px;font-family:"SF Mono",Menlo,Consolas,monospace}
+.max-item:hover{background:#f0f1f3;color:#1f2329}
 .max-item.on{background:#8b5cf6;color:#fff}
-.max-code{flex:1;min-width:0;background:#1e2430}
+.max-code{flex:1;min-width:0;background:#fff}
 .max-code iframe{width:100%;height:100%;border:none;display:block}
 </style></head><body>
   <nav class="side">
@@ -413,9 +414,9 @@ document.querySelectorAll('.code-tabs').forEach(function(t){
   // ⛶ 最大化:左文件导航 + 右大代码 iframe
   var ov=t.querySelector('.max-overlay'), mx=t.querySelector('.tabs-max'), frame=t.querySelector('.max-code iframe');
   if(ov&&mx){
-    mx.addEventListener('click',function(){ov.hidden=false;});
+    mx.addEventListener('click',function(){ov.classList.add('open');});
     var cl=t.querySelector('.max-close');
-    if(cl)cl.addEventListener('click',function(){ov.hidden=true;});
+    if(cl)cl.addEventListener('click',function(){ov.classList.remove('open');});
     t.querySelectorAll('.max-item').forEach(function(it){
       it.addEventListener('click',function(){
         t.querySelectorAll('.max-item').forEach(function(x){x.classList.toggle('on',x===it);});
@@ -424,7 +425,7 @@ document.querySelectorAll('.code-tabs').forEach(function(t){
     });
   }
 });
-document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ document.querySelectorAll('.max-overlay').forEach(function(o){o.hidden=true;}); } });
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ document.querySelectorAll('.max-overlay').forEach(function(o){o.classList.remove('open');}); } });
 </script>
 </body></html>`;
 }
@@ -510,17 +511,18 @@ body{background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"PingFang
 .tabs-head{display:flex;align-items:center}
 .tabs-max{margin-left:auto;border:none;background:transparent;font-size:13px;cursor:pointer;color:var(--t2);padding:2px 12px;line-height:1}
 .tabs-max:hover{color:var(--a2)}
-.max-overlay{position:fixed;inset:0;z-index:9999;background:#fff;display:flex;flex-direction:column}
+.max-overlay{position:fixed;inset:0;z-index:9999;background:#fff;display:none;flex-direction:column}
+.max-overlay.open{display:flex}
 .max-head{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#f7f8fa;border-bottom:1px solid var(--border);flex-shrink:0}
 .max-title{font-size:13px;font-weight:700;color:#1f2329}
 .max-close{border:none;background:transparent;font-size:16px;cursor:pointer;color:#61666d;line-height:1}
 .max-close:hover{color:#dc2626}
 .max-body{flex:1;display:flex;min-height:0}
-.max-nav{width:240px;flex-shrink:0;background:#1f2430;overflow-y:auto;padding:8px}
-.max-item{display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#a8b2bf;font-size:12px;cursor:pointer;border-radius:6px;margin-bottom:2px;font-family:"SF Mono",Menlo,Consolas,monospace}
-.max-item:hover{background:#2a3040;color:#fff}
+.max-nav{width:240px;flex-shrink:0;background:#fff;border-right:1px solid var(--border);overflow-y:auto;padding:8px}
+.max-item{display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#3a3f47;font-size:12px;cursor:pointer;border-radius:6px;margin-bottom:2px;font-family:"SF Mono",Menlo,Consolas,monospace}
+.max-item:hover{background:#f0f1f3;color:#1f2329}
 .max-item.on{background:#8b5cf6;color:#fff}
-.max-code{flex:1;min-width:0;background:#1e2430}
+.max-code{flex:1;min-width:0;background:#fff}
 .max-code iframe{width:100%;height:100%;border:none;display:block}
 </style></head><body>
   <div class="doc">${bodyHtml}</div>
@@ -534,9 +536,9 @@ document.querySelectorAll('.code-tabs').forEach(function(t){
   // ⛶ 最大化:左文件导航 + 右大代码 iframe
   var ov=t.querySelector('.max-overlay'), mx=t.querySelector('.tabs-max'), frame=t.querySelector('.max-code iframe');
   if(ov&&mx){
-    mx.addEventListener('click',function(){ov.hidden=false;});
+    mx.addEventListener('click',function(){ov.classList.add('open');});
     var cl=t.querySelector('.max-close');
-    if(cl)cl.addEventListener('click',function(){ov.hidden=true;});
+    if(cl)cl.addEventListener('click',function(){ov.classList.remove('open');});
     t.querySelectorAll('.max-item').forEach(function(it){
       it.addEventListener('click',function(){
         t.querySelectorAll('.max-item').forEach(function(x){x.classList.toggle('on',x===it);});
@@ -545,7 +547,7 @@ document.querySelectorAll('.code-tabs').forEach(function(t){
     });
   }
 });
-document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ document.querySelectorAll('.max-overlay').forEach(function(o){o.hidden=true;}); } });
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ document.querySelectorAll('.max-overlay').forEach(function(o){o.classList.remove('open');}); } });
 </script>
 </body></html>`;
 }
