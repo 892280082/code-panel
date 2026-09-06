@@ -23,6 +23,8 @@ export const useLogStore = defineStore('logs', () => {
     (localStorage.getItem('log-ansi') as any) || 'strip'
   )
   const showConfig = ref(false)
+  /** per-file 新日志闪烁定时器:亮 T 后 3 秒自动灭 */
+  const contentTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
   // ── Computed ───────────────────────────────────────────
   const filteredLogs = computed(() => logs.value)
@@ -37,8 +39,10 @@ export const useLogStore = defineStore('logs', () => {
     activityMap.value[msg.file] = msg.timestamp || Date.now()
     if (msg.content) {
       // changed=true 才是真正的增量新日志,初始加载的 content 不触发 T 图标
-      if (msg.changed) {
+      // 正在打开(activeFile)看着的文件不闪 T;其余文件收到新日志 → T 亮 3 秒自动灭
+      if (msg.changed && msg.file !== activeFile.value) {
         newContentMap.value[msg.file] = true
+        armContentTimer(msg.file)
       }
       if (tabs.value[msg.file]) {
         appendContent(msg.file, msg.content)
@@ -50,8 +54,29 @@ export const useLogStore = defineStore('logs', () => {
     Object.assign(portStatusMap.value, ports)
   })
 
+  /** T 亮起后 3 秒自动灭(3 秒内持续有新日志 → 每轮重置,直到安静 3 秒) */
+  function armContentTimer(fp: string) {
+    const prev = contentTimers.get(fp)
+    if (prev) clearTimeout(prev)
+    contentTimers.set(fp, setTimeout(() => {
+      newContentMap.value[fp] = false
+      contentTimers.delete(fp)
+    }, 3000))
+  }
+  /** 文件被打开/关闭/重置时清定时器(已读,无需再灭) */
+  function clearContentTimer(fp?: string) {
+    if (fp) {
+      const t = contentTimers.get(fp)
+      if (t) { clearTimeout(t); contentTimers.delete(fp) }
+    } else {
+      for (const t of contentTimers.values()) clearTimeout(t)
+      contentTimers.clear()
+    }
+  }
+
   // ── 项目切换:重置打开文件,重连 SSE,重拉列表 ──────────────
   function resetAll() {
+    clearContentTimer()
     logs.value = []
     tabs.value = {}
     activeFile.value = null
@@ -84,8 +109,9 @@ export const useLogStore = defineStore('logs', () => {
 
   async function openFile(fp: string, name: string) {
     if (!projects.currentId) return
-    // 清除 new-content 标记:用户点开即视为已读
+    // 清除 new-content 标记:用户点开即视为已读(同时取消 3 秒自动灭定时器)
     newContentMap.value[fp] = false
+    clearContentTimer(fp)
     if (tabs.value[fp]) {
       activeFile.value = fp
       return
@@ -109,6 +135,7 @@ export const useLogStore = defineStore('logs', () => {
   function closeTab(fp: string) {
     delete tabs.value[fp]
     delete autoScroll.value[fp]
+    clearContentTimer(fp)
     const keys = Object.keys(tabs.value)
     if (keys.length) activeFile.value = keys[keys.length - 1]
     else activeFile.value = null
