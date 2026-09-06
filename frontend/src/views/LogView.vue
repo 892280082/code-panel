@@ -167,10 +167,10 @@ watch(currentContent, () => {
                   <div class="tile-main">
                     <div class="tile-top">
                       <span class="name">{{ log.name }}</span>
-                      <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
                     </div>
                     <div v-if="log.port" class="tile-sub">
                       <span class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
+                      <span v-if="store.newContentMap[log.file]" class="blink txt-blink t-with-port" title="有新日志写入">T</span>
                     </div>
                   </div>
                   <!-- 右侧启停圆点:有脚本 → 可点(悬停放大/呼吸);无脚本 → 纯状态点,点按落入整行开日志 -->
@@ -194,10 +194,10 @@ watch(currentContent, () => {
                   <div class="tile-main">
                     <div class="tile-top">
                       <span class="name">{{ log.name }}</span>
-                      <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
                     </div>
                     <div v-if="log.port" class="tile-sub">
                       <span class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
+                      <span v-if="store.newContentMap[log.file]" class="blink txt-blink t-with-port" title="有新日志写入">T</span>
                     </div>
                   </div>
                   <!-- 右侧启停圆点:有脚本 → 可点(悬停放大/呼吸);无脚本 → 纯状态点,点按落入整行开日志 -->
@@ -568,6 +568,13 @@ watch(currentContent, () => {
 .platform-card .list-item .tile-sub {
   display: flex; align-items: center;
   padding-left: 2px; /* 名字直接顶格,端口对齐名字 */
+  gap: 5px;
+}
+/* T 新日志写入标记:与端口号同排 */
+.platform-card .list-item .t-with-port {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1;
 }
 .platform-card .list-item .svc-btn {
   flex: 0 0 auto;
