@@ -157,14 +157,23 @@ watch(currentContent, () => {
                   @click="store.openFile(log.file, log.name)"
                   @contextmenu.prevent="openCtx($event, log)"
                 >
-                  <div class="tile-top">
-                    <StatusDot :status="getLogStatus(log)" />
-                    <span class="name">{{ log.name }}</span>
-                    <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
+                  <div class="tile-main">
+                    <div class="tile-top">
+                      <span class="name">{{ log.name }}</span>
+                      <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
+                    </div>
+                    <div v-if="log.port" class="tile-sub">
+                      <span class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
+                    </div>
                   </div>
-                  <div v-if="log.port" class="tile-sub">
-                    <span class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
-                  </div>
+                  <!-- 右侧启停圆点:有脚本 → 可点(悬停放大/呼吸);无脚本 → 纯状态点,点按落入整行开日志 -->
+                  <button
+                    v-if="log.start || log.stop"
+                    class="svc-btn"
+                    :title="getPortAlive(log) ? `⏹ 停止 ${log.name}` : `▶ 启动 ${log.name}`"
+                    @click.stop="runService(log)"
+                  ><StatusDot :status="getLogStatus(log)" /></button>
+                  <span v-else class="svc-btn noop"><StatusDot :status="getLogStatus(log)" /></span>
                 </div>
               </div>
               <div v-if="colB(g).length" class="pc-col" :class="{ wide: !colA(g).length }">
@@ -175,14 +184,23 @@ watch(currentContent, () => {
                   @click="store.openFile(log.file, log.name)"
                   @contextmenu.prevent="openCtx($event, log)"
                 >
-                  <div class="tile-top">
-                    <StatusDot :status="getLogStatus(log)" />
-                    <span class="name">{{ log.name }}</span>
-                    <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
+                  <div class="tile-main">
+                    <div class="tile-top">
+                      <span class="name">{{ log.name }}</span>
+                      <span v-if="store.newContentMap[log.file]" class="blink txt-blink">T</span>
+                    </div>
+                    <div v-if="log.port" class="tile-sub">
+                      <span class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
+                    </div>
                   </div>
-                  <div v-if="log.port" class="tile-sub">
-                    <span class="port-tag" :class="{ alive: getPortAlive(log) }">{{ log.port }}</span>
-                  </div>
+                  <!-- 右侧启停圆点:有脚本 → 可点(悬停放大/呼吸);无脚本 → 纯状态点,点按落入整行开日志 -->
+                  <button
+                    v-if="log.start || log.stop"
+                    class="svc-btn"
+                    :title="getPortAlive(log) ? `⏹ 停止 ${log.name}` : `▶ 启动 ${log.name}`"
+                    @click.stop="runService(log)"
+                  ><StatusDot :status="getLogStatus(log)" /></button>
+                  <span v-else class="svc-btn noop"><StatusDot :status="getLogStatus(log)" /></span>
                 </div>
               </div>
             </div>
@@ -485,12 +503,20 @@ watch(currentContent, () => {
   min-width: 0;
   box-sizing: border-box;
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 1px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   padding: 5px 10px; margin: 2px 0;
   border: 1px solid transparent;
   border-radius: 8px;
+}
+.platform-card .list-item .tile-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
 }
 .platform-card .list-item .tile-top {
   display: flex; align-items: center; gap: 6px; min-width: 0;
@@ -498,13 +524,30 @@ watch(currentContent, () => {
 .platform-card .list-item .name { min-width: 0; font-size: 12px; }
 .platform-card .list-item .tile-sub {
   display: flex; align-items: center;
-  padding-left: 12px; /* 与名字行圆点错位对齐 */
+  padding-left: 2px; /* 名字直接顶格,端口对齐名字 */
 }
-/* 服务项圆点:放大展示状态;启停一律走右键菜单,单击不触发 */
+.platform-card .list-item .svc-btn {
+  flex: 0 0 auto;
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; background: transparent; padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.platform-card .list-item .svc-btn.noop { cursor: default; }
+/* 服务项圆点:默认 13px;有启停脚本时悬停放大 + 呼吸,提示可点击 */
 .platform-card .list-item :deep(.dot) {
   width: 13px; height: 13px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
-.platform-card .list-item:not(:has(.dot.missing)) .tile-sub { /* 无操作留白,保持对齐 */ }
+.platform-card .list-item .svc-btn:not(.noop):hover :deep(.dot),
+.platform-card .list-item .svc-btn:not(.noop):active :deep(.dot) {
+  animation: dot-breathe 0.8s ease-in-out infinite;
+}
+@keyframes dot-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.45); }
+}
 .platform-card .list-item.selected {
   background: #1a1a28; border-color: var(--glow-dim);
 }
