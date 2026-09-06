@@ -31,14 +31,16 @@
           :class="{ on: !currentDirDone }"
           @click="toggleDone"
         >{{ currentDirDone ? '未完成' : '✓ 已完成' }}</button>
-        <span class="spacer"></span>
-        <button
-          v-if="viewUrl"
-          class="open-btn"
-          title="在新窗口打开双栏页"
-          @click="openInTab"
-        >新窗口 ↗</button>
-        <button @click="reload">↻ Refresh</button>
+        <span class="toolbar-right">
+          <button
+            v-if="viewUrl"
+            class="open-btn"
+            title="在新窗口打开双栏页"
+            @click="openInTab"
+          >新窗口 ↗</button>
+          <button @click="reload">↻ Refresh</button>
+          <TopRightTools />
+        </span>
       </div>
 
       <!-- 整屏内容:左侧选中 folder → 右侧一块撑满 iframe = 后台 /api/prd/view 渲染的双栏页 -->
@@ -72,6 +74,7 @@ import { apiFetch } from '@/utils/api-fetch'
 import { ref, computed, watch, onMounted } from 'vue'
 import { useProjectsStore } from '@/stores/projects'
 import Sidebar from '@/components/Sidebar.vue'
+import TopRightTools from '@/components/TopRightTools.vue'
 
 interface PrdFolder { name: string; dir: string; fileCount: number; date: string; done: boolean }
 interface PrdFile { name: string; path: string }
@@ -190,8 +193,10 @@ onMounted(loadFolders)
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
+.toolbar button { height: 26px; padding-top: 0; padding-bottom: 0; box-sizing: border-box; }
 .toolbar .status { font-size: 11px; color: var(--text-dim); }
 .toolbar .status.live { color: var(--glow); }
+.toolbar .toolbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .toolbar .spacer { flex: 1; }
 .toolbar button {
   font-family: var(--font); font-size: 10px;

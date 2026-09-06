@@ -175,7 +175,8 @@ onBeforeUnmount(() => {
 .ql-root { display: inline-flex; }
 .ql-trigger {
   font-family: var(--font); font-size: 10px;
-  padding: 5px 12px;
+  height: 26px; padding: 0 12px; box-sizing: border-box;
+  display: inline-flex; align-items: center;
   background: transparent; color: var(--text-dim);
   border: 1px solid var(--border); border-radius: var(--radius);
   cursor: pointer; letter-spacing: 0.04em;

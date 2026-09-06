@@ -7,6 +7,7 @@ import { ansiToHtml, ansiStrip } from '@/composables/useAnsi'
 import type { LogEntry } from '@/types'
 import Sidebar from '@/components/Sidebar.vue'
 import StatusDot from '@/components/StatusDot.vue'
+import TopRightTools from '@/components/TopRightTools.vue'
 
 const store = useLogStore()
 const projects = useProjectsStore()
@@ -200,6 +201,7 @@ watch(currentContent, () => {
           @click="store.cycleAnsi()"
         >{{ ansiLabels[store.ansiMode] }}</button>
         <span class="status">{{ store.connected ? '● connected' : '○ reconnecting' }}</span>
+        <TopRightTools class="trtr" />
       </div>
 
       <!-- Tab Bar -->
@@ -319,7 +321,9 @@ watch(currentContent, () => {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
-.toolbar .status { margin-left: auto; font-size: 11px; color: var(--text-dim); }
+.toolbar button { height: 26px; padding-top: 0; padding-bottom: 0; box-sizing: border-box; }
+.toolbar .status { font-size: 11px; color: var(--text-dim); }
+.toolbar .trtr { margin-left: auto; }
 .toolbar button {
   font-family: var(--font); font-size: 10px;
   padding: 5px 12px;

@@ -4,6 +4,7 @@ import { useSqlStore } from '@/stores/sql'
 import { useProjectsStore } from '@/stores/projects'
 import Sidebar from '@/components/Sidebar.vue'
 import DbHealthList from '@/components/DbHealthList.vue'
+import TopRightTools from '@/components/TopRightTools.vue'
 import DrawerPanel from '@/components/DrawerPanel.vue'
 import RejectModal from '@/components/RejectModal.vue'
 import type { SqlHistoryEntry } from '@/types'
@@ -121,6 +122,7 @@ async function handleApprove(id: string) {
             @click="store.toggleSound()"
             :title="store.soundEnabled ? '点击静音' : '点击开启声音'"
           >🔔</button>
+          <TopRightTools />
         </span>
       </div>
 
@@ -292,6 +294,7 @@ async function handleApprove(id: string) {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
+.toolbar button { height: 26px; padding-top: 0; padding-bottom: 0; box-sizing: border-box; }
 .toolbar button {
   font-family: var(--font); font-size: 10px;
   padding: 5px 12px;

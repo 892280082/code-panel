@@ -4,9 +4,6 @@ import CommandDrawer from '@/components/CommandDrawer.vue'
 import TerminalPanel from '@/components/TerminalPanel.vue'
 import RepoBrowserModal from '@/components/RepoBrowserModal.vue'
 import CloudPanel from '@/components/CloudPanel.vue'
-import SystemResourceMonitor from '@/components/SystemResourceMonitor.vue'
-import QuickLinks from '@/components/QuickLinks.vue'
-import EnvSwitcher from '@/components/EnvSwitcher.vue'
 import { useTerminalStore } from '@/stores/terminal'
 import { useRepoBrowserStore } from '@/stores/repo-browser'
 import { useAuthStore } from '@/stores/auth'
@@ -28,12 +25,6 @@ onMounted(() => {
 <template>
   <router-view />
   <template v-if="auth.isLoggedIn">
-    <!-- 右上角常驻:资源监控 + 快捷方式 + 环境变量(切到任意 Tab 都在) -->
-    <div class="top-right">
-      <SystemResourceMonitor />
-      <QuickLinks />
-      <EnvSwitcher />
-    </div>
     <CommandDrawer />
     <TerminalPanel />
     <RepoBrowserModal
@@ -47,17 +38,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* 右上角常驻工具:资源监控圆环 + 快捷方式,各 Tab 共用 */
-.top-right {
-  position: fixed;
-  top: 7px; right: 14px;
-  z-index: 60;
-  display: flex; align-items: center; gap: 6px;
-  padding: 3px 4px 3px 8px;
-  background: var(--surface, #131316);
-  border: 1px solid var(--border, #23232a);
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
-}
+/* 右上工具已随各视图自身的 .toolbar(见 TopRightTools.vue) */
 </style>
 

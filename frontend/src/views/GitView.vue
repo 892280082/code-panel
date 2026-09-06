@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref } from 'vue'
 import { useGitStore, gitPullStatusIcon, gitFormatLogTime } from '@/stores/git'
 import { useProjectsStore } from '@/stores/projects'
 import { useRepoBrowserStore } from '@/stores/repo-browser'
+import TopRightTools from '@/components/TopRightTools.vue'
 import { useCopySelection } from '@/composables/useCopySelection'
 import { copyToClipboard } from '@/utils/clipboard'
 import Sidebar from '@/components/Sidebar.vue'
@@ -288,6 +289,7 @@ function switchToLog() {
           <span class="del">−{{ store.diffResult.files.reduce((s,f) => s+f.deletions, 0) }}</span>
         </span>
         <span v-if="store.diffResult?.error" class="error-text">{{ store.diffResult.error }}</span>
+        <TopRightTools class="trtr" />
       </div>
 
       <!-- Content -->
@@ -517,6 +519,8 @@ function switchToLog() {
   padding: 6px 12px; background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
+.toolbar button { height: 26px; padding-top: 0; padding-bottom: 0; box-sizing: border-box; }
+.toolbar .trtr { margin-left: auto; }
 .toolbar button {
   font-family: var(--font); font-size: 10px;
   padding: 5px 12px; background: transparent; color: var(--text-dim);
