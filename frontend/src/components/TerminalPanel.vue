@@ -41,7 +41,8 @@ function onDragEnd() {
   document.removeEventListener('mouseup', onDragEnd)
 }
 
-// 点击/触碰窗口 = 用户在看它 → 一次性会话标记激活(取消自动收起/自动关闭),并置顶
+// 点击/触碰窗口 = 置顶;一次性(启停)会话在 2s 展示期内点中 = 用户想保留看它 → 激活
+// (取消自动收起/20s 自动关),窗口一直留着可看、手动 ✕ 才关。没点中 → 2s 自动收起成 chip。
 function onWindowPointerDown(port: number, session: any) {
   store.bringToFront(port)
   if (session?.oneshot && !session.activated) store.markActivated(port)

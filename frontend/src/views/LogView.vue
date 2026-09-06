@@ -58,12 +58,23 @@ const platformGroups = computed(() => {
   return [...m.entries()].map(([name, logs]) => ({ name, logs }))
 })
 
-/** 左上角 chip 导航:已自动最小化的启停一次性会话(点 chip 放大 = 激活看日志,20s 未点自动关) */
+/** 左上角 chip 导航:已自动最小化的启停一次性会话(短时反馈)。点 chip = 打开该服务日志页签(非恢复终端窗口) */
 const oneshotChips = computed(() =>
   Array.from(terminal.sessions.entries())
     .filter(([, s]) => s.kind === 'cmd' && s.oneshot && s.minimized)
-    .map(([port, s]) => ({ port, label: s.label })),
+    .map(([port, s]) => {
+      // label = "<服务名> · 启动/停止",从当前 logs 清单按 name 反查对应日志 file
+      const svc = (s.label || '').split(' · ')[0]
+      const log = store.filteredLogs.find(l => l.name === svc)
+      return { port, label: s.label, file: log?.file ?? '' }
+    }),
 )
+
+/** 点 chip:跳到该服务日志页(真实 .logs 滚动),并关掉一次性会话(它只是短时命令反馈) */
+function openChipLog(c: { port: number; file: string; label: string }) {
+  if (c.file) store.openFile(c.file, (c.label || '').split(' · ')[0] || '日志')
+  terminal.closeSession(c.port)
+}
 
 /** 卡片左列:后端(或旧 sections 无 side 的全放左列) */
 function colA(g: { logs: LogEntry[] }) {
@@ -225,8 +236,8 @@ watch(currentContent, () => {
             v-for="c in oneshotChips"
             :key="c.port"
             class="os-chip"
-            :title="`点击放大看日志(${c.label})——20 秒内不点将自动关闭`"
-            @click="terminal.restoreSession(c.port)"
+            :title="`点击查看日志(${c.label})`"
+            @click="openChipLog(c)"
           >▸ {{ c.label }}</button>
         </div>
         <TopRightTools class="trtr" />
