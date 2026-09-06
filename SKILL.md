@@ -36,7 +36,7 @@ bash ~/.claude/skills/code-panel/start.sh     # 端口 3008
 | `http://localhost:3008/prd`  | PRD 文档面板(分组目录 + MD 渲染 + 原型 iframe) |
 | `http://localhost:3008/git`  | Git 管理(仓库 diff/历史/文件浏览/提交) |
 
-- 左侧栏:**🗂 项目名 + 中文备注**(当前项目)→ 四个页签 Apps/SQL/PRD/Git;左上 ⚙ 打开配置(项目 / 备份 / 文件 / 账号)。
+- 左侧栏:**🗂 项目名 + 中文备注**(当前项目)→ 四个页签 Apps/SQL/PRD/Git;左上 ⚙ 打开配置(项目 / 备份 / 文件 / **nginx** / 账号)。
 - **右上角常驻**(切到任意页签都在):📈 系统资源圆环(CPU/内存/磁盘)+ 🔗 快捷方式 Quick Links + 🅰 环境变量(环境组切换)。
 - **右下浮动**:💻 命令终端抽屉(FAB + 1..N 终端芯片)、📂 仓库浏览、☁ 云文件抽屉。各页共用。
 - 「＋ 添加项目」在 ⚙ → 项目:填 name/root/中文备注,自动生成 `.code-panel/` 骨架。当前项目存 localStorage `panel-project`。
@@ -237,6 +237,21 @@ groups:
 | GET | `/api/backup/download/:name` | 下载(`?token=`/cookie) |
 
 > 同日同名覆盖、保留最近 20 份;程序每次启动自动备份一次。
+
+## nginx API(⚙ → nginx Tab;作用域 ?project)
+
+检测当前项目 `.code-panel/nginx/*.conf` 是否被**本机**(code-panel 运行所在机器)nginx 加载/生效。conf 源目录 = `<项目根>/.code-panel/nginx/`(直接读 .conf 文件,非 yaml 模块)。
+
+| 端点 | 作用 |
+|------|------|
+| GET `/api/nginx/status?project=` | 本机 nginx:bin/版本/主 conf/include 目录/master pid/是否运行 |
+| GET `/api/nginx/confs?project=` | 项目 `.code-panel/nginx/` 下 .conf 列表 |
+| GET `/api/nginx/conf?project=&file=` | 读某 conf 内容(仅限该项目 nginx 目录内 .conf) |
+| POST `/api/nginx/check?project=` body `{file}` | `nginx -t` 语法 + server_name 是否被本机加载(`nginx -T` 比对)+ 项目副本 vs 本机 include 目录同名 conf md5 一致性 |
+| GET/PUT `/api/nginx/config` | 全局 override `settings.nginx={bin?,confPath?}`(留扩展,自动探测失败才需手动) |
+
+> 只读检测,不做 reload/同步(本机 nginx master 通常 root,写操作需 sudo,避免复杂度)。
+> md5 比对口径:项目 `.code-panel/nginx/dev.example.com.conf`(唯一可改源)vs 本机 include 目录同名文件 → 一致 ✓ / 不一致 ⚠(提示"已改未应用")/ 本机无此文件。
 
 ## 全局配置(settings)
 

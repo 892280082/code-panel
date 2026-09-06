@@ -9,6 +9,7 @@ import { apiFetch } from '@/utils/api-fetch'
 import { useProjectsStore } from '@/stores/projects'
 import { useAuthStore } from '@/stores/auth'
 import BackupPanel from '@/components/BackupPanel.vue'
+import NginxPanel from '@/components/NginxPanel.vue'
 
 const emit = defineEmits<{ (e: 'close'): void }>()
 
@@ -16,12 +17,13 @@ const projects = useProjectsStore()
 const auth = useAuthStore()
 const router = useRouter()
 
-type TabKey = 'project' | 'backup' | 'files' | 'account'
+type TabKey = 'project' | 'backup' | 'files' | 'nginx' | 'account'
 const activeTab = ref<TabKey>('project')
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'project', label: '项目' },
   { key: 'backup', label: '备份' },
   { key: 'files', label: '文件' },
+  { key: 'nginx', label: 'nginx' },
   { key: 'account', label: '账号' },
 ]
 
@@ -295,6 +297,11 @@ watch(() => projects.currentId, () => { if (activeTab.value === 'files') loadFil
                 <button class="primary" :disabled="fileBusy" @click="saveFilesCfg">{{ fileBusy ? '保存中…' : '保存' }}</button>
               </div>
             </div>
+          </div>
+
+          <!-- ── nginx(检测当前项目 .code-panel/nginx conf 是否被本机加载)── -->
+          <div v-else-if="activeTab === 'nginx'" class="tab-pane">
+            <NginxPanel />
           </div>
 
           <!-- ── 账号 ── -->

@@ -32,6 +32,7 @@ import linksRouter from './routes/links';
 import resourcesRouter from './routes/resources';
 import filesRouter from './routes/files';
 import envRouter from './routes/env';
+import nginxRouter from './routes/nginx';
 
 const app = express();
 const PORT = 3008;
@@ -73,6 +74,7 @@ app.use(linksRouter);
 app.use(resourcesRouter);
 app.use(filesRouter);
 app.use(envRouter);
+app.use(nginxRouter);
 
 // ── SPA fallback — all non-API routes serve index.html ───
 const indexHtml = path.join(DIST_DIR, 'index.html');
