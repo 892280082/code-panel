@@ -3,12 +3,14 @@
 //   不再读 config.json 的 prd/groups/databases —— 那些已随项目下沉到 <项目根>/.code-panel/*.yaml。
 
 import { getSetting, setSetting } from './db/global-store';
+import { getSecurityStatus } from './security/stealth';
 
 export interface GlobalSettings {
   reviewMode: boolean;
   ttyd?: { port: number; command: string; args?: string };
   terminalDefaultCwd?: string;
   jwt?: { expiryHours?: number };
+  security?: { enabled: boolean; secretPath: string }; // 安全模式(仅安全视图,不含 cookieSecret)
 }
 
 /** 读取全局设置(合并默认值) */
@@ -18,6 +20,7 @@ export function getGlobalSettings(): GlobalSettings {
     ttyd: getSetting<GlobalSettings['ttyd']>('ttyd', undefined),
     terminalDefaultCwd: getSetting<string>('terminalDefaultCwd', ''),
     jwt: getSetting<GlobalSettings['jwt']>('jwt', { expiryHours: 24 }),
+    security: getSecurityStatus(),
   };
 }
 

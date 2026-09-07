@@ -10,6 +10,8 @@ import { useProjectsStore } from '@/stores/projects'
 import { useAuthStore } from '@/stores/auth'
 import BackupPanel from '@/components/BackupPanel.vue'
 import NginxPanel from '@/components/NginxPanel.vue'
+import SecurityPanel from '@/components/SecurityPanel.vue'
+import UsersPanel from '@/components/UsersPanel.vue'
 
 const emit = defineEmits<{ (e: 'close'): void }>()
 
@@ -17,13 +19,14 @@ const projects = useProjectsStore()
 const auth = useAuthStore()
 const router = useRouter()
 
-type TabKey = 'project' | 'backup' | 'files' | 'nginx' | 'account'
+type TabKey = 'project' | 'backup' | 'files' | 'nginx' | 'security' | 'account'
 const activeTab = ref<TabKey>('project')
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'project', label: '项目' },
   { key: 'backup', label: '备份' },
   { key: 'files', label: '文件' },
   { key: 'nginx', label: 'nginx' },
+  { key: 'security', label: '安全' },
   { key: 'account', label: '账号' },
 ]
 
@@ -220,8 +223,8 @@ watch(() => projects.currentId, () => { if (activeTab.value === 'files') loadFil
                 <div class="proj-root" :title="p.root">{{ p.root }}</div>
                 <div v-if="p.note" class="proj-note">📝 {{ p.note }}</div>
 
-                <!-- 编辑(改名称/备注) -->
-                <div v-if="editingId === p.id" class="edit-card">
+                <!-- 编辑(改名称/备注;仅超管) -->
+                <div v-if="editingId === p.id && auth.isSuper" class="edit-card">
                   <input v-model="editName" class="f-input" placeholder="项目名(文件夹名)" />
                   <input v-model="editNote" class="f-input mono" placeholder="中文备注(可选,便于团队识别)" @keyup.enter="saveEdit" />
                   <div v-if="editErr" class="err">{{ editErr }}</div>
@@ -233,8 +236,10 @@ watch(() => projects.currentId, () => { if (activeTab.value === 'files') loadFil
 
                 <div class="card-foot">
                   <span class="foot-left">
-                    <button class="mini" title="编辑名称/备注" @click="openEdit(p)">编辑</button>
-                    <button class="mini danger" title="移除注册" @click="handleRemoveProject(p.id)">移除</button>
+                    <template v-if="auth.isSuper">
+                      <button class="mini" title="编辑名称/备注" @click="openEdit(p)">编辑</button>
+                      <button class="mini danger" title="移除注册" @click="handleRemoveProject(p.id)">移除</button>
+                    </template>
                   </span>
                   <button class="use-btn" :disabled="p.id === projects.currentId" @click="projects.setProject(p.id)">
                     {{ p.id === projects.currentId ? '✓ 使用中' : '使用' }}
@@ -243,8 +248,8 @@ watch(() => projects.currentId, () => { if (activeTab.value === 'files') loadFil
               </div>
             </div>
 
-            <!-- 添加项目:放在最下面靠左,默认折叠 -->
-            <div v-if="showAdd" class="add-card">
+            <!-- 添加项目:放在最下面靠左,默认折叠(仅超管) -->
+            <div v-if="showAdd && auth.isSuper" class="add-card">
               <div class="add-title">+ 添加项目</div>
               <div class="add-fields">
                 <input v-model="addName" class="f-input" placeholder="项目名(如 demo)" />
@@ -260,7 +265,7 @@ watch(() => projects.currentId, () => { if (activeTab.value === 'files') loadFil
                 </button>
               </div>
             </div>
-            <div v-else class="add-zone">
+            <div v-else-if="auth.isSuper" class="add-zone">
               <button class="ghost add-left" @click="showAdd = true">＋ 添加项目</button>
             </div>
           </div>
@@ -304,9 +309,21 @@ watch(() => projects.currentId, () => { if (activeTab.value === 'files') loadFil
             <NginxPanel />
           </div>
 
+          <!-- ── 安全(安全模式:未解锁访问一律 404,秘密链接解锁)── -->
+          <div v-else-if="activeTab === 'security'" class="tab-pane">
+            <SecurityPanel />
+          </div>
+
           <!-- ── 账号 ── -->
           <div v-else class="tab-pane">
-            <div class="acct-line">当前账号:<b>{{ auth.username }}</b></div>
+            <!-- 用户管理(仅超管):左用户列表 / 右详情编辑 -->
+            <UsersPanel v-if="auth.isSuper" />
+            <div v-if="auth.isSuper" class="divider" />
+
+            <div class="acct-line">
+              当前账号:<b>{{ auth.username }}</b>
+              <span class="role-tag" :class="auth.role">{{ auth.role === 'superadmin' ? '超级管理员' : '成员' }}</span>
+            </div>
 
             <!-- 修改密码:卡片式,点击展开 -->
             <div class="acct-card" @click="!pwdOpen && (pwdOpen = true)">
@@ -433,6 +450,12 @@ button.mini { background: transparent; border: 1px solid var(--border); color: v
 button.mini.danger:hover { color: #f44747; border-color: #f44747; }
 
 .acct-line { font-size: 12px; color: var(--text-dim); }
+.role-tag {
+  margin-left: 6px; font-size: 10px; padding: 1px 8px; border-radius: 8px;
+  border: 1px solid var(--border); color: var(--text-dim);
+}
+.role-tag.superadmin { color: var(--glow); border-color: var(--glow-dim); }
+.role-tag.user { color: #4a9eee; border-color: rgba(68,153,238,0.3); }
 .acct-card { border: 1px solid var(--border); background: var(--bg); border-radius: 10px; padding: 12px 14px; cursor: pointer; transition: border-color .15s; }
 .acct-card:hover { border-color: var(--text-dim); }
 .acct-card-head { display: flex; align-items: center; justify-content: space-between; }

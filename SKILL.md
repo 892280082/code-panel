@@ -13,11 +13,29 @@ description: >-
 
 ## 认证(⭐ 先登录)
 
-- 默认播种账号来自本仓库 `config.json` 的 `credentials`(首次启动 users 表为空时写入;可改):**`admin / change-me`**(2026-09-07 改,旧 change-me 已废弃)。
+- 默认播种账号来自本仓库 `config.json` 的 `credentials`(首次启动 users 表为空时写入,role=超管;可改):**`admin / change-me`**(2026-09-07 改,旧 change-me 已废弃)。
 - 登录页 `/login`;JWT 24h(settings.jwt.expiryHours 可配);除 `/api/auth/login` 外全部 `/api/*` 需令牌。
 - 令牌三通道:`Authorization: Bearer <jwt>`(常规 fetch)/ `?token=<jwt>`(SSE、iframe、下载)/ `cp_auth` HttpOnly cookie(登录时下发,供同源 iframe 相对子资源自动带上)。
 - 「记住我」= 记住登录态:勾选 → token 存 localStorage(刷新/重开浏览器免登录);不勾 → sessionStorage(关标签即登出)。
 - 登录失败 14 次锁定(重启清零)。改密:`POST /api/auth/change-password`(登录态)。登出:`POST /api/auth/logout` + 前端清 storage。
+
+## 多账号 + 项目级授权(2026-09-08)
+
+- **两级角色**:种子账号 = `superadmin`(超管,见全部项目);超管创建的账号 = `user`(成员,仅见被分配的项目)。老库迁移自动把存量用户升级为超管。
+- **信任模型**:只隔离项目可见性 —— 普通用户的项目列表(`GET /api/projects`)被过滤、项目级 API(`requireProject` 校验 user_projects 归属,未分配 → 403);**其余功能全部照常**(终端/tmux、SQL 查询与审批、备份、nginx、系统资源、安全模式、review-mode)。
+- **超管专属**:① 用户管理 API(`/api/users` CRUD,member 403)② 项目注册表增删改(`POST/PUT/DELETE /api/projects` 及改名;yaml 读写跟随项目归属)。前端对应按钮(＋添加项目/编辑/移除/用户管理)仅超管可见,强制在后端。
+- **用户管理界面**:⚙ → 账号 Tab(仅超管可见):左用户列表 / 右详情 —— 勾选即保存的项目分配、重置密码、删除账号(不能删自己)、＋添加用户(用户名 `[A-Za-z0-9_-]{2,32}`、初始密码 ≥4 位)。
+- **role 实时生效**:JWT 里的 role 只是登录时快照(供前端 UI);后端每次请求查库取 role,超管改分配/删用户立即生效(被删用户的 token 立即 401)。
+- API:`GET /api/users`(列表含 projectIds)/ `POST /api/users` `{username,password,projectIds?}` / `PUT /api/users/:name` `{password?|projectIds?}` / `DELETE /api/users/:name`;全部需超管。
+
+## 安全模式(隐身/防探测,⚙ → 安全 Tab)
+
+- **开启后**:未解锁的访问 —— 所有页面、静态资源、全部 API(连 `/api/auth/login`)—— 一律返回与 Express 默认无差别的 404,扫描器探测不到服务存在;WebSocket 终端升级同样直接断开。
+- **解锁**:在任意访问入口(本机 `localhost:3008` / nginx 域名 / FRP 端口)后拼上**秘密路径**访问一次 → 种 `cp_gate` HttpOnly cookie(90 天)→ 自动 302 跳 `/login`,该浏览器此后一切正常。路径是唯一秘密,与入口域名无关。
+- **管理**(⚙ → 安全):开关、查看/复制秘密路径、自定义路径(以 `/` 开头仅 `[A-Za-z0-9_-]` 长 8~128,不能以 `/api`、`/assets`、`/favicon` 开头)、⟳ 随机重新生成(128bit,旧路径立即失效)、🚪 吊销所有已解锁浏览器(换 cookieSecret,当前浏览器自动续上)。
+- 配置存全局 settings 表 key=`security`(`{enabled,secretPath,cookieSecret}`),重启仍生效;开启/操作时后端自动给当前浏览器种 cookie(操作者不会把自己锁外面)。
+- ⚠ **忘记秘密路径**:只能在本机查 `~/.code-panel/data.db` settings 表(CODE_PANEL_HOME 覆盖时查对应目录);238 部署机同理查其 `~/.code-panel/data.db`。
+- API:`GET /api/config` 返回 `security:{enabled,secretPath}`(需 JWT);`PUT /api/config` body `security:{enabled?|secretPath?|regeneratePath?|revokeCookies?}`。
 
 ## 启动
 

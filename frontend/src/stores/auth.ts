@@ -10,6 +10,7 @@ import { ref, computed } from 'vue'
 
 const TOKEN_KEY = 'cp_token'
 const USER_KEY = 'cp_user'
+const ROLE_KEY = 'cp_role'
 
 function readStorages<T>(key: string): T | null {
   const v = sessionStorage.getItem(key) ?? localStorage.getItem(key)
@@ -29,8 +30,11 @@ function clearStorages(key: string) {
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(readStorages<string>(TOKEN_KEY))
   const username = ref<string | null>(readStorages<string>(USER_KEY))
+  const role = ref<string | null>(readStorages<string>(ROLE_KEY))
 
   const isLoggedIn = computed(() => !!token.value)
+  /** 超管:见全部项目 + 用户管理/项目注册表增删改(UI 层;强制在后端) */
+  const isSuper = computed(() => role.value === 'superadmin')
 
   /** 登录:成功后按 remember 决定持久化位置 */
   async function login(user: string, pwd: string, remember: boolean): Promise<string> {
@@ -43,8 +47,10 @@ export const useAuthStore = defineStore('auth', () => {
     if (!data.ok) throw new Error(data.error || `登录失败 (HTTP ${res.status})`)
     token.value = data.token
     username.value = data.username
+    role.value = data.role || 'user'
     writeStorage(TOKEN_KEY, data.token, remember)
     writeStorage(USER_KEY, data.username, remember)
+    writeStorage(ROLE_KEY, role.value, remember)
     return data.token
   }
 
@@ -52,8 +58,10 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout() {
     token.value = null
     username.value = null
+    role.value = null
     clearStorages(TOKEN_KEY)
     clearStorages(USER_KEY)
+    clearStorages(ROLE_KEY)
     try {
       await fetch('/api/auth/logout', { method: 'POST' }) // cookie 由服务端清(尽力而为)
     } catch { /* ignore */ }
@@ -67,6 +75,7 @@ export const useAuthStore = defineStore('auth', () => {
       username.value = readStorages<string>(USER_KEY)
       try {
         const payload = JSON.parse(atob(t.split('.')[1]))
+        role.value = readStorages<string>(ROLE_KEY) || payload.role || 'user'
         if (payload.exp && payload.exp * 1000 < Date.now()) {
           logout()
           return false
@@ -76,6 +85,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
     token.value = null
     username.value = null
+    role.value = null
     return false
   }
 
@@ -95,5 +105,5 @@ export const useAuthStore = defineStore('auth', () => {
     return res
   }
 
-  return { token, username, isLoggedIn, login, logout, checkAuth, apiFetch }
+  return { token, username, role, isLoggedIn, isSuper, login, logout, checkAuth, apiFetch }
 })

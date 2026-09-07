@@ -16,6 +16,7 @@ import type { Server } from 'http';
 import type { Duplex } from 'stream';
 import { verifyToken, AUTH_COOKIE } from '../auth/jwt';
 import { getConfig } from '../config-manager';
+import { isGateUnlockedRaw } from '../security/stealth';
 
 const PROXY_HOST = '127.0.0.1';
 const FAB_PORT = 9001;
@@ -142,6 +143,12 @@ function extractTargetPath(url: string): string {
 export function mountTerminalProxy(httpServer: Server): void {
   httpServer.on('upgrade', (req: IncomingMessage, socket, head) => {
     if (!req.url?.startsWith('/api/terminal')) return;
+
+    // ★ 安全模式(隐身)开启时,未解锁浏览器直接断开 —— 不暴露终端入口(WS 不走 Express 链)
+    if (!isGateUnlockedRaw(req.headers)) {
+      socket.destroy();
+      return;
+    }
 
     const port = resolvePort(req.url);
     socket.on('error', () => { socket.destroy(); });

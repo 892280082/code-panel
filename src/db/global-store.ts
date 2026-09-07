@@ -14,6 +14,8 @@ export interface UserRow {
   id: number;
   username: string;
   password_hash: string;
+  /** superadmin(超管,见全部项目) | user(普通,只见被分配项目) */
+  role: string;
   created_at: number;
   updated_at: number;
 }
@@ -21,6 +23,7 @@ export interface UserRow {
 export interface SafeUser {
   id: number;
   username: string;
+  role: string;
   created_at: number;
 }
 
@@ -67,6 +70,7 @@ export async function initGlobalStore(): Promise<void> {
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
       username      TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
+      role          TEXT NOT NULL DEFAULT 'user',
       created_at    INTEGER NOT NULL,
       updated_at    INTEGER NOT NULL
     );
@@ -88,12 +92,27 @@ export async function initGlobalStore(): Promise<void> {
       source     TEXT NOT NULL DEFAULT 'user',   -- 'user'(手动选用) | 'default'(默认兜底)
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS user_projects (
+      username    TEXT NOT NULL,
+      project_id  TEXT NOT NULL,
+      PRIMARY KEY (username, project_id)
+    );
   `);
 
   // 老库迁移:projects 表缺 note 列时补上(中文备注)
   const pcols = db.exec('PRAGMA table_info(projects)');
   const hasNote = pcols.length && pcols[0].values.some((v) => v[1] === 'note');
   if (!hasNote) db.run("ALTER TABLE projects ADD COLUMN note TEXT NOT NULL DEFAULT ''");
+
+  // 老库迁移:users 表缺 role 列(多账号时代)→ 补列,并把存量用户全部升级为超管
+  //   (单账号时代的现有用户即面板主人;仅在此迁移瞬间执行一次,幂等)
+  const ucols = db.exec('PRAGMA table_info(users)');
+  const hasRole = ucols.length && ucols[0].values.some((v) => v[1] === 'role');
+  if (!hasRole) {
+    db.run("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
+    db.run("UPDATE users SET role = 'superadmin'");
+    console.log('✓ Migrated: 存量用户已升级为超级管理员');
+  }
 
   seedDefaultSettings();
   seedFirstUserFromConfig();
@@ -163,11 +182,11 @@ export function setSetting(key: string, value: unknown): void {
 
 // ── Users ───────────────────────────────────────────────
 
-function insertUserRaw(username: string, passwordHash: string): void {
+function insertUserRaw(username: string, passwordHash: string, role = 'superadmin'): void {
   const now = Date.now();
   ensureDb().run(
-    'INSERT INTO users (username, password_hash, created_at, updated_at) VALUES (?,?,?,?)',
-    [username, passwordHash, now, now],
+    'INSERT INTO users (username, password_hash, role, created_at, updated_at) VALUES (?,?,?,?,?)',
+    [username, passwordHash, role, now, now],
   );
   save();
 }
@@ -180,13 +199,18 @@ export function countUsers(): number {
 
 export function listUsersSafe(): SafeUser[] {
   const d = ensureDb();
-  const r = d.exec('SELECT id, username, created_at FROM users ORDER BY id');
+  const r = d.exec('SELECT id, username, role, created_at FROM users ORDER BY id');
   if (!r.length) return [];
   const { columns, values } = r[0];
   return values.map(row => {
     const o: Record<string, unknown> = {};
     columns.forEach((c, i) => { o[c] = row[i]; });
-    return { id: o.id as number, username: o.username as string, created_at: o.created_at as number };
+    return {
+      id: o.id as number,
+      username: o.username as string,
+      role: (o.role as string) || 'user',
+      created_at: o.created_at as number,
+    };
   });
 }
 
@@ -201,6 +225,7 @@ export function findUser(username: string): UserRow | undefined {
       id: o.id as number,
       username: o.username as string,
       password_hash: o.password_hash as string,
+      role: (o.role as string) || 'user',
       created_at: o.created_at as number,
       updated_at: o.updated_at as number,
     };
@@ -215,10 +240,10 @@ export function verifyUser(username: string, password: string): boolean {
   return sha256(password) === user.password_hash;
 }
 
-/** 加一个账号(明文密码→sha256) */
-export function addUser(username: string, password: string): void {
+/** 加一个账号(明文密码→sha256;role: superadmin | user,默认普通用户) */
+export function addUser(username: string, password: string, role = 'user'): void {
   if (findUser(username)) throw new Error(`用户 ${username} 已存在`);
-  insertUserRaw(username, sha256(password));
+  insertUserRaw(username, sha256(password), role);
 }
 
 export function updatePassword(username: string, newPlainPassword: string): void {
@@ -227,6 +252,60 @@ export function updatePassword(username: string, newPlainPassword: string): void
     [sha256(newPlainPassword), Date.now(), username],
   );
   save();
+}
+
+/** 删除账号(连同其项目分配) */
+export function deleteUser(username: string): void {
+  ensureDb().run('DELETE FROM users WHERE username = ?', [username]);
+  ensureDb().run('DELETE FROM user_projects WHERE username = ?', [username]);
+  save();
+}
+
+// ── 用户 · 项目分配(user_projects)──────────────────────
+
+/** 用户被分配的项目 id 列表 */
+export function listUserProjectIds(username: string): string[] {
+  const d = ensureDb();
+  const r = d.exec('SELECT project_id FROM user_projects WHERE username = ? ORDER BY project_id', [username]);
+  if (!r.length) return [];
+  return r[0].values.map(v => v[0] as string);
+}
+
+/** 全量重写用户的项目分配 */
+export function setUserProjects(username: string, projectIds: string[]): void {
+  const d = ensureDb();
+  d.run('DELETE FROM user_projects WHERE username = ?', [username]);
+  for (const pid of projectIds) {
+    d.run('INSERT OR IGNORE INTO user_projects (username, project_id) VALUES (?,?)', [username, pid]);
+  }
+  save();
+}
+
+/** 按用户可见性列项目:超管 → 全部;普通用户 → 仅被分配的 */
+export function listProjectsForUser(username: string): ProjectRow[] {
+  const user = findUser(username);
+  if (!user || user.role === 'superadmin') return listProjects();
+  const d = ensureDb();
+  const r = d.exec(
+    `SELECT p.* FROM projects p
+     JOIN user_projects up ON up.project_id = p.id AND up.username = ?
+     ORDER BY p.created_at`,
+    [username],
+  );
+  if (!r.length) return [];
+  const { columns, values } = r[0];
+  return values.map(row => {
+    const o: Record<string, unknown> = {};
+    columns.forEach((c, i) => { o[c] = row[i]; });
+    return {
+      id: o.id as string,
+      name: o.name as string,
+      root: o.root as string,
+      note: o.note ? (o.note as string) : '',
+      created_at: o.created_at as number,
+      updated_at: o.updated_at as number,
+    };
+  });
 }
 
 // ── Projects 注册表 ─────────────────────────────────────
@@ -302,6 +381,7 @@ export function updateProject(id: string, updates: { name?: string; root?: strin
 
 export function deleteProject(id: string): void {
   ensureDb().run('DELETE FROM projects WHERE id = ?', [id]);
+  ensureDb().run('DELETE FROM user_projects WHERE project_id = ?', [id]); // 清理分配关联
   save();
 }
 

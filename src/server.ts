@@ -28,11 +28,13 @@ import { initGlobalStore } from './db/global-store';
 import { authMiddleware } from './auth/jwt';
 import authRouter, { protectedAuthRouter } from './routes/auth';
 import projectsRouter from './routes/projects';
+import usersRouter from './routes/users';
 import linksRouter from './routes/links';
 import resourcesRouter from './routes/resources';
 import filesRouter from './routes/files';
 import envRouter from './routes/env';
 import nginxRouter from './routes/nginx';
+import { stealthMiddleware } from './security/stealth';
 
 const app = express();
 const PORT = 3008;
@@ -40,6 +42,7 @@ const DIST_DIR = path.resolve(__dirname, '..', 'frontend', 'dist');
 const PUBLIC_DIR = path.resolve(__dirname, '..', 'public');
 
 // ── Middleware ────────────────────────────────────────────
+app.use(stealthMiddleware);           // 安全模式(隐身):开启后未解锁一律 404,必须先于 static/SPA/json
 app.use(express.json({ limit: '2mb' }));
 
 // Serve Vue build output
@@ -70,6 +73,7 @@ app.use(backupRouter);
 app.use(gitReposRouter);
 app.use(repoBrowserRouter);
 app.use(projectsRouter);
+app.use(usersRouter);
 app.use(linksRouter);
 app.use(resourcesRouter);
 app.use(filesRouter);

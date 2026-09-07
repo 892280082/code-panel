@@ -29,11 +29,12 @@ router.post('/api/auth/login', (req: Request, res: Response) => {
 
   if (verifyUser(username, password)) {
     recordSuccess(username);
-    const token = signToken(username);
+    const user = findUser(username);
+    const role = user?.role ?? 'user';
+    const token = signToken(username, role); // role 快照仅供前端 UI;后端鉴权实时查库
     // 子资源/SSE 通道 cookie:记住→持久;否则会话 cookie
     setAuthCookie(res, token, !!remember);
-    const user = findUser(username);
-    res.json({ ok: true, token, username: user?.username ?? username });
+    res.json({ ok: true, token, username: user?.username ?? username, role });
   } else {
     const result = recordFailure(username);
     if (result.locked) {

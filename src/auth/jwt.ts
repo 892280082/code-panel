@@ -7,9 +7,24 @@ import fs from 'fs';
 import jwt from 'jsonwebtoken';
 import type { Request, Response, NextFunction } from 'express';
 import { JWT_SECRET_PATH, globalDataDir } from '../paths';
-import { getSetting } from '../db/global-store';
+import { getSetting, findUser } from '../db/global-store';
 
 export const AUTH_COOKIE = 'cp_auth';
+
+// ── 当前请求用户(authMiddleware 挂到 req.user;仿 requireProject 模式)──
+
+export interface AuthUser {
+  username: string;
+  /** superadmin | user —— 实时查库,超管改角色/分配立即生效 */
+  role: string;
+}
+
+export type AuthedRequest = Request & { user?: AuthUser };
+
+/** 从 req 上取当前登录用户(routes 各文件用,等价于各处的 reqProject) */
+export function reqUser(req: Request): AuthUser | undefined {
+  return (req as AuthedRequest).user;
+}
 
 // ── 密钥加载(参考 fork:load-or-create, 0o600, 64hex) ──
 
@@ -35,6 +50,8 @@ const SECRET = loadOrCreateSecret();
 
 export interface JwtPayload {
   username: string;
+  /** 登录时的角色快照(仅供前端 UI 展示;后端鉴权一律实时查库,不信任它) */
+  role?: string;
   iat: number;
   exp: number;
 }
@@ -46,9 +63,9 @@ export function getExpiryHours(): number {
 
 // ── 签发 / 校验 ─────────────────────────────────────────
 
-export function signToken(username: string): string {
+export function signToken(username: string, role?: string): string {
   const expiryHours = getExpiryHours();
-  return jwt.sign({ username }, SECRET, { algorithm: 'HS256', expiresIn: `${expiryHours}h` });
+  return jwt.sign(role ? { username, role } : { username }, SECRET, { algorithm: 'HS256', expiresIn: `${expiryHours}h` });
 }
 
 export function verifyToken(token: string): JwtPayload {
@@ -103,9 +120,26 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
     return;
   }
   try {
-    verifyToken(token);
+    const payload = verifyToken(token);
+    // 用户已被删除 → token 立即失效(不等 JWT 过期)
+    const row = findUser(payload.username);
+    if (!row) {
+      res.status(401).json({ ok: false, error: '账号不存在，请重新登录' });
+      return;
+    }
+    // 挂当前用户到 req.user;role 实时查库(超管改角色/项目分配立即生效)
+    (req as AuthedRequest).user = { username: row.username, role: row.role || 'user' };
     next();
   } catch {
     res.status(401).json({ ok: false, error: '登录已过期，请重新登录' });
   }
+}
+
+/** 超管专属中间件(用户管理 / 项目注册表增删改) */
+export function requireSuperadmin(req: Request, res: Response, next: NextFunction): void {
+  if (reqUser(req)?.role !== 'superadmin') {
+    res.status(403).json({ ok: false, error: '需要超级管理员权限' });
+    return;
+  }
+  next();
 }
