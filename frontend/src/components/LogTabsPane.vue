@@ -8,7 +8,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useLogStore } from '@/stores/logs'
 import { useProjectsStore } from '@/stores/projects'
 import { ansiToHtml, ansiStrip } from '@/composables/useAnsi'
-import PixelGalaxy from '@/components/PixelGalaxy.vue'
+import Starfield from '@/components/Starfield.vue'
 
 const store = useLogStore()
 const projects = useProjectsStore()
@@ -77,14 +77,14 @@ setInterval(() => { activityNow.value = Date.now() }, 500)
   <div class="content-area">
     <!-- Empty state:无项目 -->
     <div v-if="!hasProject" class="empty-state">
-      <PixelGalaxy :size="150" />
+      <Starfield />
       <span>还没有项目</span>
       <span class="hint">点左上角 ⚙ →「项目」添加/切换一个项目</span>
     </div>
 
     <!-- Empty state:有项目但未打开文件 -->
     <div v-else-if="!store.activeFile" class="empty-state">
-      <PixelGalaxy :size="150" />
+      <Starfield />
       <span>Select a log file from the sidebar</span>
       <span class="hint">● 端口存活 &nbsp; 3003 端口号 &nbsp; <b class="txt-blink-hint">T</b> 新日志写入</span>
     </div>
@@ -151,6 +151,7 @@ setInterval(() => { activityNow.value = Date.now() }, 500)
   align-items: center; justify-content: center;
   color: var(--text-dim); font-size: 12px; gap: 8px; user-select: none;
 }
+.empty-state > span { position: relative; z-index: 1; }
 .empty-state .icon { font-size: 48px; opacity: 0.3; margin-bottom: 8px; }
 .empty-state .hint { font-size: 10px; color: var(--text-dim); }
 .empty-state .hint .txt-blink-hint {
