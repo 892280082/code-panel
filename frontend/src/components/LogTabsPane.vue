@@ -8,6 +8,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useLogStore } from '@/stores/logs'
 import { useProjectsStore } from '@/stores/projects'
 import { ansiToHtml, ansiStrip } from '@/composables/useAnsi'
+import PixelGalaxy from '@/components/PixelGalaxy.vue'
 
 const store = useLogStore()
 const projects = useProjectsStore()
@@ -76,14 +77,14 @@ setInterval(() => { activityNow.value = Date.now() }, 500)
   <div class="content-area">
     <!-- Empty state:无项目 -->
     <div v-if="!hasProject" class="empty-state">
-      <span class="icon">◈</span>
+      <PixelGalaxy :size="150" />
       <span>还没有项目</span>
       <span class="hint">点左上角 ⚙ →「项目」添加/切换一个项目</span>
     </div>
 
     <!-- Empty state:有项目但未打开文件 -->
     <div v-else-if="!store.activeFile" class="empty-state">
-      <span class="icon">◈</span>
+      <PixelGalaxy :size="150" />
       <span>Select a log file from the sidebar</span>
       <span class="hint">● 端口存活 &nbsp; 3003 端口号 &nbsp; <b class="txt-blink-hint">T</b> 新日志写入</span>
     </div>
