@@ -3,7 +3,7 @@
 import { Router, Request, Response } from 'express';
 import type { ProjectRow } from '../db/global-store';
 import { requireProject } from '../projects/context';
-import { sqlConnections, sqlConnection, upsertProjectList, deleteProjectListItem } from '../projects/adapters';
+import { sqlConnections, sqlConnection, sqlConnectionRaw, upsertProjectList, deleteProjectListItem } from '../projects/adapters';
 import { testConnection, invalidateConnection } from '../db/connector';
 import { getHealthStatus, checkProjectDatabases } from '../db/health-check';
 import type { DbConnection } from '../types';
@@ -64,7 +64,7 @@ router.put('/api/db/:id', requireProject, (req: Request, res: Response) => {
   try {
     const project = reqProject(req);
     const id = req.params.id;
-    const existing = sqlConnection(project, id);
+    const existing = sqlConnectionRaw(project, id);   // 原始未插值:合并写盘不固化占位符
     if (!existing) return res.status(404).json({ ok: false, error: `Database "${id}" not found` });
     upsertProjectList<DbConnection>(project, 'sql', 'id', id, { ...existing, ...(req.body ?? {}) } as DbConnection);
     invalidateConnection(project.id, id);

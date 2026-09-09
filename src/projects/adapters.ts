@@ -8,6 +8,7 @@ import type {
   ModuleName, SqlModuleYaml, GitModuleYaml, LogsModuleYaml, PrdModuleYaml,
 } from './yaml';
 import { loadProjectModule, saveProjectModule, readRuntimeJson, writeRuntimeJson } from './project-store';
+import { projectEnvVars, interpolateEnvVars } from '../env/env-store';
 
 // 模块 yaml 的顶层数组字段名(sql→connections, git→repos)
 const ARRAY_KEY: Partial<Record<ModuleName, string>> = { sql: 'connections', git: 'repos' };
@@ -37,7 +38,7 @@ export function upsertProjectList<T extends { id: string }>(
   project: ProjectRow, module: ArrayModule, keyField: string, id: string, item: T,
 ): T {
   const key = ARRAY_KEY[module] as string;
-  const yaml = loadProjectModule(project, module) as Record<string, T[]>;
+  const yaml = loadProjectModule(project, module, { raw: true }) as Record<string, T[]>;   // 写盘用原始,防固化占位符
   const arr = (yaml?.[key] ?? []) as Array<T & Record<string, unknown>>;
   const idx = arr.findIndex(x => x?.[keyField] === id);
   const merged = { ...(idx >= 0 ? arr[idx] : {}), ...item, [keyField]: id } as T & Record<string, unknown>;
@@ -52,7 +53,7 @@ export function deleteProjectListItem(
   project: ProjectRow, module: ArrayModule, keyField: string, id: string,
 ): boolean {
   const key = ARRAY_KEY[module] as string;
-  const yaml = loadProjectModule(project, module) as Record<string, unknown[]>;
+  const yaml = loadProjectModule(project, module, { raw: true }) as Record<string, unknown[]>;   // 写盘用原始,防固化占位符
   const arr = (yaml?.[key] ?? []) as Array<Record<string, unknown>>;
   const idx = arr.findIndex(x => x?.[keyField] === id);
   if (idx < 0) return false;
@@ -66,12 +67,19 @@ type ModuleYamlLike = SqlModuleYaml | GitModuleYaml | LogsModuleYaml | PrdModule
 
 /** sql.yaml:本项目连接列表 */
 export function sqlConnections(project: ProjectRow): DbConnection[] {
-  return listModuleItems<DbConnection>(project, 'sql');
+  const raw = listModuleItems<DbConnection>(project, 'sql');
+  // ${VAR:default} 占位符按项目当前环境组插值(仅读入内存;写盘走原始读取,防固化)
+  return interpolateEnvVars(raw, projectEnvVars(project)) as DbConnection[];
 }
 
-/** sql.yaml:按 id 取连接 */
+/** sql.yaml:按 id 取连接(已插值,连库/展示用) */
 export function sqlConnection(project: ProjectRow, id: string): DbConnection | undefined {
   return sqlConnections(project).find(c => c.id === id);
+}
+
+/** sql.yaml:按 id 取原始连接(未插值;PUT 合并等写路径用,防占位符固化进 yaml) */
+export function sqlConnectionRaw(project: ProjectRow, id: string): DbConnection | undefined {
+  return listModuleItems<DbConnection>(project, 'sql').find(c => c.id === id);
 }
 
 /** git.yaml:本项目仓库列表 */

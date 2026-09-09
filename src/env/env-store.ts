@@ -82,6 +82,38 @@ export function groupById(groups: EnvGroup[], id: string): EnvGroup | undefined 
   return groups.find((g) => g.id === id);
 }
 
+/** 项目当前生效组的变量(组 vars 覆盖进程 env),供模块 yaml 的 ${VAR:default} 占位符插值 */
+export function projectEnvVars(project: ProjectRow): Record<string, string> {
+  const groups = loadEnvGroups(project.root);
+  const sel = getProjectEnvSelection(project.id);
+  const g = (sel ? groupById(groups, sel.groupId) : undefined) ?? defaultGroup(groups);
+  return { ...process.env, ...(g?.vars ?? {}) } as Record<string, string>;
+}
+
+/**
+ * 递归展开值里的 ${VAR} / ${VAR:default} 占位符(仅字符串;对象/数组深遍历)。
+ * VAR 未设:有 default 用 default,否则保留原样(不静默吞,便于发现问题)。
+ * 只用于「读入内存」,任何写盘路径不得使用,防占位符被固化进 yaml。
+ */
+export function interpolateEnvVars(value: unknown, vars: Record<string, string>): unknown {
+  if (typeof value === 'string') {
+    return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?::([^}]*))?\}/g, (raw, name: string, def?: string) => {
+      const v = vars[name];
+      if (v !== undefined && v !== '') return v;
+      return def !== undefined ? def : raw;
+    });
+  }
+  if (Array.isArray(value)) return value.map((v) => interpolateEnvVars(v, vars));
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = interpolateEnvVars(v, vars);
+    }
+    return out;
+  }
+  return value;
+}
+
 function defaultGroup(groups: EnvGroup[]): EnvGroup | undefined {
   return groups.find((g) => g.default);
 }

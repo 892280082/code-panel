@@ -3,6 +3,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { ProjectRow } from '../db/global-store';
+import { projectEnvVars, interpolateEnvVars } from '../env/env-store';
 import {
   listProjects, getProject, addProject, updateProject, deleteProject,
 } from '../db/global-store';
@@ -155,11 +156,17 @@ function logsYamlFile(root: string): string {
   return fs.existsSync(apps) ? apps : (fs.existsSync(legacy) ? legacy : apps);
 }
 
-export function loadProjectModule(project: ProjectRow, module: ModuleName): ModuleYaml {
+export function loadProjectModule(project: ProjectRow, module: ModuleName, opts?: { raw?: boolean }): ModuleYaml {
   ensureScaffolded(project);
   const root = project.root;
   const file = module === 'logs' ? logsYamlFile(root) : projectModuleYamlFile(root, module);
-  const yaml = loadModuleYaml<ModuleYaml>(file, module) as any;
+  let yaml = loadModuleYaml<ModuleYaml>(file, module) as any;
+  // 通用 ${VAR:default} 环境变量插值(2026-09-09):所有模块读入内存默认展开,
+  //   变量 = 项目当前环境组(envs.yaml)+ 进程 env;envs.yaml 本身不经此处(变量源)。
+  //   写盘路径(upsert/delete/yaml 回显)必须传 {raw:true},防占位符被固化进 yaml。
+  if (!opts?.raw) {
+    yaml = interpolateEnvVars(yaml, projectEnvVars(project));
+  }
   if (module === 'logs') {
     // platforms(新格式)+ sections(旧格式)里每个服务项的 file/start 等一律补绝对
     for (const s of yaml.sections ?? []) for (const l of s.logs ?? []) walkAbs(root, l);

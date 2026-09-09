@@ -69,7 +69,7 @@ router.get('/api/projects/:id/yaml/:module', (req: Request, res: Response) => {
     const p = getProject(req.params.id);
     if (!p) return res.status(404).json({ ok: false, error: `项目 ${req.params.id} 不存在` });
     if (!canAccessProject(req, p.id)) return res.status(403).json({ ok: false, error: '无该项目权限' });
-    res.json({ ok: true, data: { project: p.id, module, yaml: loadProjectModule(p, module) } });
+    res.json({ ok: true, data: { project: p.id, module, yaml: loadProjectModule(p, module, { raw: true }) } });   // 回显原始,防编辑回存固化占位符
   } catch (e: unknown) {
     res.status(500).json({ ok: false, error: errorMessage(e) });
   }
