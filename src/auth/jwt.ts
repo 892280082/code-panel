@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import type { Request, Response, NextFunction } from 'express';
 import { JWT_SECRET_PATH, globalDataDir } from '../paths';
 import { getSetting, findUser } from '../db/global-store';
+import { hasValidAiToken, AI_USERNAME } from './ai-token';
 
 export const AUTH_COOKIE = 'cp_auth';
 
@@ -17,6 +18,8 @@ export interface AuthUser {
   username: string;
   /** superadmin | user —— 实时查库,超管改角色/分配立即生效 */
   role: string;
+  /** 'ai-token' = 本机免密通道(cp 脚本);SQL 审批等「AI 绝对禁止」端点据此拦截 */
+  via?: 'ai-token';
 }
 
 export type AuthedRequest = Request & { user?: AuthUser };
@@ -110,6 +113,13 @@ function extractBearer(req: Request): string | undefined {
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   // 非 API 路由放行(static / SPA)
   if (!req.path.startsWith('/api/')) return next();
+
+  // 本机 ai-token 直通(cp 脚本通道):持有 0600 token 文件 = 本机主人 = 超管。
+  // 不走用户表(凭据是文件而非账号,改密码/删账号不影响该通道)。
+  if (hasValidAiToken(req)) {
+    (req as AuthedRequest).user = { username: AI_USERNAME, role: 'superadmin', via: 'ai-token' };
+    return next();
+  }
 
   const token = extractBearer(req)
     || (typeof req.query.token === 'string' ? req.query.token : undefined)

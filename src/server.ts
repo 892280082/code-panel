@@ -36,7 +36,9 @@ import resourcesRouter from './routes/resources';
 import filesRouter from './routes/files';
 import envRouter from './routes/env';
 import nginxRouter from './routes/nginx';
+import inspectRouter from './routes/inspect';
 import { stealthMiddleware } from './security/stealth';
+import { ensureAiToken } from './auth/ai-token';
 
 const app = express();
 const PORT = 3008;
@@ -82,6 +84,7 @@ app.use(resourcesRouter);
 app.use(filesRouter);
 app.use(envRouter);
 app.use(nginxRouter);
+app.use(inspectRouter);
 
 // ── SPA fallback — all non-API routes serve index.html ───
 const indexHtml = path.join(DIST_DIR, 'index.html');
@@ -105,6 +108,10 @@ app.use((req, res, next) => {
 async function start() {
   // P2:不再初始化 db-config.sqlite;全局库只放 users/projects/settings
   await initGlobalStore();
+
+  // 本机免密通道:生成 ai-token(0600)+ 确保仓库根 cp 调用器可执行
+  ensureAiToken();
+  try { fs.chmodSync(path.resolve(__dirname, '..', 'cp'), 0o755); } catch { /* 非 git 检出环境忽略 */ }
 
   // P3:清理上次服务器残留的 tmux 接入 ttyd(9020-9029);tmux 会话本身常驻保留
   cleanupStaleTmuxAttachPorts();

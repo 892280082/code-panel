@@ -3,6 +3,8 @@
 //   含 /api/auth/login)一律返回与 Express 默认无差别的 404;
 //   访问秘密链接一次 → 种 cp_gate cookie(90 天)→ 302 /login,
 //   此后该浏览器一切正常,原有 JWT 逻辑照旧。
+//   例外:本机 ai-token(见 auth/ai-token.ts)直通 —— 持有 0600 token 文件
+//   即本机主人,探测成本从「猜路径」变「猜 128bit」,只强不弱。
 //   配置存 ~/.code-panel/data.db settings 表 key=security(重启仍生效)。
 //   忘记秘密链接:本机查 data.db settings 表(key=security)。
 
@@ -10,6 +12,7 @@ import crypto from 'crypto';
 import type { Request, Response, NextFunction } from 'express';
 import { getSetting, setSetting } from '../db/global-store';
 import { readCookie } from '../auth/jwt';
+import { hasValidAiToken } from '../auth/ai-token';
 
 export const GATE_COOKIE = 'cp_gate';
 export const GATE_COOKIE_MAX_AGE = 90 * 24 * 3600; // 90 天(秒)
@@ -105,6 +108,9 @@ export function setGateCookie(res: Response, cookieSecret: string): void {
 export function stealthMiddleware(req: Request, res: Response, next: NextFunction): void {
   const cfg = getSecurityConfig();
   if (!cfg.enabled) return next();
+
+  // 本机 ai-token 直通(cp 脚本通道;外网探测者没有 token,依旧全 404)
+  if (hasValidAiToken(req)) return next();
 
   // 秘密入口:种 cookie → 跳登录页(容忍尾斜杠)
   if (cfg.secretPath && (req.path === cfg.secretPath || req.path === cfg.secretPath + '/')) {

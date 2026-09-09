@@ -1,8 +1,9 @@
 // ── SQL review panel routes(审批按项目队列;review-mode 全局) ──
 
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import type { ProjectRow } from '../db/global-store';
 import { requireProject, reqProject } from '../projects/context';
+import { reqUser } from '../auth/jwt';
 import { sqlConnection, redisConnection } from '../projects/adapters';
 import { queueList, queueUpdate, queueGet, historyAdd } from '../projects/sql-store';
 import { executeQuery, executeQueryDirect } from '../db/connector';
@@ -14,6 +15,17 @@ import type { SqlJobStatus } from '../types';
 import { route } from '../utils/route-utils';
 
 const router = Router();
+
+/** 「AI 绝对禁止」端点硬拦:ai-token 免密通道(脚本)不得审批/拒绝/开关评审模式,
+ *  也不得读 review-mode(响应里含 REVIEW_TOKEN 本体)。审批必须由人肉登录操作。 */
+function denyAi(req: Request, res: Response, next: NextFunction): void {
+  if (reqUser(req)?.via === 'ai-token') {
+    res.status(403).json({ ok: false, error: '免密通道禁止审批类操作:请用户在 /sql 页面人工处理' });
+    return;
+  }
+  next();
+}
+
 
 /** 获取数据库显示标签 */
 function getDbLabel(project: ProjectRow, job: { dbId: string; connection?: { database?: string } }): string {
@@ -30,7 +42,7 @@ router.get('/api/sql/queue', requireProject, route((req: Request, res: Response)
 }));
 
 // 批准 → 执行 SQL(需令牌;项目内队列)
-router.post('/api/sql/approve/:id', requireProject, route(async (req: Request, res: Response) => {
+router.post('/api/sql/approve/:id', requireProject, denyAi, route(async (req: Request, res: Response) => {
   if (!checkToken((req.body as { token?: unknown })?.token)) {
     return res.status(403).json({ ok: false, error: 'Invalid or missing token' });
   }
@@ -93,7 +105,7 @@ router.post('/api/sql/approve/:id', requireProject, route(async (req: Request, r
 }));
 
 // 拒绝(需令牌;项目内队列)
-router.post('/api/sql/reject/:id', requireProject, route((req: Request, res: Response) => {
+router.post('/api/sql/reject/:id', requireProject, denyAi, route((req: Request, res: Response) => {
   if (!checkToken((req.body as { token?: unknown })?.token)) {
     return res.status(403).json({ ok: false, error: 'Invalid or missing token' });
   }
@@ -108,12 +120,12 @@ router.post('/api/sql/reject/:id', requireProject, route((req: Request, res: Res
 }));
 
 // 查看评审模式(全局,含令牌,供页面读取)
-router.get('/api/sql/review-mode', route((_req: Request, res: Response) => {
+router.get('/api/sql/review-mode', denyAi, route((_req: Request, res: Response) => {
   res.json({ reviewMode: getReviewMode(), token: REVIEW_TOKEN });
 }));
 
 // 切换评审模式(全局,需令牌)
-router.post('/api/sql/review-mode', route((req: Request, res: Response) => {
+router.post('/api/sql/review-mode', denyAi, route((req: Request, res: Response) => {
   if (!checkToken((req.body as { token?: unknown })?.token)) {
     return res.status(403).json({ ok: false, error: 'Invalid or missing token' });
   }
