@@ -89,7 +89,7 @@ export const useRepoBrowserStore = defineStore('repoBrowser', () => {
   const dirErrors = ref<Record<string, string>>({})   // 单目录失败 → 只标记该节点, 不影响其他目录
 
   // ── Git tracking mode ─────────────────────────────────
-  const gitMode = ref(true)   // 默认只看 Git 改动文件（全部文件意义不大）
+  const gitMode = ref(false)  // 默认显示全部文件（改动文件在 Git 页签层级树已有,弹窗默认全仓库浏览）
   const changedDirs = ref<Set<string>>(new Set())
   const changedFiles = ref<Set<string>>(new Set())
   const gitLoading = ref(false)
@@ -207,7 +207,7 @@ export const useRepoBrowserStore = defineStore('repoBrowser', () => {
     fileHasMore.value = false
     fileBinary.value = false
     fileError.value = ''
-    gitMode.value = true   // 默认 Git 改动模式
+    gitMode.value = false  // 默认全部文件(改动文件走 Git 页签层级树;可手动切 🔀 Git)
     changedDirs.value = new Set()
     changedFiles.value = new Set()
     fileHistory.resetAll()
