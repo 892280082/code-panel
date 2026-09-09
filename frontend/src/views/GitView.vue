@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useGitStore, gitPullStatusIcon, gitFormatLogTime } from '@/stores/git'
 import { useProjectsStore } from '@/stores/projects'
 import { useRepoBrowserStore } from '@/stores/repo-browser'
 import TopRightTools from '@/components/TopRightTools.vue'
 import { useCopySelection } from '@/composables/useCopySelection'
 import { copyToClipboard } from '@/utils/clipboard'
+import { highlightLines } from '@/utils/highlight'
 import Sidebar from '@/components/Sidebar.vue'
 import StatusDot from '@/components/StatusDot.vue'
 
@@ -106,6 +107,163 @@ function scrollSelectedIntoView() {
   nextTick(() => {
     fileListRef.value?.querySelector('.file-row.selected')?.scrollIntoView({ block: 'nearest' })
   })
+}
+
+// ── 改动文件层级树:公共前缀目录压缩(VSCode 式),从分叉处开始显示 ──
+
+interface FileTreeNode {
+  key: string                       // 目录 = 压缩链全路径;文件 = path
+  name: string                      // 显示名(目录 = 链的最后一级)
+  fullName: string
+  path: string                      // 文件全路径(目录同 fullName)
+  dir: boolean
+  file?: { path: string; status: string; additions: number; deletions: number }
+  children?: FileTreeNode[]
+}
+
+const expandedDirs = ref<Set<string>>(new Set())
+
+const fileTree = computed<FileTreeNode[]>(() => {
+  const files = store.diffResult?.files ?? []
+  if (!files.length) return []
+
+  // 原始树:目录 Map + 文件叶子
+  type Raw = { name: string; children: Map<string, Raw>; file?: typeof files[0] }
+  const root: Raw = { name: '', children: new Map() }
+  for (const f of files) {
+    const parts = f.path.split('/')
+    let cur = root
+    for (let i = 0; i < parts.length - 1; i++) {
+      const p = parts[i]
+      if (!cur.children.has(p)) cur.children.set(p, { name: p, children: new Map() })
+      cur = cur.children.get(p)!
+    }
+    const leafName = parts[parts.length - 1]
+    cur.children.set(leafName + '·f', { name: leafName, children: new Map(), file: f })  // key 加·f 防与同名目录撞
+  }
+
+  // 压缩:单孩子目录链合并为一个节点(name = a/b/c),分叉处停止
+  const convert = (raw: Raw, prefix: string): FileTreeNode[] => {
+    const out: FileTreeNode[] = []
+    for (const [, node] of raw.children) {
+      if (node.file) {
+        const base = prefix ? prefix + '/' + node.name : node.name
+        out.push({ key: base, name: node.name, fullName: base, path: base, dir: false, file: node.file })
+        continue
+      }
+      let name = node.name
+      let full = prefix ? prefix + '/' + name : name
+      let children = node.children
+      while (children.size === 1) {
+        const only = [...children.values()][0]
+        if (only.file) break   // 孩子是文件:目录名保留,文件在下层
+        const k = [...children.keys()][0]
+        name = k                        // 显示名 = 链的最后一级(公共链直接跳过)
+        full = full + '/' + k
+        children = only.children
+      }
+      out.push({ key: full, name, fullName: full, path: full, dir: true, children: convert({ name, children }, full) })
+    }
+    return out
+  }
+  const tree = convert(root, '')
+
+  // 排序:目录在前、字母序
+  const sortRec = (nodes: FileTreeNode[]) => {
+    nodes.sort((a, b) => (a.dir === b.dir ? a.name.localeCompare(b.name) : a.dir ? -1 : 1))
+    nodes.forEach(n => n.children && sortRec(n.children))
+  }
+  sortRec(tree)
+  return tree
+})
+
+// 默认全展开:diffResult 变化(切仓库/刷新)后重置
+watch(() => store.diffResult, () => {
+  const all: string[] = []
+  const walk = (nodes: FileTreeNode[]) => nodes.forEach(n => {
+    if (n.dir) { all.push(n.key); walk(n.children!) }
+  })
+  walk(fileTree.value)
+  expandedDirs.value = new Set(all)
+})
+
+// 扁平化可见行(按折叠状态)
+const visibleFileRows = computed(() => {
+  const rows: { type: 'dir' | 'file'; node: FileTreeNode; depth: number }[] = []
+  const walk = (nodes: FileTreeNode[], depth: number) => {
+    for (const n of nodes) {
+      if (n.dir) {
+        rows.push({ type: 'dir', node: n, depth })
+        if (expandedDirs.value.has(n.key)) walk(n.children!, depth + 1)
+      } else {
+        rows.push({ type: 'file', node: n, depth })
+      }
+    }
+  }
+  walk(fileTree.value, 0)
+  return rows
+})
+
+function toggleDir(key: string): void {
+  const next = new Set(expandedDirs.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  expandedDirs.value = next
+}
+
+// ── diff 概览条(VSCode 式 ruler):变动块按行号比例分布,点击/拖动跳转 ──
+const diffScrollRef = ref<HTMLElement | null>(null)
+const rulerRef = ref<HTMLElement | null>(null)
+
+// ── 语法高亮:diff 行 / 源码行均整段高亮后按行拆(保跨行语法),挂 hljs-dark 主题 ──
+const highlightedDiffHtml = computed<string[]>(() => {
+  const lines = unifiedDiffLines.value
+  if (!lines.length || !store.selectedFile) return []
+  return highlightLines(lines.map(l => l.content), store.selectedFile)
+})
+const highlightedSourceHtml = computed<string[]>(() => {
+  if (!store.fileSource || !store.selectedFile) return []
+  return highlightLines(store.fileSource.split('\n'), store.selectedFile)
+})
+
+const diffBlocks = computed(() => {
+  const lines = unifiedDiffLines.value
+  const total = lines.length
+  if (!total) return []
+  const blocks: { top: number; height: number; type: 'addition' | 'deletion' }[] = []
+  let cur: { start: number; count: number; type: 'addition' | 'deletion' } | null = null
+  const flush = () => {
+    if (cur) {
+      blocks.push({ top: cur.start / total, height: Math.max(cur.count / total, 0.006), type: cur.type })
+      cur = null
+    }
+  }
+  lines.forEach((l, i) => {
+    if (l.type === 'context') { flush(); return }
+    if (cur && cur.type === l.type) cur.count++
+    else { flush(); cur = { start: i, count: 1, type: l.type as 'addition' | 'deletion' } }
+  })
+  flush()
+  return blocks
+})
+
+function rulerJump(e: MouseEvent): void {
+  const ruler = rulerRef.value, sc = diffScrollRef.value
+  if (!ruler || !sc) return
+  const rect = ruler.getBoundingClientRect()
+  const ratio = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+  sc.scrollTop = ratio * sc.scrollHeight - sc.clientHeight / 2
+}
+
+function onRulerDown(e: MouseEvent): void {
+  rulerJump(e)
+  const move = (ev: MouseEvent) => rulerJump(ev)
+  const up = () => {
+    window.removeEventListener('mousemove', move)
+    window.removeEventListener('mouseup', up)
+  }
+  window.addEventListener('mousemove', move)
+  window.addEventListener('mouseup', up)
 }
 
 onMounted(() => store.init())
@@ -213,19 +371,34 @@ function switchToLog() {
           >
             <div v-if="store.diffResult.error" class="error-text">{{ store.diffResult.error }}</div>
             <div v-else-if="!store.diffResult.files.length" class="clean-text">✓ Working tree clean</div>
-            <div
-              v-for="f in store.diffResult.files" :key="f.path"
-              class="file-row"
-              :class="{ selected: store.selectedFile === f.path }"
-              @click.stop="onFileClick(f.path)"
-            >
-              <span class="file-status" :style="{ color: statusColor(f.status) }">{{ statusBadge(f.status) }}</span>
-              <span class="file-name">{{ f.path }}</span>
-              <span class="file-stat">
-                <span class="add">+{{ f.additions }}</span>
-                <span class="del">−{{ f.deletions }}</span>
-              </span>
-            </div>
+            <!-- 层级树:公共前缀目录压缩成单节点,从分叉处开始显示(VSCode 式) -->
+            <template v-for="row in visibleFileRows" :key="row.node.key">
+              <div
+                v-if="row.type === 'dir'"
+                class="dir-row"
+                :style="{ paddingLeft: 8 + row.depth * 13 + 'px' }"
+                :title="row.node.fullName"
+                @click.stop="toggleDir(row.node.key)"
+              >
+                <span class="dir-arrow" :class="{ open: expandedDirs.has(row.node.key) }">▸</span>
+                <span class="dir-icon">{{ expandedDirs.has(row.node.key) ? '📂' : '📁' }}</span>
+                <span class="dir-name">{{ row.node.name }}</span>
+              </div>
+              <div
+                v-else
+                class="file-row"
+                :class="{ selected: store.selectedFile === row.node.path }"
+                :style="{ paddingLeft: 10 + row.depth * 13 + 'px' }"
+                @click.stop="onFileClick(row.node.path)"
+              >
+                <span class="file-status" :style="{ color: statusColor(row.node.file.status) }">{{ statusBadge(row.node.file.status) }}</span>
+                <span class="file-name" :title="row.node.fullName">{{ row.node.name }}</span>
+                <span class="file-stat">
+                  <span class="add">+{{ row.node.file.additions }}</span>
+                  <span class="del">−{{ row.node.file.deletions }}</span>
+                </span>
+              </div>
+            </template>
           </div>
         </div>
       </div>
@@ -356,26 +529,47 @@ function switchToLog() {
               </div>
             </div>
 
-            <!-- Diff mode：整个文件 + 高亮变动行 -->
-            <div v-if="store.viewMode === 'diff'" class="diff-scroll">
-              <div class="diff-file">
-                <div
-                  v-for="(line, li) in unifiedDiffLines" :key="li"
-                  class="diff-line"
-                  :class="'line-' + line.type"
-                >
-                  <span class="line-num old-num">{{ line.oldLine ?? '' }}</span>
-                  <span class="line-num new-num">{{ line.newLine ?? '' }}</span>
-                  <span class="line-sign">{{ line.type === 'addition' ? '+' : line.type === 'deletion' ? '−' : ' ' }}</span>
-                  <span class="line-content">{{ line.content }}</span>
+            <!-- Diff mode：整个文件 + 高亮变动行 + 右侧概览条(VSCode minimap ruler) -->
+            <div v-if="store.viewMode === 'diff'" class="diff-body">
+              <div class="diff-scroll" ref="diffScrollRef">
+                <div class="diff-file hljs-dark">
+                  <div
+                    v-for="(line, li) in unifiedDiffLines" :key="li"
+                    class="diff-line"
+                    :class="'line-' + line.type"
+                  >
+                    <span class="line-num old-num">{{ line.oldLine ?? '' }}</span>
+                    <span class="line-num new-num">{{ line.newLine ?? '' }}</span>
+                    <span class="line-sign">{{ line.type === 'addition' ? '+' : line.type === 'deletion' ? '−' : ' ' }}</span>
+                    <span class="line-content" v-html="highlightedDiffHtml[li] ?? ''" />
+                  </div>
                 </div>
+              </div>
+              <!-- 概览条:绿块=新增 红块=删除,按行号比例分布;点击/拖动跳转 -->
+              <div
+                class="diff-ruler"
+                ref="rulerRef"
+                title="diff 概览:绿=新增 红=删除,点击跳转"
+                @mousedown="onRulerDown"
+              >
+                <span
+                  v-for="(b, bi) in diffBlocks" :key="bi"
+                  class="ruler-block" :class="b.type"
+                  :style="{ top: (b.top * 100) + '%', height: (Math.max(b.height * 100, 0.6)) + '%' }"
+                />
               </div>
             </div>
 
-            <!-- Source mode -->
+            <!-- Source mode:整文件纯流式,变动行保留底色 + 语法着色 -->
             <div v-else class="source-scroll">
               <div v-if="store.sourceLoading" class="loading-text">加载中...</div>
-              <pre v-else class="source-pre"><code>{{ store.fileSource }}</code></pre>
+              <div v-else class="source-file hljs-dark">
+                <div
+                  v-for="(line, li) in unifiedDiffLines" :key="li"
+                  class="source-line"
+                  :class="{ 'src-add': line.type === 'addition', 'src-del': line.type === 'deletion' }"
+                ><span class="line-content" v-html="highlightedSourceHtml[li] ?? ''" /></div>
+              </div>
             </div>
           </template>
         </template>
@@ -479,6 +673,22 @@ function switchToLog() {
 .file-row.selected { background: rgba(34,238,102,0.08); }
 .file-status { font-weight: 700; font-size: 11px; width: 14px; flex-shrink: 0; }
 .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+/* 层级树目录行 */
+.dir-row {
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 8px; cursor: pointer; user-select: none;
+  font-size: 11px; color: var(--t2, #8b8b96);
+  border-radius: 4px;
+}
+.dir-row:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+.dir-arrow { display: inline-block; font-size: 9px; transition: transform 0.15s; flex: none; }
+.dir-arrow.open { transform: rotate(90deg); }
+.dir-icon { font-size: 11px; flex: none; }
+.dir-name { flex: 1; white-space: nowrap; }
+/* GitHub 树感:行内容不换行不截断,容器横向可滑动 */
+.file-sublist { overflow-x: auto; }
+.file-sublist .file-row, .file-sublist .dir-row { min-width: max-content; padding-right: 12px; }
+.file-sublist .file-row .file-name { white-space: nowrap; text-overflow: clip; overflow: visible; }
 .file-stat { display: flex; gap: 6px; font-size: 10px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .add { color: var(--glow); }
 .del { color: var(--danger); }
@@ -534,7 +744,17 @@ function switchToLog() {
 
 /* ── Diff area ───────────────────────────────────────── */
 .diff-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+/* diff 内容区 + 右侧概览条(横排;概览条占满视口高) */
+.diff-body { flex: 1; display: flex; min-height: 0; }
 .diff-scroll { flex: 1; overflow-y: auto; }
+.diff-ruler {
+  width: 18px; flex: none; position: relative; cursor: pointer;
+  background: rgba(255,255,255,0.03); border-left: 1px solid rgba(255,255,255,0.06);
+}
+.diff-ruler:hover { background: rgba(255,255,255,0.06); }
+.ruler-block { position: absolute; left: 2px; right: 2px; border-radius: 1px; min-height: 2px; }
+.ruler-block.addition { background: var(--glow, #22ee66); }
+.ruler-block.deletion { background: var(--danger, #f44747); }
 .diff-scroll::-webkit-scrollbar { width: 6px; }
 .diff-scroll::-webkit-scrollbar-track { background: transparent; }
 .diff-scroll::-webkit-scrollbar-thumb { background: #1a1a22; border-radius: 3px; }
@@ -620,6 +840,14 @@ function switchToLog() {
 .line-addition .line-num { background: rgba(34,238,102,0.10); }
 .line-addition .line-sign { color: var(--glow); }
 .line-addition .line-content { color: #9aefb8; }
+
+/* 源码模式:无行号/符号,仅变动行着色 */
+.source-file { font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.5; }
+.source-line { padding: 0 10px; white-space: pre-wrap; word-break: break-all; }
+.source-line.src-add { background: rgba(34,238,102,0.08); }
+.source-line.src-add .line-content { color: #9aefb8; }
+.source-line.src-del { background: rgba(244,71,71,0.10); }
+.source-line.src-del .line-content { color: #f09999; text-decoration: line-through; opacity: .75; }
 
 .line-deletion { background: rgba(244,71,71,0.08); }
 .line-deletion .line-num { background: rgba(244,71,71,0.12); }

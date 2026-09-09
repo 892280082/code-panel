@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { marked } from 'marked'
-import hljs from 'highlight.js'
+import { highlightCode } from '@/utils/highlight'
 import { useRepoBrowserStore } from '@/stores/repo-browser'
 import { copyToClipboard } from '@/utils/clipboard'
 import HistoryPanel from './HistoryPanel.vue'
@@ -10,34 +10,6 @@ const store = useRepoBrowserStore()
 
 // ── Syntax highlighting ───────────────────────────────────
 
-const extToLang: Record<string, string> = {
-  '.ts': 'typescript', '.tsx': 'typescript',
-  '.js': 'javascript', '.jsx': 'javascript', '.mjs': 'javascript', '.cjs': 'javascript',
-  '.vue': 'xml',
-  '.html': 'xml', '.htm': 'xml',
-  '.css': 'css', '.scss': 'scss', '.less': 'less',
-  '.json': 'json', '.yaml': 'yaml', '.yml': 'yaml', '.toml': 'ini',
-  '.md': 'markdown', '.mdx': 'markdown',
-  '.py': 'python', '.rb': 'ruby',
-  '.go': 'go', '.rs': 'rust',
-  '.java': 'java', '.kt': 'kotlin', '.kts': 'kotlin',
-  '.c': 'c', '.cpp': 'cpp', '.h': 'c', '.hpp': 'cpp',
-  '.sh': 'bash', '.bash': 'bash', '.zsh': 'bash',
-  '.sql': 'sql', '.xml': 'xml', '.svg': 'xml',
-  '.dockerfile': 'dockerfile', '.graphql': 'graphql', '.gql': 'graphql',
-  '.proto': 'protobuf', '.php': 'php', '.swift': 'swift', '.r': 'r',
-}
-
-function highlightCode(code: string, path: string): string {
-  const ext = '.' + (path.split('.').pop() || '')
-  const lang = extToLang[ext] || 'plaintext'
-  try {
-    const result = hljs.highlight(code, { language: lang })
-    return result.value
-  } catch {
-    return hljs.highlightAuto(code).value
-  }
-}
 
 // ── Markdown render ─────────────────────────────────────
 
