@@ -219,13 +219,14 @@ export function clearFileState(fp: string): void {
   delete fileState[fp];
 }
 
-/** 单项目日志列表(按活跃度排序,供 GET /api/logs?project 使用) */
-export function getLogsSorted(project: ProjectRow): Array<{
+/** 单项目日志列表(保持 apps.yaml 里 platforms/服务的书写顺序,供 GET /api/logs?project 使用) */
+export function getLogs(project: ProjectRow): Array<{
   name: string; file: string; port?: number; start?: string; stop?: string;
   platform: string; side?: string;
   exists: boolean; size: number; active: boolean; alive: boolean;
 }> {
   const now = Date.now();
+  // ⚠️ 不排序:Apps 页平台卡片顺序 = apps.yaml 书写顺序(2026-09-08 定;按名称排序会把 AI/主平台顺序打乱)
   return logsFlatEntries(project).map(e => {
     let exists = false, size = 0;
     try { const st = fs.statSync(e.file); exists = true; size = st.size; } catch { /* */ }
@@ -233,7 +234,7 @@ export function getLogsSorted(project: ProjectRow): Array<{
     const active = (now - (st ? st.lastActive : 0)) < ACTIVE_THRESHOLD;
     const alive = e.port ? getPortStatus(e.port) : false;
     return { name: e.name, file: e.file, port: e.port, start: e.start, stop: e.stop, platform: e.platform, side: e.side, exists, size, active, alive };
-  }).sort((a, b) => a.name.localeCompare(b.name));
+  });
 }
 
 // ── SSE 连接管理 ─────────────────────────────────────────

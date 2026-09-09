@@ -312,6 +312,38 @@ groups:
 
 > 每份 yaml 顶部注释 = 完整字段说明 + 示例(去掉注释即生效)。程序化写全量时才用 `PUT /api/projects/:id/yaml/:module`。
 
+### ⚠️ apps.yaml 的 start/stop 脚本必须自己保活(AI 写配置前必读,2026-09-08 实案)
+
+点「启动」= 面板在**一次性终端**(ttyd oneshot,keepShell=false)里执行 start 命令:大窗 2s 收起、20s 自动关闭回收。会话关闭时 SIGHUP 会把脚本里刚 fork 的服务进程**连带杀掉**——现象是「点了启动,日志只有一行分隔线,服务秒死、端口永远起不来」。所以 **start 引用的 sh 必须自己保活**,三个要素缺一不可:
+
+1. **脚本顶部 `trap '' HUP`** —— 整个 shell 及子进程免疫会话关闭信号(方舟/demo-v2 2026-08-11 教训;proj-v3 平移时漏了这行,排查半天)
+2. **daemonize 启动服务**(python 单 fork + setsid + execvp,脱离终端会话),不能裸 `cmd &`
+3. **日志重定向到文件**(相对项目根,如 `.logs/xxx.log`),与 apps.yaml 的 `file` 一致
+
+标准写法(参考任意已跑通项目的 `fast-start/scripts/lib.sh`):
+
+```bash
+# lib.sh
+trap '' HUP                       # ⭐ 必须有:忽略 SIGHUP,否则 oneshot 会话关闭服务秒死
+daemonize() {
+    python3 -c '
+import os, sys
+if os.fork() != 0: os._exit(0)
+os.setsid()
+os.execvp(sys.argv[1], sys.argv[1:])
+' "$@"
+}
+start_xxx() {
+    kill_port <port>
+    cd "$ROOT/<dir>" || return 1
+    echo "--- xxx (<port>) ---" >> "$ROOT/.logs/xxx.log"
+    daemonize <启动命令> >> "$ROOT/.logs/xxx.log" 2>&1 &
+}
+```
+
+**验收标准**:面板点启动 → 不碰大窗让它收起/回收 → 服务端口仍存活(Apps 圆点变绿)、日志文件持续滚动。
+另:排查 ttyd 链路时,**必须带 WebSocket 客户端连接**——ttyd 是每个客户端连接时才执行一次命令,裸起 ttyd 模拟面板会得到「命令从未执行」的假象,极易误判成信号问题。
+
 ---
 
 ## ⚠️ AI 绝对行为规范(严格遵守)

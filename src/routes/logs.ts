@@ -3,7 +3,7 @@
 import { Router, Request, Response } from 'express';
 import fs from 'fs';
 import type { ProjectRow } from '../db/global-store';
-import { addClient, removeClient, getLogsSorted, readFileContent, clearFileState } from '../log-monitor';
+import { addClient, removeClient, getLogs, readFileContent, clearFileState } from '../log-monitor';
 import { requireProject } from '../projects/context';
 import { isProjectLogFile } from '../projects/adapters';
 
@@ -27,10 +27,10 @@ router.get('/api/stream', requireProject, (req: Request, res: Response) => {
   req.on('close', () => removeClient(res));
 });
 
-// 日志列表(按名称排序,仅该项目的 logs.yaml)
+// 日志列表(保持 apps.yaml 书写顺序,仅该项目的 apps.yaml/logs.yaml)
 router.get('/api/logs', requireProject, (req: Request, res: Response) => {
   const project = reqProject(req);
-  res.json({ ok: true, data: getLogsSorted(project) });
+  res.json({ ok: true, data: getLogs(project) });
 });
 
 // 获取日志内容(file 必须是该项目的日志)
