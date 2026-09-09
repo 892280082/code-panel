@@ -99,3 +99,55 @@ export interface PortStatusMessage {
   type: 'port-status'
   ports: Record<number, boolean>
 }
+
+// ── Redis 管理 ──────────────────────────────────────────
+
+export interface RedisConnection {
+  id: string
+  name: string
+  host?: string
+  port?: number
+  password?: string
+  db?: number
+  notes?: string
+  hasPassword?: boolean
+  alive?: boolean
+  version?: string | null
+  healthError?: string | null
+}
+
+export interface RedisInfoSummary {
+  version: string
+  os: string
+  role: string
+  uptimeDays: number
+  clients: { connected: number; blocked: number; max: number }
+  memory: {
+    usedBytes: number; usedHuman: string
+    maxBytes: number; maxHuman: string
+    peakBytes: number
+    fragmentationRatio: number
+    policy: string
+  }
+  hitRate: { hits: number; misses: number; rate: number }
+  opsPerSec: number
+  evictedKeys: number
+  keyspace: { db: number; keys: number; expires: number; avgTtlMs: number }[]
+  maxDatabases: number
+  rdbLastSaveTs: number
+  aofEnabled: number
+}
+
+export interface RedisKeyMeta { key: string; type: string; ttlMs: number; sizeBytes: number | null }
+
+export interface RedisKeyDetail {
+  key: string; type: string; ttlMs: number; encoding: string; sizeBytes: number | null
+  length: number
+  value: unknown; truncated: boolean
+}
+
+export interface RedisHistoryEntry {
+  id: string; connId: string; db?: number
+  action: string; target?: string; count?: number
+  result: string; executedAt: number; via?: 'direct' | 'review'
+}

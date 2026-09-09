@@ -5,7 +5,7 @@ import crypto from 'crypto';
 import type { ProjectRow } from '../db/global-store';
 import { readRuntimeJson, writeRuntimeJson } from './project-store';
 import type {
-  SqlHistoryEntry, SqlResult, DbConnectionParams, SqlJob, SqlJobStatus,
+  SqlHistoryEntry, SqlResult, DbConnectionParams, SqlJob, SqlJobStatus, RedisJobPayload,
 } from '../types';
 
 function generateId(): string {
@@ -65,6 +65,10 @@ export interface QueueAddInput {
   dbId: string;
   title?: string;
   connection?: DbConnectionParams;
+  /** 任务类型(缺省 sql;redis = Redis 危险操作走同一审批队列) */
+  kind?: 'sql' | 'redis';
+  /** kind=redis 的执行载荷 */
+  redis?: RedisJobPayload;
 }
 
 export function queueAdd(project: ProjectRow, input: QueueAddInput): SqlJob {
@@ -76,6 +80,8 @@ export function queueAdd(project: ProjectRow, input: QueueAddInput): SqlJob {
     title: input.title,
     dbId: input.dbId,
     connection: input.connection,
+    kind: input.kind,
+    redis: input.redis,
     status: 'pending',
     submittedAt: Date.now(),
   };

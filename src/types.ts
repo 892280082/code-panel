@@ -32,6 +32,17 @@ export interface DbConnectionParams {
   path?: string;        // SQLite 文件路径
 }
 
+/** Redis 连接配置(项目 .code-panel/redis.yaml;host 支持 ${VAR:default} 插值) */
+export interface RedisConnection {
+  id: string;           // 唯一标识(如 hq / school,与 sql.yaml 平台 id 对齐)
+  name: string;         // 显示名
+  host?: string;        // 默认 127.0.0.1
+  port?: number;        // 默认 6379
+  password?: string;
+  db?: number;          // 默认聚焦的 db 号(方舟按实例分 db 50-58)
+  notes?: string;
+}
+
 /** 日志条目(来自某项目 logs.yaml,按 section 平铺) */
 export interface LogEntry {
   name: string;
@@ -60,6 +71,19 @@ export type SqlJobStatus =
   | 'executed'    // 执行成功
   | 'failed';     // 执行失败
 
+/** 审批任务类型(sql / redis 危险操作共队列) */
+export type JobKind = 'sql' | 'redis';
+
+/** Redis 审批载荷(kind=redis 时;approve 后按此执行) */
+export interface RedisJobPayload {
+  connId: string;         // redis.yaml 连接 id
+  db?: number;            // 目标 db(FLUSHDB/删 key 用)
+  action: 'flushdb' | 'flushall' | 'delete-keys';
+  keys?: string[];        // action=delete-keys 时的 key 清单(≤500)
+  match?: string;         // action=delete-keys 的模式删除(与 keys 二选一)
+  limit?: number;         // 模式删除上限(默认 2000)
+}
+
 /** SQL 执行任务 */
 export interface SqlJob {
   id: string;
@@ -69,6 +93,10 @@ export interface SqlJob {
   dbId: string;             // 目标数据库 ID（预配置的连接 ID）
   /** 内联连接参数 — 不依赖预配置，直接连接 */
   connection?: DbConnectionParams;
+  /** 任务类型(缺省 'sql' 向后兼容;redis = Redis 危险操作) */
+  kind?: JobKind;
+  /** kind=redis 时的执行载荷 */
+  redis?: RedisJobPayload;
   status: SqlJobStatus;
   submittedAt: number;      // 提交时间戳
   reviewedAt?: number;      // 审批时间戳

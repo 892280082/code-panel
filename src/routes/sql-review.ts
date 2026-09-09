@@ -3,9 +3,11 @@
 import { Router, Request, Response } from 'express';
 import type { ProjectRow } from '../db/global-store';
 import { requireProject } from '../projects/context';
-import { sqlConnection } from '../projects/adapters';
+import { sqlConnection, redisConnection } from '../projects/adapters';
 import { queueList, queueUpdate, queueGet, historyAdd } from '../projects/sql-store';
 import { executeQuery, executeQueryDirect } from '../db/connector';
+import { getRedisClient } from '../db/redis-client';
+import { collectKeysByMatch } from '../redis/redis-ops';
 import { getReviewMode, setReviewMode } from '../config-manager';
 import { REVIEW_TOKEN, checkToken } from '../auth-token';
 import type { SqlJobStatus } from '../types';
@@ -36,12 +38,32 @@ router.post('/api/sql/approve/:id', requireProject, async (req: Request, res: Re
     return res.status(403).json({ ok: false, error: 'Invalid or missing token' });
   }
   const project = reqProject(req);
-  const job = queueGet(project, req.params.id);
+  const job = queueGet(project, String(req.params.id));
   if (!job) return res.status(404).json({ ok: false, error: `Job "${req.params.id}" not found` });
   if (job.status !== 'pending') return res.status(400).json({ ok: false, error: `Job is ${job.status}, not pending` });
 
   try {
     const dbLabel = getDbLabel(project, job);
+
+    // Redis 危险操作(kind=redis):按载荷执行,复用同一审批流
+    if (job.kind === 'redis' && job.redis) {
+      const p = job.redis;
+      const conn = redisConnection(project, p.connId);
+      if (!conn) throw new Error(`Redis "${p.connId}" not found`);
+      const client = getRedisClient(project.id, conn.id, {
+        host: conn.host, port: conn.port, password: conn.password,
+        db: p.db ?? conn.db,
+      });
+      let affected = 0;
+      if (p.action === 'flushdb') await client.flushdb();
+      else if (p.action === 'flushall') await client.flushall();
+      else if (p.action === 'delete-keys') {
+        const keys = p.keys ?? (p.match ? await collectKeysByMatch(client, p.match, p.limit ?? 2000) : []);
+        affected = await client.del(...keys);
+      }
+      queueUpdate(project, job.id, { status: 'executed', reviewedAt: Date.now(), result: { rows: [], affected, summary: `${p.action} done` } as any });
+      return res.json({ ok: true, id: job.id, status: 'executed', result: { affected } });
+    }
 
     if (job.connection) {
       const result = await executeQueryDirect(job.connection, job.sql);
@@ -79,7 +101,7 @@ router.post('/api/sql/reject/:id', requireProject, (req: Request, res: Response)
     return res.status(403).json({ ok: false, error: 'Invalid or missing token' });
   }
   const project = reqProject(req);
-  const job = queueGet(project, req.params.id);
+  const job = queueGet(project, String(req.params.id));
   if (!job) return res.status(404).json({ ok: false, error: `Job "${req.params.id}" not found` });
   if (job.status !== 'pending') return res.status(400).json({ ok: false, error: `Job is ${job.status}, not pending` });
 

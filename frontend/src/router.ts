@@ -29,6 +29,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/redis',
+      name: 'redis',
+      component: () => import('@/views/RedisView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/prd',
       name: 'prd',
       component: () => import('@/views/PrdView.vue'),

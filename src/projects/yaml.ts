@@ -55,9 +55,14 @@ export interface LinksModuleYaml {
   }[];
 }
 
+/** redis.yaml:本项目「Redis 连接」(/redis 查看/清缓存;host 支持 ${VAR:default} 插值) */
+export interface RedisModuleYaml {
+  connections: import('../types').RedisConnection[];
+}
+
 export type ModuleYaml =
   | LogsModuleYaml | SqlModuleYaml | PrdModuleYaml | GitModuleYaml
-  | CommandsModuleYaml | LinksModuleYaml;
+  | CommandsModuleYaml | LinksModuleYaml | RedisModuleYaml;
 
 const EMPTY: Record<string, ModuleYaml> = {
   logs: { platforms: [] },
@@ -66,6 +71,7 @@ const EMPTY: Record<string, ModuleYaml> = {
   git: { repos: [] },
   commands: { commands: [] },
   links: { groups: [] },
+  redis: { connections: [] },
 };
 
 /** 每个模块默认 YAML 模板(注释即说明书,AI/人照着加即可;面板实时读取) */
@@ -191,9 +197,24 @@ commands: []
 #         - { name: OSS 控制台, urls: [ { url: "http://dev.example.com/resource" } ] }
 groups: []
 `,
+  redis: `# ── redis.yaml —— 本项目「Redis 连接」(面板 /redis 查看缓存/清缓存) ──────────
+# 修改即生效。host/port/password 支持 \${VAR:默认值} 环境变量占位符(跨机器切换)。
+# 字段:
+#   id        连接唯一标识(如 hq / school,与 sql.yaml 平台 id 对齐)
+#   name      显示名
+#   host/port/password  连接参数(port 默认 6379)
+#   db        默认聚焦的 db 号(可选;方舟按实例分 db 50-58)
+#   notes     备注(可选)
+#
+# 示例(去掉注释即生效):
+#   connections:
+#     - { id: hq, name: 总部缓存(db50), host: "\${CODE_PANEL_REDIS_HOST:127.0.0.1}",
+#         port: 6379, password: "your-redis-password", db: 50, notes: 平台 hq }
+connections: []
+`,
 };
 
-export type ModuleName = 'logs' | 'sql' | 'prd' | 'git' | 'commands' | 'links';
+export type ModuleName = 'logs' | 'sql' | 'prd' | 'git' | 'commands' | 'links' | 'redis';
 
 /** 读模块 YAML(缺失/损坏→默认空结构) */
 export function loadModuleYaml<T extends ModuleYaml>(file: string, module: ModuleName): T {

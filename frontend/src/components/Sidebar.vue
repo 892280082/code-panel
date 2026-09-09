@@ -15,9 +15,10 @@ const showCfg = ref(false)
 
 const tabs = [
   { path: '/log', label: 'Apps' },
-  { path: '/sql', label: 'SQL' },
   { path: '/prd', label: 'PRD' },
   { path: '/git', label: 'Git' },
+  { path: '/sql', label: 'SQL' },
+  { path: '/redis', label: 'Redis' },
 ]
 
 onMounted(() => {
@@ -38,7 +39,7 @@ onMounted(() => {
         <span v-else class="proj-empty">未选择项目 · ⚙ 添加/切换</span>
       </div>
       <div class="title-row">
-        <h2>▸ {{ route.path === '/sql' ? 'SQL Review' : route.path === '/prd' ? 'PRD Docs' : route.path === '/git' ? 'Git Diff' : 'Apps' }}</h2>
+        <h2>▸ {{ route.path === '/sql' ? 'SQL Review' : route.path === '/redis' ? 'Redis' : route.path === '/prd' ? 'PRD Docs' : route.path === '/git' ? 'Git Diff' : 'Apps' }}</h2>
         <button class="gear" title="配置(项目/账号)" @click="showCfg = true">⚙</button>
       </div>
       <div class="sidebar-nav">

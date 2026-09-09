@@ -121,6 +121,12 @@ function polylinePoints(history: number[]): string {
 }
 
 // Inline circle metrics
+const diskFreeGB = computed(() => {
+  if (!data.value) return '—'
+  const free = parseFloat(data.value.disk.totalGB) - parseFloat(data.value.disk.usedGB)
+  return free.toFixed(1)
+})
+
 const circleMetrics = computed(() => {
   if (!data.value) return []
   return [
@@ -200,6 +206,19 @@ const { zIndex, onRaise } = useOverlayLayer(() => showModal.value)
               />
             </svg>
             <div v-else class="sysmon-chart-empty">等待数据...</div>
+          </div>
+
+          <!-- DISK section -->
+          <div class="sysmon-section">
+            <div class="sysmon-section-title">
+              <span class="sysmon-indicator" style="background:#22ee66"></span>
+              磁盘
+              <span v-if="data" class="sysmon-section-val">{{ data.disk.percent }}%</span>
+              <span v-if="data" class="sysmon-section-sub">剩余 {{ diskFreeGB }}/{{ data.disk.totalGB }} GB · {{ data.disk.mount }}</span>
+            </div>
+            <div class="sysmon-diskbar">
+              <div class="sysmon-diskbar-fill" :style="{ width: (data?.disk.percent ?? 0) + '%', background: circleColor(data?.disk.percent ?? 0, '#22ee66') }" />
+            </div>
           </div>
 
           <!-- Process table -->
@@ -385,6 +404,8 @@ const { zIndex, onRaise } = useOverlayLayer(() => showModal.value)
   overflow: hidden;
 }
 
+.sysmon-diskbar { height: 10px; border-radius: 5px; background: rgba(255,255,255,0.06); overflow: hidden; }
+.sysmon-diskbar-fill { height: 100%; border-radius: 5px; transition: width 0.8s ease, background 0.4s ease; }
 .sysmon-chart-empty {
   font-size: 9px;
   color: var(--text-dim);

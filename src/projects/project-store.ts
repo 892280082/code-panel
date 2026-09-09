@@ -103,7 +103,7 @@ export function ensureProjectSkeleton(project: ProjectRow): void {
   const readme = path.join(dir, 'README.md');
   if (!fs.existsSync(readme)) fs.writeFileSync(readme, README_TEMPLATE, 'utf8');
 
-  for (const m of ['logs', 'sql', 'prd', 'git', 'commands', 'links'] as ModuleName[]) {
+  for (const m of ['logs', 'sql', 'prd', 'git', 'commands', 'links', 'redis'] as ModuleName[]) {
     // logs 已写 apps.yaml(新)或还留着旧 logs.yaml(兼容)时,不再生成空 apps.yaml
     if (m === 'logs') {
       const apps = projectModuleYamlFile(project.root, 'logs');

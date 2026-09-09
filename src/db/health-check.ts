@@ -3,8 +3,9 @@
 
 import { allProjects } from '../projects/project-store';
 import type { ProjectRow } from './global-store';
-import { sqlConnections } from '../projects/adapters';
+import { sqlConnections, redisConnections } from '../projects/adapters';
 import { testConnection } from './connector';
+import { pingVersion } from '../redis/redis-ops';
 
 const CHECK_INTERVAL = 60_000; // 1 分钟
 
@@ -59,25 +60,46 @@ function pruneStale(): void {
   const active = new Set<string>();
   for (const p of allProjects()) {
     for (const c of sqlConnections(p)) active.add(healthKey(p.id, c.id));
+    for (const c of redisConnections(p)) active.add(healthKey(p.id, c.id));
   }
   for (const key of statusCache.keys()) {
     if (!active.has(key)) statusCache.delete(key);
   }
 }
 
-/** 全量检查:所有已注册项目 */
+/** 全量检查:所有已注册项目(sql + redis) */
 export async function checkAllDatabases(): Promise<void> {
   const list: { projectId: string; conn: Parameters<typeof testConnection>[0] }[] = [];
+  const redisList: { projectId: string; conn: Parameters<typeof pingVersion>[0] & { id: string } }[] = [];
   for (const p of allProjects()) {
     for (const c of sqlConnections(p)) list.push({ projectId: p.id, conn: c });
+    for (const c of redisConnections(p)) redisList.push({ projectId: p.id, conn: c });
   }
   await checkConnections(list);
+  await checkRedisConnections(redisList);
   pruneStale();
 }
 
 /** 只检测单个项目(手动刷新 /api/db/refresh?project) */
 export async function checkProjectDatabases(project: ProjectRow): Promise<void> {
-  await checkConnections(sqlConnections(project).map(c => ({ projectId: project.id, conn: c })));
+  const list = sqlConnections(project).map(c => ({ projectId: project.id, conn: c }));
+  const redisList = redisConnections(project).map(c => ({ projectId: project.id, conn: c }));
+  await checkConnections(list);
+  await checkRedisConnections(redisList);
+}
+
+/** Redis 探活:PING + INFO server 版本(缓存 key 与 sql 同空间) */
+async function checkRedisConnections(list: { projectId: string; conn: Parameters<typeof pingVersion>[0] & { id: string } }[]): Promise<void> {
+  const now = Date.now();
+  const results = await Promise.allSettled(
+    list.map(async ({ projectId, conn }) => ({ key: healthKey(projectId, conn.id), r: await pingVersion(conn) })),
+  );
+  for (const r of results) {
+    if (r.status === 'fulfilled') {
+      const { key, r: v } = r.value;
+      statusCache.set(key, { alive: v.ok, error: v.error, serverVersion: v.version, lastCheck: now });
+    }
+  }
 }
 
 /** 启动定时健康检查 */

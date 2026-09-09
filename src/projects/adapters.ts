@@ -3,17 +3,17 @@
 //   logs.yaml 的 sections 需要平铺读取;prd 完成状态走 data/prd-status.json。
 
 import type { ProjectRow } from '../db/global-store';
-import type { DbConnection } from '../types';
+import type { DbConnection, RedisConnection } from '../types';
 import type {
   ModuleName, SqlModuleYaml, GitModuleYaml, LogsModuleYaml, PrdModuleYaml,
 } from './yaml';
 import { loadProjectModule, saveProjectModule, readRuntimeJson, writeRuntimeJson } from './project-store';
 import { projectEnvVars, interpolateEnvVars } from '../env/env-store';
 
-// 模块 yaml 的顶层数组字段名(sql→connections, git→repos)
-const ARRAY_KEY: Partial<Record<ModuleName, string>> = { sql: 'connections', git: 'repos' };
+// 模块 yaml 的顶层数组字段名(sql→connections, git→repos, redis→connections)
+const ARRAY_KEY: Partial<Record<ModuleName, string>> = { sql: 'connections', git: 'repos', redis: 'connections' };
 
-type ArrayModule = 'sql' | 'git';
+type ArrayModule = 'sql' | 'git' | 'redis';
 
 /** 读取模块顶层数组(sql/git) */
 export function listModuleItems<T>(project: ProjectRow, module: ArrayModule): T[] {
@@ -80,6 +80,21 @@ export function sqlConnection(project: ProjectRow, id: string): DbConnection | u
 /** sql.yaml:按 id 取原始连接(未插值;PUT 合并等写路径用,防占位符固化进 yaml) */
 export function sqlConnectionRaw(project: ProjectRow, id: string): DbConnection | undefined {
   return listModuleItems<DbConnection>(project, 'sql').find(c => c.id === id);
+}
+
+// ── redis.yaml(连接读取;插值/raw 语义与 sql 一致) ──
+
+export function redisConnections(project: ProjectRow): RedisConnection[] {
+  const raw = listModuleItems<RedisConnection>(project, 'redis');
+  return interpolateEnvVars(raw, projectEnvVars(project)) as RedisConnection[];
+}
+
+export function redisConnection(project: ProjectRow, id: string): RedisConnection | undefined {
+  return redisConnections(project).find(c => c.id === id);
+}
+
+export function redisConnectionRaw(project: ProjectRow, id: string): RedisConnection | undefined {
+  return listModuleItems<RedisConnection>(project, 'redis').find(c => c.id === id);
 }
 
 /** git.yaml:本项目仓库列表 */

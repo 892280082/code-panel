@@ -8,6 +8,8 @@ import fs from 'fs';
 import logsRouter from './routes/logs';
 import configRouter from './routes/config';
 import databasesRouter from './routes/databases';
+import redisRouter from './routes/redis';
+import { closeAllRedis } from './db/redis-client';
 import sqlExecRouter from './routes/sql-exec';
 import sqlReviewRouter from './routes/sql-review';
 import sqlHistoryRouter from './routes/sql-history';
@@ -62,6 +64,7 @@ app.use(terminalProxyMiddleware);
 app.use(logsRouter);
 app.use(configRouter);
 app.use(databasesRouter);
+app.use(redisRouter);
 app.use(sqlExecRouter);
 app.use(sqlReviewRouter);
 app.use(sqlHistoryRouter);
@@ -133,6 +136,7 @@ async function start() {
 
   // graceful shutdown
   const shutdown = () => {
+    closeAllRedis(); // 关闭 Redis 客户端连接
     stopTTYD();
     killAllTmuxAttachSync(); // 只断 ttyd 接入,tmux session 保持常驻
     server.close();
