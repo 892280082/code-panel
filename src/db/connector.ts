@@ -3,7 +3,7 @@
 //   配置来自 <项目根>/.code-panel/sql.yaml;内联直连(test/executeQueryDirect)不缓存。
 
 import mysql from 'mysql2/promise';
-import initSqlJs, { Database as SqlJsDb } from 'sql.js';
+import initSqlJs, { Database as SqlJsDb, type SqlJsStatic } from 'sql.js';
 import fs from 'fs';
 import path from 'path';
 import type { DbConnection, DbConnectionParams, SqlResult } from '../types';
@@ -23,9 +23,9 @@ function connKey(projectId: string, dbId: string): string {
 // ── SQLite 连接缓存 ─────────────────────────────────────
 
 const sqliteDbs: Map<string, SqlJsDb> = new Map();
-let sqlJsModule: initSqlJs.SqlJsStatic | null = null;
+let sqlJsModule: SqlJsStatic | null = null;
 
-async function getSqlJs(): Promise<initSqlJs.SqlJsStatic> {
+async function getSqlJs(): Promise<SqlJsStatic> {
   if (!sqlJsModule) sqlJsModule = await initSqlJs();
   return sqlJsModule;
 }

@@ -150,7 +150,7 @@ export function mountTerminalProxy(httpServer: Server): void {
       return;
     }
 
-    const port = resolvePort(req.url);
+    const port = resolvePort(req.url ?? '');
     socket.on('error', () => { socket.destroy(); });
 
     // ★ JWT 验证(WS 升级不走 express 中间件,必须在这里手动把关)
@@ -160,7 +160,7 @@ export function mountTerminalProxy(httpServer: Server): void {
       return;
     }
 
-    const targetPath = extractTargetPath(req.url);
+    const targetPath = extractTargetPath(req.url ?? '');
     const proxyReq = http.request({
       hostname: PROXY_HOST,
       port,
@@ -202,7 +202,7 @@ export function terminalProxyMiddleware(
   if (!path.startsWith('/api/terminal')) return next();
   if (req.method === 'OPTIONS') return next();
 
-  const port = resolvePort(req.url);
+  const port = resolvePort(req.url ?? '');
 
   // ★ JWT 验证(HTTP 通道;同源子资源可用 cp_auth cookie)
   const auth = checkAuth(req, port);
@@ -211,7 +211,7 @@ export function terminalProxyMiddleware(
     return;
   }
 
-  const targetPath = extractTargetPath(req.url);
+  const targetPath = extractTargetPath(req.url ?? '');
   const proxyReq = http.request({
     hostname: PROXY_HOST,
     port,

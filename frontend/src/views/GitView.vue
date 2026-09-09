@@ -23,6 +23,7 @@ const { showCopy, copyLeft, copyTop, doCopy } = useCopySelection(currentFilePath
 
 // ── Keyboard navigation ──────────────────────────────────
 const fileListRef = ref<HTMLElement | null>(null)
+const diffScrollRef = ref<HTMLElement | null>(null)   // 概览条跳转的滚动容器
 const currentFileList = computed(() => store.diffResult?.files ?? [])
 
 // ── 变动模式:整个文件 + 高亮变动行(解析/合并统一在 utils/diff)──
@@ -30,7 +31,7 @@ const unifiedDiffLines = computed<UnifiedLine[]>(() => {
   const f = store.diffResult?.files.find(x => x.path === store.selectedFile)
   if (!f) return []
   // 源码未加载(删除的文件/加载失败)→ 退化为纯 hunk 片段
-  if (!store.fileSource) return f.hunks
+  if (!store.fileSource) return f.hunks.flatMap(h => h.lines)   // 退化为纯 hunk 片段(删除文件等)
   return mergeToUnified(store.fileSource.split('\n'), f.hunks)
 })
 
@@ -100,12 +101,12 @@ function dotStatus(s: any) {
   return 'missing'  // yellow = has changes
 }
 
-function statusBadge(status: string): string {
-  return { added: '+', modified: '~', deleted: '−', renamed: '→' }[status] || '?'
+function statusBadge(status?: string): string {
+  return ({ added: '+', modified: '~', deleted: '−', renamed: '→' } as Record<string, string>)[status ?? ''] || '?'
 }
 
-function statusColor(status: string): string {
-  return { added: 'var(--glow)', modified: 'var(--warn)', deleted: 'var(--danger)', renamed: 'var(--info)' }[status] || 'var(--text-dim)'
+function statusColor(status?: string): string {
+  return ({ added: 'var(--glow)', modified: 'var(--warn)', deleted: 'var(--danger)', renamed: 'var(--info)' } as Record<string, string>)[status ?? ''] || 'var(--text-dim)'
 }
 
 function toggleViewMode(filePath: string) {

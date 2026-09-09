@@ -7,8 +7,8 @@
 //   attach 只返回端口,token 由前端自己拼(与其他终端一致)。
 
 import { Router, Request, Response } from 'express';
-import type { ProjectRow } from '../db/global-store';
-import { requireProject } from '../projects/context';
+import { requireProject, reqProject } from '../projects/context';
+import { route } from '../utils/route-utils';
 import {
   listTmuxSessions, createTmuxSession, startTmuxAttach,
   stopTmuxAttach, killTmuxSession, resolveTmuxName,
@@ -16,13 +16,9 @@ import {
 
 const router = Router();
 
-function reqProject(req: Request): ProjectRow {
-  return (req as Request & { project: ProjectRow }).project;
-}
-
 // GET /api/terminal/tmux/list?project=<id> — 列出 tmux 会话(含备注)
 //   带 project 时按项目过滤;不带则返回宿主全部(每项带 project 字段,前端自行过滤)
-router.get('/api/terminal/tmux/list', async (req: Request, res: Response) => {
+router.get('/api/terminal/tmux/list', route(async (req: Request, res: Response) => {
   try {
     const sessions = await listTmuxSessions();
     const projectId = typeof req.query.project === 'string' ? req.query.project.trim() : '';
@@ -34,11 +30,11 @@ router.get('/api/terminal/tmux/list', async (req: Request, res: Response) => {
     // tmux 未安装或无会话 → 空列表
     res.json({ ok: true, data: [] });
   }
-});
+}));
 
 // POST /api/terminal/tmux/create — 创建 detached tmux 会话
 // body: { project, name, description? }
-router.post('/api/terminal/tmux/create', requireProject, async (req: Request, res: Response) => {
+router.post('/api/terminal/tmux/create', requireProject, route(async (req: Request, res: Response) => {
   const project = reqProject(req);
   const { name, description } = (req.body ?? {}) as { name?: unknown; description?: unknown };
   if (typeof name !== 'string' || !name.trim()) {
@@ -57,11 +53,11 @@ router.post('/api/terminal/tmux/create', requireProject, async (req: Request, re
     const msg = err instanceof Error ? err.message : String(err);
     res.status(400).json({ ok: false, error: msg });
   }
-});
+}));
 
 // POST /api/terminal/tmux/attach — 为已有 tmux session 启动 ttyd,返回端口
 // body: { project, name }  (name 可为展示名或物理名 p_<project>_<name>)
-router.post('/api/terminal/tmux/attach', requireProject, async (req: Request, res: Response) => {
+router.post('/api/terminal/tmux/attach', requireProject, route(async (req: Request, res: Response) => {
   const project = reqProject(req);
   const { name } = (req.body ?? {}) as { name?: unknown };
   if (typeof name !== 'string' || !name.trim()) {
@@ -77,24 +73,24 @@ router.post('/api/terminal/tmux/attach', requireProject, async (req: Request, re
     const msg = err instanceof Error ? err.message : String(err);
     res.status(500).json({ ok: false, error: msg });
   }
-});
+}));
 
 // DELETE /api/terminal/tmux-sessions/:port — 断开 ttyd 接入(不杀 tmux 会话)
-router.delete('/api/terminal/tmux-sessions/:port', async (req: Request, res: Response) => {
-  const port = parseInt(req.params.port, 10);
+router.delete('/api/terminal/tmux-sessions/:port', route(async (req: Request, res: Response) => {
+  const port = parseInt(String(req.params.port), 10);
   if (isNaN(port)) {
     res.status(400).json({ ok: false, error: '无效端口' });
     return;
   }
   await stopTmuxAttach(port);
   res.json({ ok: true });
-});
+}));
 
 // DELETE /api/terminal/tmux/:name?project=<id> — 彻底删除 tmux 会话
 //   (断开该会话所有 ttyd 接入 + kill tmux session + 清备注)
-router.delete('/api/terminal/tmux/:name', requireProject, async (req: Request, res: Response) => {
+router.delete('/api/terminal/tmux/:name', requireProject, route(async (req: Request, res: Response) => {
   const project = reqProject(req);
-  const { name } = req.params;
+  const name = String(req.params.name);
   try {
     await killTmuxSession(project, name);
     res.json({ ok: true });
@@ -102,6 +98,6 @@ router.delete('/api/terminal/tmux/:name', requireProject, async (req: Request, r
     const msg = err instanceof Error ? err.message : String(err);
     res.status(500).json({ ok: false, error: msg });
   }
-});
+}));
 
 export default router;

@@ -46,3 +46,8 @@ export function requireProject(req: Request, res: Response, next: NextFunction):
   (req as Request & { project: ProjectRow }).project = project;
   next();
 }
+
+/** 取 requireProject 挂到 req 上的当前项目(路由内使用;此前 16 个路由文件各自复制此函数) */
+export function reqProject(req: Request): ProjectRow {
+  return (req as Request & { project: ProjectRow }).project;
+}

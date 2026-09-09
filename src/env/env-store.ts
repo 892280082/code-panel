@@ -261,11 +261,11 @@ export function ensureEnv(project: ProjectRow): { changed: boolean; current: Env
   const groups = loadEnvGroups(project.root);
   const sel = getProjectEnvSelection(project.id);
   const selGroup = sel ? groupById(groups, sel.groupId) : undefined;
-  if (selGroup) {
+  if (sel && selGroup) {
     materialize(project, selGroup);
     return {
       changed: false,
-      current: { groupId: selGroup.id, name: selGroup.name || selGroup.id, source: sel.source, vars: selGroup.vars },
+      current: { groupId: selGroup.id, name: selGroup.name || selGroup.id, source: sel.source, vars: selGroup.vars ?? {} },
     };
   }
   const def = defaultGroup(groups);

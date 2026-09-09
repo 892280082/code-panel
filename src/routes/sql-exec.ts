@@ -2,18 +2,15 @@
 
 import { Router, Request, Response } from 'express';
 import type { ProjectRow } from '../db/global-store';
-import { requireProject } from '../projects/context';
+import { requireProject, reqProject } from '../projects/context';
 import { sqlConnection } from '../projects/adapters';
 import { historyAdd, queueAdd, queueGet, queueUpdate } from '../projects/sql-store';
 import { executeQuery, executeQueryDirect, isReadOnly } from '../db/connector';
 import { getReviewMode } from '../config-manager';
 import type { SubmitSqlBody, QuerySqlBody } from '../types';
+import { route } from '../utils/route-utils';
 
 const router = Router();
-
-function reqProject(req: Request): ProjectRow {
-  return (req as Request & { project: ProjectRow }).project;
-}
 
 /** 获取数据库显示标签(项目内查 sql.yaml) */
 function getDbLabel(project: ProjectRow, dbId: string): string {
@@ -21,7 +18,7 @@ function getDbLabel(project: ProjectRow, dbId: string): string {
 }
 
 // 直接查询（SELECT 类）
-router.post('/api/sql/query', requireProject, async (req: Request, res: Response) => {
+router.post('/api/sql/query', requireProject, route(async (req: Request, res: Response) => {
   try {
     const project = reqProject(req);
     const { sql, dbId, title, connection } = (req.body ?? {}) as QuerySqlBody;
@@ -60,10 +57,10 @@ router.post('/api/sql/query', requireProject, async (req: Request, res: Response
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ ok: false, error: msg });
   }
-});
+}));
 
 // 提交写操作
-router.post('/api/sql/submit', requireProject, async (req: Request, res: Response) => {
+router.post('/api/sql/submit', requireProject, route(async (req: Request, res: Response) => {
   try {
     const project = reqProject(req);
     const { sql, reason, title, dbId, connection } = (req.body ?? {}) as SubmitSqlBody;
@@ -120,17 +117,17 @@ router.post('/api/sql/submit', requireProject, async (req: Request, res: Respons
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ ok: false, error: msg });
   }
-});
+}));
 
 // 轮询任务状态(项目内队列查)
-router.get('/api/sql/status/:id', requireProject, (req: Request, res: Response) => {
+router.get('/api/sql/status/:id', requireProject, route((req: Request, res: Response) => {
   const project = reqProject(req);
-  const job = queueGet(project, req.params.id);
+  const job = queueGet(project, String(req.params.id));
   if (!job) {
     return res.status(404).json({ ok: false, error: `Job "${req.params.id}" not found` });
   }
   const { result, error, status, sql, reason, dbId, submittedAt, reviewedAt, rejectReason } = job;
   res.json({ id: job.id, status, sql, reason, dbId, submittedAt, reviewedAt, rejectReason, result, error });
-});
+}));
 
 export default router;

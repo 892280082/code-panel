@@ -24,7 +24,7 @@ function loadQueue(): SqlJob[] {
   } catch {
     cache = [];
   }
-  return cache;
+  return cache ?? [];
 }
 
 function saveQueue(): void {

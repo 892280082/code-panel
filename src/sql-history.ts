@@ -16,7 +16,7 @@ function loadHistory(): SqlHistoryEntry[] {
   } catch {
     cache = [];
   }
-  return cache;
+  return cache ?? [];
 }
 
 function saveHistory(): void {

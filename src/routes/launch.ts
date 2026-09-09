@@ -1,15 +1,11 @@
 // ── Launch routes: 快捷启动链接 CRUD(随项目) ────────────────────
 
 import { Router, Request, Response } from 'express';
-import type { ProjectRow } from '../db/global-store';
-import { requireProject } from '../projects/context';
+import { requireProject, reqProject } from '../projects/context';
 import { getAllLinks, addLink, deleteLink, updateLink, reorderLinks } from '../launch/launch-store';
+import { route } from '../utils/route-utils';
 
 const router = Router();
-
-function reqProject(req: Request): ProjectRow {
-  return (req as Request & { project: ProjectRow }).project;
-}
 
 /** 补全链接协议:无 scheme 时默认 https,以 / 开头的相对路径原样保留 */
 function normalizeUrl(url: string): string {
@@ -20,14 +16,14 @@ function normalizeUrl(url: string): string {
 }
 
 // GET /api/launch/links?project=xxx — 查询该项目的快捷启动链接
-router.get('/api/launch/links', requireProject, (req: Request, res: Response) => {
+router.get('/api/launch/links', requireProject, route((req: Request, res: Response) => {
   const project = reqProject(req);
   const links = getAllLinks(project);
   res.json({ ok: true, data: links });
-});
+}));
 
 // POST /api/launch/links — 新增快捷启动链接
-router.post('/api/launch/links', requireProject, (req: Request, res: Response) => {
+router.post('/api/launch/links', requireProject, route((req: Request, res: Response) => {
   const project = reqProject(req);
   const { label, url, tag } = req.body;
 
@@ -47,10 +43,10 @@ router.post('/api/launch/links', requireProject, (req: Request, res: Response) =
   const entry = addLink(project, label.trim(), normalizeUrl(url), tag && typeof tag === 'string' ? tag.trim() : undefined);
 
   res.status(201).json({ ok: true, data: entry });
-});
+}));
 
 // PUT /api/launch/links/reorder — 重排该项目快捷启动链接
-router.put('/api/launch/links/reorder', requireProject, (req: Request, res: Response) => {
+router.put('/api/launch/links/reorder', requireProject, route((req: Request, res: Response) => {
   const project = reqProject(req);
   const { ids } = req.body;
   if (!Array.isArray(ids) || ids.some((id: any) => typeof id !== 'string')) {
@@ -59,12 +55,12 @@ router.put('/api/launch/links/reorder', requireProject, (req: Request, res: Resp
   }
   reorderLinks(project, ids);
   res.json({ ok: true });
-});
+}));
 
 // PUT /api/launch/links/:id — 编辑快捷启动链接
-router.put('/api/launch/links/:id', requireProject, (req: Request, res: Response) => {
+router.put('/api/launch/links/:id', requireProject, route((req: Request, res: Response) => {
   const project = reqProject(req);
-  const { id } = req.params;
+  const id = String(req.params.id);
   const { label, url, tag } = req.body;
 
   if (label !== undefined && (typeof label !== 'string' || !label.trim() || label.trim().length > 100)) {
@@ -90,18 +86,18 @@ router.put('/api/launch/links/:id', requireProject, (req: Request, res: Response
     return;
   }
   res.json({ ok: true, data: updated });
-});
+}));
 
 // DELETE /api/launch/links/:id — 删除快捷启动链接
-router.delete('/api/launch/links/:id', requireProject, (req: Request, res: Response) => {
+router.delete('/api/launch/links/:id', requireProject, route((req: Request, res: Response) => {
   const project = reqProject(req);
-  const { id } = req.params;
+  const id = String(req.params.id);
   const deleted = deleteLink(project, id);
   if (!deleted) {
     res.status(404).json({ ok: false, error: 'link not found' });
     return;
   }
   res.json({ ok: true });
-});
+}));
 
 export default router;

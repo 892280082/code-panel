@@ -79,6 +79,9 @@ function fmtValue(v: unknown): string {
   try { return JSON.stringify(v, null, 2) } catch { return String(v) }
 }
 
+/** 模板里的确认弹窗(裸 confirm() 在 vue-tsc 模板作用域解析不到,包一层) */
+const ask = (msg: string): boolean => window.confirm(msg)
+
 const histActionLabel: Record<string, string> = {
   ttl: '改TTL', 'delete-key': '删key', 'delete-keys': '批量删', flushdb: 'FLUSHDB', flushall: 'FLUSHALL',
 }
@@ -172,7 +175,7 @@ const histActionLabel: Record<string, string> = {
             <span class="h-type"><i class="badge">{{ typeBadge(k.type) }}</i>{{ k.type }}</span>
             <span class="h-ttl">{{ fmtTtl(k.ttlMs) }}</span>
             <span class="h-size">{{ fmtSize(k.sizeBytes) }}</span>
-            <button class="row-del" title="删除" @click.stop="confirm(`删除 ${k.key}?`) && store.deleteKey(k.key)">✕</button>
+            <button class="row-del" title="删除" @click.stop="ask(`删除 ${k.key}?`) && store.deleteKey(k.key)">✕</button>
           </div>
           <div class="keys-foot">
             <span class="muted">cursor={{ store.nextCursor }}</span>
@@ -195,7 +198,7 @@ const histActionLabel: Record<string, string> = {
               <input v-model="ttlInput" class="match-input" placeholder="TTL 秒数" @keydown.enter="applyTtl">
               <label class="muted"><input v-model="ttlPermanent" type="checkbox"> 永久</label>
               <button class="mini-btn" @click="applyTtl">应用 TTL</button>
-              <button class="mini-btn danger" @click="confirm(`删除 ${store.detail.key}?`) && store.deleteKey(store.detail.key)">删除</button>
+              <button class="mini-btn danger" @click="ask(`删除 ${store.detail.key}?`) && store.deleteKey(store.detail.key)">删除</button>
             </div>
             <pre class="detail-value">{{ fmtValue(store.detail.value) }}<template v-if="store.detail.truncated">
 …(已截断,总长 {{ store.detail.length }})</template></pre>

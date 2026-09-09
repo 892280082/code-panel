@@ -7,6 +7,7 @@ import { Router } from 'express';
 import os from 'os';
 import { execSync } from 'child_process';
 import { getMacMemory } from '../utils/memory-mac';
+import { route } from '../utils/route-utils';
 
 const router = Router();
 
@@ -58,7 +59,7 @@ function getDiskUsage(): { usedPercent: number; totalGB: string; usedGB: string;
   }
 }
 
-router.get('/api/resources', (_req, res) => {
+router.get('/api/resources', route((_req, res) => {
   try {
     // macOS:vm_stat 真实口径(活动监视器同款);失败/其他平台回落 os 口径,结构同构
     const mac = process.platform === 'darwin' ? getMacMemory() : undefined;
@@ -98,10 +99,10 @@ router.get('/api/resources', (_req, res) => {
     console.error({ err }, 'Failed to get system resources');
     res.status(500).json({ error: 'Failed to read system resources' });
   }
-});
+}));
 
 // ── Process list top by memory ──
-router.get('/api/resources/processes', (_req, res) => {
+router.get('/api/resources/processes', route((_req, res) => {
   try {
     // Linux: ps aux --sort=-%mem(GNU);macOS: ps -axm 按内存排序,列序 PID %CPU %MEM RSS COMM
     const isMac = process.platform === 'darwin';
@@ -135,6 +136,6 @@ router.get('/api/resources/processes', (_req, res) => {
     console.warn({ err }, 'Failed to read process list');
     res.status(500).json({ error: 'Failed to read process list' });
   }
-});
+}));
 
 export default router;

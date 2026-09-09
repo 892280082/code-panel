@@ -3,8 +3,7 @@
 import fs from 'fs';
 import path from 'path';
 import { Router, Request, Response } from 'express';
-import type { ProjectRow } from '../db/global-store';
-import { requireProject } from '../projects/context';
+import { requireProject, reqProject } from '../projects/context';
 import { getRepo, type GitRepo } from '../git/git-repo-store';
 import { errorMessage } from '../utils/route-utils';
 import {
@@ -18,10 +17,6 @@ const router = Router();
 // 该项目作用域:repo 一律从该项目的 git.yaml 按 string id 解析
 router.use('/api/repo-browser', requireProject);
 
-function reqProject(req: Request): ProjectRow {
-  return (req as Request & { project: ProjectRow }).project;
-}
-
 // ── Route wrapper — resolves project + repoId + repo, wraps error handling ──
 
 function withRepo(
@@ -31,7 +26,7 @@ function withRepo(
   return (req: Request, res: Response) => {
     try {
       const project = reqProject(req);
-      const repoId = req.params.repoId ?? '';
+      const repoId = String(req.params.repoId ?? '');
       if (!repoId) {
         res.status(400).json({ ok: false, error: 'invalid repoId' });
         return;

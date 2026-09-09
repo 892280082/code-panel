@@ -7,12 +7,12 @@ import { Router, Request, Response } from 'express';
 import { signToken, setAuthCookie, verifyToken } from '../auth/jwt';
 import { isLocked, recordFailure, recordSuccess } from '../auth/lockout';
 import { verifyUser, findUser, updatePassword, sha256 } from '../db/global-store';
-
+import { route } from '../utils/route-utils';
 // ── 公开登录 ────────────────────────────────────────────
 
 const router = Router();
 
-router.post('/api/auth/login', (req: Request, res: Response) => {
+router.post('/api/auth/login', route((req: Request, res: Response) => {
   const { username, password, remember } = (req.body ?? {}) as {
     username?: string; password?: string; remember?: boolean;
   };
@@ -43,7 +43,7 @@ router.post('/api/auth/login', (req: Request, res: Response) => {
       res.status(401).json({ ok: false, error: `账号或密码错误，还剩 ${result.remaining} 次尝试` });
     }
   }
-});
+}));
 
 // ── 需登录(挂载在 authMiddleware 之后) ─────────────────
 

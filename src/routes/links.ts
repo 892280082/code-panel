@@ -3,26 +3,18 @@
 //   如需改/加,直接用通用 /api/projects/:id/yaml/links PUT 全量写即可。
 
 import { Router, Request, Response } from 'express';
-import type { ProjectRow } from '../db/global-store';
-import { requireProject } from '../projects/context';
+import { requireProject, reqProject } from '../projects/context';
 import { loadProjectModule } from '../projects/project-store';
 import type { LinksModuleYaml } from '../projects/yaml';
+import { route } from '../utils/route-utils';
 
 const router = Router();
 
-function reqProject(req: Request): ProjectRow {
-  return (req as Request & { project: ProjectRow }).project;
-}
-
 // GET /api/links?project=xxx — 查询该项目快捷方式分组结构
-router.get('/api/links', requireProject, (req: Request, res: Response) => {
-  try {
-    const project = reqProject(req);
-    const yaml = loadProjectModule(project, 'links') as LinksModuleYaml;
-    res.json({ ok: true, data: yaml.groups || [] });
-  } catch (e: unknown) {
-    res.status(500).json({ ok: false, error: (e as Error).message });
-  }
-});
+router.get('/api/links', requireProject, route((req: Request, res: Response) => {
+  const project = reqProject(req);
+  const yaml = loadProjectModule(project, 'links') as LinksModuleYaml;
+  res.json({ ok: true, data: yaml.groups || [] });
+}));
 
 export default router;

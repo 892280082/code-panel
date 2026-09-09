@@ -2,6 +2,7 @@
 
 import { Router, Request, Response } from 'express';
 import { getGlobalSettings, setReviewMode } from '../config-manager';
+import { route } from '../utils/route-utils';
 import {
   getSecurityConfig, saveSecurityConfig, getSecurityStatus,
   generateSecretPath, generateCookieSecret, validateSecretPath, setGateCookie,
@@ -10,12 +11,12 @@ import {
 const router = Router();
 
 // 获取全局设置(reviewMode + ttyd + terminalDefaultCwd + jwt + security)
-router.get('/api/config', (_req: Request, res: Response) => {
+router.get('/api/config', route((_req: Request, res: Response) => {
   res.json(getGlobalSettings());
-});
+}));
 
 // 保存:reviewMode(全局)+ security(安全模式:开关/自定义路径/重新生成/吊销解锁)
-router.put('/api/config', (req: Request, res: Response) => {
+router.put('/api/config', route((req: Request, res: Response) => {
   try {
     const reviewMode = (req.body as { reviewMode?: unknown })?.reviewMode;
     if (typeof reviewMode === 'boolean') setReviewMode(reviewMode);
@@ -57,6 +58,6 @@ router.put('/api/config', (req: Request, res: Response) => {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(400).json({ ok: false, error: msg });
   }
-});
+}));
 
 export default router;

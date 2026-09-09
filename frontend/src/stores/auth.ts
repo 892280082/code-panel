@@ -50,7 +50,7 @@ export const useAuthStore = defineStore('auth', () => {
     role.value = data.role || 'user'
     writeStorage(TOKEN_KEY, data.token, remember)
     writeStorage(USER_KEY, data.username, remember)
-    writeStorage(ROLE_KEY, role.value, remember)
+    writeStorage(ROLE_KEY, role.value ?? 'user', remember)
     return data.token
   }
 

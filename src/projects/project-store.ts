@@ -8,6 +8,11 @@ import {
   listProjects, getProject, addProject, updateProject, deleteProject,
 } from '../db/global-store';
 import { projectCodePanelDir, projectDataDir, projectModuleYamlFile, projectDataFile } from '../paths';
+
+/** 名字 → id:小写、非字母数字(保留中文)折叠为 '-',供仓库 id 等生成 */
+export function slugify(name: string): string {
+  return name.trim().toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-').replace(/^-+|-+$/g, '') || 'repo';
+}
 import {
   ensureDefaultYaml, loadModuleYaml, writeModuleYaml,
 } from './yaml';

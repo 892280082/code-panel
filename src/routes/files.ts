@@ -16,18 +16,15 @@ import path from 'path';
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import type { ProjectRow } from '../db/global-store';
-import { requireProject } from '../projects/context';
+import { requireProject, reqProject } from '../projects/context';
 import { readRuntimeJson, writeRuntimeJson } from '../projects/project-store';
+import { route } from '../utils/route-utils';
 
 const router = Router();
 
 // ── 目录配置 ────────────────────────────────────────────────
 const CFG_FILE = 'cloud-config.json';
 const IMG_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg']);
-
-function reqProject(req: Request): ProjectRow {
-  return (req as Request & { project: ProjectRow }).project;
-}
 
 /** 读某项目云文件目录配置(绝对路径)。空/缺省 → 默认 <root>/.code-panel/{uploads,downloads} */
 function filesDirs(project: ProjectRow): { upload: string; download: string } {
@@ -51,28 +48,24 @@ function sideDir(project: ProjectRow, side: string): string {
 }
 
 // GET /api/files/config — 当前配置(绝对路径;空=默认)
-router.get('/api/files/config', requireProject, (req: Request, res: Response) => {
+router.get('/api/files/config', requireProject, route((req: Request, res: Response) => {
   const dirs = filesDirs(reqProject(req));
   res.json({ ok: true, data: { upload: dirs.upload, download: dirs.download } });
-});
+}));
 
 // PUT /api/files/config — 保存(空串恢复默认)
-router.put('/api/files/config', requireProject, (req: Request, res: Response) => {
-  try {
-    const project = reqProject(req);
-    const b = (req.body ?? {}) as { upload?: unknown; download?: unknown };
-    const save: Record<string, string> = {};
-    for (const k of ['upload', 'download'] as const) {
-      const v = b[k];
-      if (typeof v === 'string' && v.trim()) save[k] = v.trim();
-    }
-    writeRuntimeJson(project, CFG_FILE, save);
-    const dirs = filesDirs(project);
-    res.json({ ok: true, data: { upload: dirs.upload, download: dirs.download } });
-  } catch (e: unknown) {
-    res.status(500).json({ ok: false, error: (e as Error).message });
+router.put('/api/files/config', requireProject, route((req: Request, res: Response) => {
+  const project = reqProject(req);
+  const b = (req.body ?? {}) as { upload?: unknown; download?: unknown };
+  const save: Record<string, string> = {};
+  for (const k of ['upload', 'download'] as const) {
+    const v = b[k];
+    if (typeof v === 'string' && v.trim()) save[k] = v.trim();
   }
-});
+  writeRuntimeJson(project, CFG_FILE, save);
+  const dirs = filesDirs(project);
+  res.json({ ok: true, data: { upload: dirs.upload, download: dirs.download } });
+}));
 
 // ── 列表 ────────────────────────────────────────────────────
 // 文件名/目录条目(忽略子目录),按 mtime 新→旧
@@ -96,16 +89,12 @@ function listSide(dir: string): unknown[] {
     .sort((a: any, b: any) => b.mtime - a.mtime);
 }
 
-router.get('/api/files', requireProject, (req: Request, res: Response) => {
-  try {
-    const project = reqProject(req);
-    const side = typeof req.query.side === 'string' && req.query.side === 'download' ? 'download' : 'upload';
-    const dir = sideDir(project, side);
-    res.json({ ok: true, data: { side, dir, files: listSide(dir) } });
-  } catch (e: unknown) {
-    res.status(500).json({ ok: false, error: (e as Error).message });
-  }
-});
+router.get('/api/files', requireProject, route((req: Request, res: Response) => {
+  const project = reqProject(req);
+  const side = typeof req.query.side === 'string' && req.query.side === 'download' ? 'download' : 'upload';
+  const dir = sideDir(project, side);
+  res.json({ ok: true, data: { side, dir, files: listSide(dir) } });
+}));
 
 // ── 上传(multipart)─────────────────────────────────────────
 const MIME_EXT: Record<string, string> = {
@@ -146,44 +135,36 @@ const upload = multer({
   limits: { fileSize: 200 * 1024 * 1024 },
 });
 
-router.post('/api/files/upload', requireProject, upload.array('files', 20), (req: Request, res: Response) => {
-  try {
-    const project = reqProject(req);
-    const dir = sideDir(project, 'upload');
-    const files = (req.files as Express.Multer.File[] | undefined) || [];
-    const uploaded = files.map((f) => {
-      const st = fs.statSync(f.path);
-      const ext = path.extname(f.filename).toLowerCase();
-      return { name: f.filename, size: st.size, mtime: Math.round(st.mtimeMs), ext, image: IMG_EXT.has(ext), abs: f.path };
-    });
-    res.json({ ok: true, data: { dir, uploaded } });
-  } catch (e: unknown) {
-    res.status(500).json({ ok: false, error: (e as Error).message });
-  }
-});
+router.post('/api/files/upload', requireProject, upload.array('files', 20), route((req: Request, res: Response) => {
+  const project = reqProject(req);
+  const dir = sideDir(project, 'upload');
+  const files = (req.files as Express.Multer.File[] | undefined) || [];
+  const uploaded = files.map((f) => {
+    const st = fs.statSync(f.path);
+    const ext = path.extname(f.filename).toLowerCase();
+    return { name: f.filename, size: st.size, mtime: Math.round(st.mtimeMs), ext, image: IMG_EXT.has(ext), abs: f.path };
+  });
+  res.json({ ok: true, data: { dir, uploaded } });
+}));
 
 // ── 剪贴板粘贴图片(dataURL → png/jpg/…)────────────────────
-router.post('/api/files/paste-image', requireProject, (req: Request, res: Response) => {
-  try {
-    const project = reqProject(req);
-    const dataUrl = (req.body?.dataUrl ?? '') as string;
-    const m = /^data:(image\/(?:png|jpeg|webp|gif|bmp));base64,(.+)$/.exec(dataUrl);
-    if (!m) return res.status(400).json({ ok: false, error: '需 data:image/*;base64 格式的 dataUrl' });
-    const buf = Buffer.from(m[2], 'base64');
-    if (!buf.length) return res.status(400).json({ ok: false, error: '图片内容为空' });
-    const ext = MIME_EXT[m[1]] || '.png';
-    const dir = sideDir(project, 'upload');
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-    const name = uniqueName(dir, `paste-${stamp}${ext}`);
-    const p = path.join(dir, name);
-    fs.writeFileSync(p, buf);
-    res.json({ ok: true, data: { name, size: buf.length, mtime: Date.now(), ext, image: true, abs: p } });
-  } catch (e: unknown) {
-    res.status(500).json({ ok: false, error: (e as Error).message });
-  }
-});
+router.post('/api/files/paste-image', requireProject, route((req: Request, res: Response) => {
+  const project = reqProject(req);
+  const dataUrl = (req.body?.dataUrl ?? '') as string;
+  const m = /^data:(image\/(?:png|jpeg|webp|gif|bmp));base64,(.+)$/.exec(dataUrl);
+  if (!m) return res.status(400).json({ ok: false, error: '需 data:image/*;base64 格式的 dataUrl' });
+  const buf = Buffer.from(m[2], 'base64');
+  if (!buf.length) return res.status(400).json({ ok: false, error: '图片内容为空' });
+  const ext = MIME_EXT[m[1]] || '.png';
+  const dir = sideDir(project, 'upload');
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const name = uniqueName(dir, `paste-${stamp}${ext}`);
+  const p = path.join(dir, name);
+  fs.writeFileSync(p, buf);
+  res.json({ ok: true, data: { name, size: buf.length, mtime: Date.now(), ext, image: true, abs: p } });
+}));
 
 // ── 读文件内容(缩略图/预览/下载)─────────────────────────
 const EXT_MIME: Record<string, string> = {
@@ -193,21 +174,17 @@ const EXT_MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.pdf': 'application/pdf', '.zip': 'application/zip', '.sql': 'text/plain; charset=utf-8',
 };
 
-router.get('/api/files/raw', requireProject, (req: Request, res: Response) => {
-  try {
-    const project = reqProject(req);
-    const side = typeof req.query.side === 'string' && req.query.side === 'download' ? 'download' : 'upload';
-    const name = typeof req.query.name === 'string' ? path.basename(req.query.name) : '';
-    if (!name) return res.status(400).json({ ok: false, error: '缺少 name' });
-    const dir = sideDir(project, side);
-    const p = path.join(dir, name);
-    if (!p.startsWith(dir) || !fs.existsSync(p)) return res.status(404).json({ ok: false, error: '文件不存在' });
-    const ext = path.extname(p).toLowerCase();
-    res.setHeader('Content-Type', EXT_MIME[ext] || 'application/octet-stream');
-    fs.createReadStream(p).pipe(res);
-  } catch (e: unknown) {
-    res.status(500).json({ ok: false, error: (e as Error).message });
-  }
-});
+router.get('/api/files/raw', requireProject, route((req: Request, res: Response) => {
+  const project = reqProject(req);
+  const side = typeof req.query.side === 'string' && req.query.side === 'download' ? 'download' : 'upload';
+  const name = typeof req.query.name === 'string' ? path.basename(req.query.name) : '';
+  if (!name) return res.status(400).json({ ok: false, error: '缺少 name' });
+  const dir = sideDir(project, side);
+  const p = path.join(dir, name);
+  if (!p.startsWith(dir) || !fs.existsSync(p)) return res.status(404).json({ ok: false, error: '文件不存在' });
+  const ext = path.extname(p).toLowerCase();
+  res.setHeader('Content-Type', EXT_MIME[ext] || 'application/octet-stream');
+  fs.createReadStream(p).pipe(res);
+}));
 
 export default router;

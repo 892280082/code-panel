@@ -38,6 +38,17 @@ export function getRedisClient(projectId: string, connId: string, target: RedisT
   return client;
 }
 
+/**
+ * 取客户端并确保已建连 —— lazyConnect + enableOfflineQueue:false 下,
+ * 冷缓存的第一发命令若不先 connect() 会直接报 "Stream isn't writeable"。
+ * 业务路由一律走这个(而不是裸 getRedisClient)。
+ */
+export async function ensureRedisClient(projectId: string, connId: string, target: RedisTarget): Promise<Redis> {
+  const client = getRedisClient(projectId, connId, target);
+  if (client.status === 'wait') await client.connect().catch(() => {});
+  return client;
+}
+
 /** 配置增删改后失效某连接的全部 db 客户端(quit + 删缓存) */
 export async function invalidateRedisClient(projectId: string, connId: string): Promise<void> {
   const prefix = `${projectId}:${connId}:`;

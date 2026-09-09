@@ -2,7 +2,7 @@
 //   全部走 ioredis 客户端(getRedisClient);SCAN 游标分页,禁用 KEYS。
 
 import type Redis from 'ioredis';
-import { getRedisClient } from '../db/redis-client';
+import { ensureRedisClient } from '../db/redis-client';
 
 // ── INFO 解析 ────────────────────────────────────────────
 
@@ -231,9 +231,8 @@ export async function collectKeysByMatch(client: Redis, match: string, limit = 2
 
 /** 健康检查探活:PING + 版本 */
 export async function pingVersion(target: { host?: string; port?: number; password?: string; db?: number }): Promise<{ ok: boolean; version?: string; error?: string }> {
-  const client = getRedisClient('__health__', '__health__', target);
   try {
-    if (client.status === 'wait') await client.connect().catch(() => {});
+    const client = await ensureRedisClient('__health__', '__health__', target);
     const pong = await client.ping();
     const info = parseInfo(await client.info('server'));
     return { ok: pong === 'PONG', version: info.redis_version };

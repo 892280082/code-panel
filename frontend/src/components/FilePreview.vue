@@ -41,17 +41,18 @@ const unifiedLines = computed<UnifiedLine[]>(() => {
   const hunks = parseRawDiffHunks(diff)
   const merged = mergeToUnified(sourceLines, hunks)
 
-  // 批量语法高亮(删除行不参与 bulk,html 留空)
-  const toHl = merged.map((l, i) => ({ l, i })).filter(x => x.l.type !== 'deletion')
-  const htmls = highlightLines(toHl.map(x => x.l.content), filePath)
-  toHl.forEach((x, j) => { x.l.html = htmls[j] ?? '' })
+  // 批量语法高亮(删除行不参与 bulk,html 留空;按下标回填避免改写共享类型)
+  const idxs = merged.map((l, i) => ({ l, i })).filter(x => x.l.type !== 'deletion')
+  const htmls = highlightLines(idxs.map(x => x.l.content), filePath)
+  const htmlByIdx = new Map<number, string>()
+  idxs.forEach((x, j) => htmlByIdx.set(x.i, htmls[j] ?? ''))
 
-  return merged.map(l => ({
+  return merged.map((l, i) => ({
     text: l.content,
     type: (l.type === 'addition' ? 'add' : l.type === 'deletion' ? 'del' : 'ctx') as UnifiedLine['type'],
     lineNum: l.newLine ?? null,
     oldLineNum: l.oldLine ?? null,
-    html: l.html,
+    html: htmlByIdx.get(i) ?? '',
   }))
 })
 

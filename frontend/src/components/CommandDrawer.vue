@@ -1,25 +1,25 @@
 <script setup lang="ts">
+// ── 命令抽屉(右下角 FAB + 芯片簇 + 抽屉骨架)───────────────────
+//   职责拆分:FAB 几何/拖拽/芯片联动在 composables/useFabChips.ts;
+//   「会话」Tab 在 TmuxSessionsTab.vue;历史命令编辑弹窗在
+//   CommandEditModal.vue(0e4bade 起命令改 commands.yaml 纯展示,未挂载)。
+
 import { apiFetch } from '@/utils/api-fetch'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { useProjectsStore } from '@/stores/projects'
 import { useTerminalStore } from '@/stores/terminal'
 import { useRepoBrowserStore } from '@/stores/repo-browser'
 import { useCloudStore } from '@/stores/cloud'
+import { useFabChips } from '@/composables/useFabChips'
+import TmuxSessionsTab from '@/components/TmuxSessionsTab.vue'
 
 const terminal = useTerminalStore()
 const projects = useProjectsStore()
 const browser = useRepoBrowserStore()
 const cloud = useCloudStore()
-const router = useRouter()
 const commands = ref<any[]>([])
 const activeTab = ref<'custom' | 'system' | 'tmux'>('custom')
-const showForm = ref(false)
-const newLabel = ref('')
-const newCmd = ref('')
-const newCwd = ref('')
-const newSubgroup = ref('')
-const formError = ref('')
+const showNewTmux = ref(false)
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const systemCmds = computed(() => commands.value.filter((c: any) => c.type === 'system'))
@@ -35,138 +35,15 @@ const groupedCustomCmds = computed(() => {
   }
   return Array.from(map.entries())
 })
-/** 已有子分组名（表单 datalist 提示用） */
-const allSubgroups = computed(() =>
-  Array.from(new Set(customCmds.value.map((c: any) => c.subgroup).filter(Boolean)) as Set<string>),
-)
 
-// ── 按钮拖拽 + 左右芯片簇 ───────────────────────────────
-//   FAB 底边定位(right/top 锚定)，默认右下角。左侧排 1..N 终端芯片，
-//   右侧贴 📂 仓库芯片 —— 拖 FAB 时三者联动、位置一起持久化。
-const POS_KEY = 'cmd-drawer-trigger-pos'
-const BTN_SIZE = 44          // FAB 直径
-const CHIP_SIZE = 35         // 左右小圆片直径
-const GAP = 16               // FAB 与芯片间距
-const EDGE = 16              // 芯片簇最外侧距视口右/下边缘的距离
-/** FAB 距右边缘的最小值：保证右侧 📂 仓库 + ☁ 云 两个芯片始终留在可视区内 */
-const MIN_FAB_RIGHT = EDGE + 2 * (CHIP_SIZE + GAP)
-
-/** 屏幕分辨率变化后，上次记录的位置可能超出可视区域，越界则重置回屏幕内，避免图标丢失 */
-function clampBtnPos(v: { x: number; y: number } | null) {
-  if (!v) return null
-  const maxX = window.innerWidth - BTN_SIZE - EDGE
-  const maxY = window.innerHeight - BTN_SIZE - EDGE
-  if (maxX < MIN_FAB_RIGHT || maxY < EDGE) return null
-  return { x: Math.min(Math.max(v.x, MIN_FAB_RIGHT), maxX), y: Math.min(Math.max(v.y, EDGE), maxY) }
-}
-function readSavedPos() {
-  try {
-    const v = JSON.parse(localStorage.getItem(POS_KEY) || '')
-    if (v && typeof v.x === 'number' && typeof v.y === 'number') return v
-  } catch { /* ignore */ }
-  return null
-}
-const raw = readSavedPos()
-const clamped = clampBtnPos(raw)
-// 默认：右下角 —— 右侧仓库芯片贴边 16px，FAB 再靠左 51px，底部贴边 16px
-const btnX = ref(clamped?.x ?? MIN_FAB_RIGHT)
-const btnY = ref(clamped?.y ?? Math.max(EDGE, window.innerHeight - BTN_SIZE - EDGE))
-// 上次记录已越界 → 用修正后的位置覆盖存储，下次打开直接是正常位置
-if (raw && clamped && (raw.x !== clamped.x || raw.y !== clamped.y)) {
-  localStorage.setItem(POS_KEY, JSON.stringify(clamped))
-}
-let dragging = false
-let moved = false            // 拖动超过阈值才算拖拽，否则是普通点击
-let dragStartX = 0, dragStartY = 0, dragOrigX = 0, dragOrigY = 0
-
-/** 当前项目 id */
-const currentProject = computed(() => projects.currentProject)
-/** 当前项目显示名称(自定义 Tab 标题) */
-const groupLabel = computed(() => projects.currentProject?.name || '自定义')
-
-// ── 芯片几何：与 FAB 位置联动 ───────────────────────────
-/** 浮动终端数字条只列 tmux 常驻会话(Apps 启停一次性会话 / 手动 cmd 终端不占 1/2/3) */
-const sessionList = computed(() =>
-  Array.from(terminal.sessions.entries()).filter(([, s]) => s.kind === 'tmux'),
-)
-/** 左侧终端芯片条右缘 = FAB 右缘 + FAB 宽 + 间距 */
-const chipsBarRight = computed(() => btnX.value + BTN_SIZE + GAP)
-/** 右侧仓库芯片右缘 = FAB 右缘 − 芯片宽 − 间距 */
-const repoChipRight = computed(() => btnX.value - CHIP_SIZE - GAP)
-/** 最外侧 ☁ 云芯片右缘 = FAB 右缘 − 2×(芯片宽+间距) */
-const cloudChipRight = computed(() => btnX.value - 2 * (CHIP_SIZE + GAP))
-
-function onTriggerDragStart(e: MouseEvent) {
-  if (terminal.drawerOpen) return
-  dragging = true
-  moved = false
-  dragStartX = e.clientX; dragStartY = e.clientY
-  dragOrigX = btnX.value; dragOrigY = btnY.value
-  document.addEventListener('mousemove', onTriggerDragMove)
-  document.addEventListener('mouseup', onTriggerDragEnd)
-}
-function onTriggerDragMove(e: MouseEvent) {
-  if (!dragging) return
-  const dx = e.clientX - dragStartX
-  const dy = e.clientY - dragStartY
-  if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return  // 3px 内视为点击
-  moved = true
-  e.preventDefault()
-  btnX.value = dragOrigX - dx
-  btnY.value = dragOrigY + dy
-}
-function onTriggerDragEnd() {
-  if (!dragging) return
-  dragging = false
-  const c = clampBtnPos({ x: btnX.value, y: btnY.value })
-  if (c) { btnX.value = c.x; btnY.value = c.y }
-  localStorage.setItem(POS_KEY, JSON.stringify({ x: btnX.value, y: btnY.value }))
-  document.removeEventListener('mousemove', onTriggerDragMove)
-  document.removeEventListener('mouseup', onTriggerDragEnd)
-}
-/** FAB 点击：拖拽过(>3px)则忽略，防止拖完误开抽屉 */
-function onTriggerClick() {
-  if (moved) { moved = false; return }
-  terminal.toggleDrawer()
-}
-
-// ── 终端芯片点击：最小化 → 恢复+置顶；活跃 → 置顶 ──────
-function onChipClick(port: number) {
-  const s = terminal.sessions.get(port)
-  if (!s) return
-  if (s.minimized) terminal.restoreSession(port)
-  else terminal.bringToFront(port)
-}
-
-// ── ☁ 云芯片：开云文件抽屉(同时收起命令抽屉) ────────────
-function onCloudChipClick() {
-  if (terminal.drawerOpen) terminal.closeDrawer()
-  cloud.toggle()
-}
-
-// ── 📂 仓库芯片：未开 → 打开当前项目第一个仓库；已开 → 最小化则恢复，否则关闭 ──
-const repoChipTitle = computed(() => {
-  if (!browser.visible) return browser.repoId ? `打开：${browser.repoName}` : '去 Git 页面选择仓库'
-  return browser.minimized ? '恢复：Repo Browser' : '关闭：Repo Browser'
-})
-
-async function onRepoChipClick() {
-  if (browser.visible) {
-    if (browser.minimized) browser.restore()
-    else browser.closeModal()
-    return
-  }
-  if (!projects.currentId) { router.push('/git'); return }
-  try {
-    const res = await apiFetch(`/api/git/repos?project=${encodeURIComponent(projects.currentId)}`)
-    const data = await res.json()
-    const repos = (data?.ok ? data.data : []) || []
-    if (repos.length) browser.openModal(repos[0].id, repos[0].name, repos[0].path)
-    else router.push('/git')
-  } catch {
-    router.push('/git')
-  }
-}
+// ── FAB + 芯片簇(位置持久化/拖拽/点击联动;markup 与样式在本文件)──
+const {
+  btnX, btnY, sessionList,
+  chipsBarRight, repoChipRight, cloudChipRight,
+  onTriggerDragStart, onTriggerClick,
+  onChipClick, onCloudChipClick,
+  repoChipTitle, onRepoChipClick,
+} = useFabChips()
 
 async function loadCommands() {
   if (!projects.currentId) { commands.value = []; return }
@@ -178,252 +55,41 @@ async function loadCommands() {
   } catch { /* ignore */ }
 }
 
-// ── Tmux 持久化会话(「会话」Tab)──────────────────────
-const tmuxSessions = ref<any[]>([])
-const showNewTmux = ref(false)
-const newTmuxName = ref('')
-const newTmuxDesc = ref('')
-const tmuxError = ref('')
-
-/** 底部「＋ 新建 Tmux」:切到会话 Tab 并展开表单(再点收起) */
-function onNewTmux() {
-  activeTab.value = 'tmux'
-  showNewTmux.value = !showNewTmux.value
-  if (showNewTmux.value) { newTmuxName.value = ''; newTmuxDesc.value = '' }
-}
-
-/** 拉取本项目 tmux 会话(后端带 project 过滤;这里再兜底过滤一次) */
-async function loadTmuxSessions() {
-  if (!projects.currentId) { tmuxSessions.value = []; return }
-  try {
-    const url = `/api/terminal/tmux/list?project=${encodeURIComponent(projects.currentId)}`
-    const res = await apiFetch(url)
-    const data = await res.json()
-    if (data.ok) {
-      const pid = projects.currentId
-      tmuxSessions.value = (data.data || [])
-        .filter((s: any) => s.project === pid)
-        .sort((a: any, b: any) => b.createdAt - a.createdAt)
-    }
-  } catch { /* ignore */ }
-}
-
-/** 该 tmux 会话在本页是否已开窗口(有则返回端口,null=未连接) */
-function attachedTmuxPort(fullName: string): number | null {
-  for (const [port, s] of terminal.sessions) {
-    if (s.kind === 'tmux' && s.tmuxSession === fullName) return port
-  }
-  return null
-}
-
-/** 展示名(后端已去前缀,name 为空时退化为物理名) */
-function prettyTmuxName(s: any): string { return s.name || s.fullName }
-
-async function onConnectTmux(s: any) {
-  if (!projects.currentId) return
-  const port = attachedTmuxPort(s.fullName)
-  if (port !== null) { terminal.restoreSession(port); return }
-  await terminal.attachTmux(s.fullName, prettyTmuxName(s), projects.currentId, s.description || '')
-}
-
-async function handleCreateTmux() {
-  tmuxError.value = ''
-  if (!projects.currentId) { tmuxError.value = '无当前项目'; return }
-  if (!newTmuxName.value.trim()) { tmuxError.value = '请输入会话名称'; return }
-  try {
-    const res = await apiFetch('/api/terminal/tmux/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        project: projects.currentId,
-        name: newTmuxName.value.trim(),
-        description: newTmuxDesc.value.trim() || undefined,
-      }),
-    })
-    const data = await res.json()
-    if (!data.ok) { tmuxError.value = data.error || '创建失败'; return }
-    const { name, fullName } = data.data
-    const desc = newTmuxDesc.value.trim()
-    newTmuxName.value = ''; newTmuxDesc.value = ''
-    showNewTmux.value = false
-    loadTmuxSessions()
-    await terminal.attachTmux(fullName, name, projects.currentId!, desc)
-  } catch {
-    tmuxError.value = '网络错误'
-  }
-}
-
-/** 断开:只 detach 本会话已开窗口(tmux 会话保留) */
-function onDetachTmux(s: any) {
-  const port = attachedTmuxPort(s.fullName)
-  if (port !== null) terminal.closeSession(port)
-}
-
-/** 彻底删除:断开 + kill session + 清备注 */
-function onDeleteTmux(s: any) {
-  if (!projects.currentId) return
-  if (!confirm(`确定删除 tmux 会话「${prettyTmuxName(s)}」?会话内的所有进程将被终止!`)) return
-  terminal.deleteTmuxSession(s.fullName, projects.currentId).then(loadTmuxSessions)
-}
-
-function fmtTime(ms: number): string {
-  if (!ms) return ''
-  const d = new Date(ms)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 function startPolling() {
   loadCommands()
-  loadTmuxSessions()
-  pollTimer = setInterval(() => { loadCommands(); loadTmuxSessions() }, 5000)
+  pollTimer = setInterval(loadCommands, 5000)
 }
 function stopPolling() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
 }
 
-// 项目切换时重新加载命令 + tmux 会话
+// 项目切换时重新加载命令(会话列表由 TmuxSessionsTab 自管)
 watch(() => projects.currentId, () => {
   commands.value = []
-  tmuxSessions.value = []
-  if (terminal.drawerOpen) { loadCommands(); loadTmuxSessions() }
+  if (terminal.drawerOpen) loadCommands()
 })
 
+// 抽屉开 → 轮询;关 → 停 + 收起新建表单
 watch(() => terminal.drawerOpen, (open) => {
   if (open) startPolling()
-  else { stopPolling(); showForm.value = false; showNewTmux.value = false }
+  else { stopPolling(); showNewTmux.value = false }
 })
 
-function clampToViewport() {
-  const c = clampBtnPos({ x: btnX.value, y: btnY.value })
-  if (c) { btnX.value = c.x; btnY.value = c.y }
-}
 onMounted(() => {
   if (terminal.drawerOpen) startPolling()
-  window.addEventListener('resize', clampToViewport)
 })
 onUnmounted(() => {
   stopPolling()
-  window.removeEventListener('resize', clampToViewport)
 })
+
+/** 底部「＋ 新建 Tmux」:切到会话 Tab 并展开表单(再点收起;清空输入在子组件) */
+function onNewTmux() {
+  activeTab.value = 'tmux'
+  showNewTmux.value = !showNewTmux.value
+}
 
 function onClickCommand(cmd: any) {
   terminal.createSession(cmd.label, cmd.command, cmd.cwd || '')
-}
-
-function onClickRestore(port: number) {
-  terminal.restoreSession(port)
-}
-
-async function handleCreate() {
-  formError.value = ''
-  if (!newLabel.value.trim()) { formError.value = '请输入名称'; return }
-  if (!newCmd.value.trim()) { formError.value = '请输入命令'; return }
-  if (!projects.currentId) { formError.value = '无当前项目'; return }
-  try {
-    const res = await apiFetch(`/api/terminal/commands?project=${encodeURIComponent(projects.currentId)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        label: newLabel.value.trim(),
-        command: newCmd.value.trim(),
-        cwd: newCwd.value.trim() || undefined,
-        subgroup: newSubgroup.value.trim() || undefined
-      })
-    })
-    const data = await res.json()
-    if (data.ok) {
-      newLabel.value = ''; newCmd.value = ''; newCwd.value = ''; newSubgroup.value = ''
-      showForm.value = false
-      loadCommands()
-    } else {
-      formError.value = data.error || '创建失败'
-    }
-  } catch {
-    formError.value = '网络错误'
-  }
-}
-
-// ── 编辑弹窗 ──────────────────────────────────────────
-const editingCmd = ref<any>(null)
-const editLabel = ref('')
-const editCmd = ref('')
-const editCwd = ref('')
-const editSubgroup = ref('')
-const editError = ref('')
-
-function openEdit(cmd: any) {
-  editingCmd.value = cmd
-  editLabel.value = cmd.label
-  editCmd.value = cmd.command
-  editCwd.value = cmd.cwd || ''
-  editSubgroup.value = cmd.subgroup || ''
-  editError.value = ''
-}
-
-async function handleEditSave() {
-  editError.value = ''
-  if (!editLabel.value.trim()) { editError.value = '请输入名称'; return }
-  if (!editCmd.value.trim()) { editError.value = '请输入命令'; return }
-  if (!projects.currentId) { editError.value = '无当前项目'; return }
-  try {
-    const res = await apiFetch(`/api/terminal/commands/${editingCmd.value.id}?project=${encodeURIComponent(projects.currentId)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        label: editLabel.value.trim(),
-        command: editCmd.value.trim(),
-        cwd: editCwd.value.trim() || undefined,
-        subgroup: editSubgroup.value.trim() || undefined
-      })
-    })
-    const data = await res.json()
-    if (data.ok) {
-      editingCmd.value = null
-      loadCommands()
-    } else {
-      editError.value = data.error || '编辑失败'
-    }
-  } catch {
-    editError.value = '网络错误'
-  }
-}
-
-// ── 删除 ──────────────────────────────────────────────
-async function handleDelete(cmd: any) {
-  if (!confirm(`确定删除「${cmd.label}」?`)) return false
-  if (!projects.currentId) return false
-  await apiFetch(`/api/terminal/commands/${cmd.id}?project=${encodeURIComponent(projects.currentId)}`, { method: 'DELETE' })
-  loadCommands()
-  return true
-}
-
-// ── 排序（自定义命令，组内排序） ─────────────────────────
-/** 在指定子分组内上移/下移命令（整体数组重新排序，保持其它命令相对顺序） */
-function moveInGroup(cmd: any, dir: -1 | 1) {
-  const sub = cmd.subgroup || ''
-  const groupList = customCmds.value.filter((c: any) => (c.subgroup || '') === sub)
-  const idx = groupList.findIndex((c: any) => c.id === cmd.id)
-  if (idx === -1) return
-  const target = idx + dir
-  if (target < 0 || target >= groupList.length) return
-
-  const allIds = customCmds.value.map((c: any) => c.id)
-  const a = allIds.indexOf(cmd.id)
-  const b = allIds.indexOf(groupList[target].id)
-  const tmp = allIds[a]; allIds[a] = allIds[b]; allIds[b] = tmp
-  saveReorder(allIds)
-}
-function moveUp(cmd: any) { moveInGroup(cmd, -1) }
-function moveDown(cmd: any) { moveInGroup(cmd, 1) }
-async function saveReorder(ids: string[]) {
-  if (!projects.currentId) return
-  await apiFetch(`/api/terminal/commands/reorder?project=${encodeURIComponent(projects.currentId)}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids })
-  })
-  loadCommands()
 }
 </script>
 
@@ -537,36 +203,9 @@ async function saveReorder(ids: string[]) {
             </div>
           </template>
 
-          <!-- 会话 Tab(Tmux 持久化终端) -->
+          <!-- 会话 Tab(Tmux 持久化终端,自管列表/表单/轮询) -->
           <template v-if="activeTab === 'tmux'">
-            <div v-if="showNewTmux" class="form-card">
-              <input v-model="newTmuxName" class="form-input mono" placeholder="会话名称" @keyup.enter="handleCreateTmux" />
-              <input v-model="newTmuxDesc" class="form-input" placeholder="备注（可选）" @keyup.enter="handleCreateTmux" />
-              <div v-if="tmuxError" class="form-error">{{ tmuxError }}</div>
-              <button class="form-submit" @click="handleCreateTmux">创建并连接</button>
-            </div>
-
-            <div v-if="tmuxSessions.length === 0 && !showNewTmux" class="section-hint">
-              没有 tmux 会话。创建后终端会常驻服务器，刷新页面 / 重启服务后也能重连。
-            </div>
-
-            <div v-for="s in tmuxSessions" :key="s.fullName" class="tmux-item">
-              <div class="tmux-body" @click="onConnectTmux(s)">
-                <span class="cmd-label">
-                  {{ prettyTmuxName(s) }}
-                  <span v-if="attachedTmuxPort(s.fullName) !== null" class="tmux-badge">● 已连接</span>
-                </span>
-                <span class="cmd-preview">
-                  {{ s.description || `${s.windows} 个窗口` }} · {{ s.attached ? '已有接入' : '空闲' }} · {{ fmtTime(s.createdAt) }}
-                </span>
-              </div>
-              <div class="tmux-actions">
-                <button v-if="attachedTmuxPort(s.fullName) !== null" class="foot-btn" @click.stop="onDetachTmux(s)">
-                  断开
-                </button>
-                <button class="foot-btn danger" @click.stop="onDeleteTmux(s)">删除</button>
-              </div>
-            </div>
+            <TmuxSessionsTab :show-form="showNewTmux" @update:show-form="showNewTmux = $event" />
           </template>
         </div>
 
@@ -798,201 +437,6 @@ async function saveReorder(ids: string[]) {
   display: flex; flex-direction: column; gap: 8px;
 }
 
-/* ── 新建按钮 ─────────────────────────────────────────── */
-.new-btn {
-  width: 100%; padding: 8px;
-  border: 1px dashed var(--border, #23232a);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--glow, #22ee66);
-  font-size: 13px; cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
-}
-.new-btn:hover {
-  border-color: var(--glow, #22ee66);
-  background: rgba(34,238,102,0.05);
-}
-
-/* ── 新建表单 ─────────────────────────────────────────── */
-.form-card {
-  display: flex; flex-direction: column; gap: 8px;
-  padding: 10px;
-  background: var(--bg, #09090b);
-  border: 1px solid var(--border, #23232a);
-  border-radius: 6px;
-}
-.form-input {
-  padding: 8px 10px;
-  border: 1px solid var(--border, #23232a);
-  border-radius: 4px;
-  background: var(--surface, #131316);
-  color: var(--text, #c8c8d0);
-  font-size: 12px;
-  outline: none;
-}
-.form-input:focus { border-color: var(--glow, #22ee66); }
-.form-input.mono { font-family: var(--font, monospace); }
-.form-error {
-  color: #f44747; font-size: 11px;
-}
-.form-submit {
-  padding: 8px;
-  border: none; border-radius: 4px;
-  background: var(--glow, #22ee66);
-  color: #09090b; font-size: 13px; cursor: pointer;
-  font-weight: 600;
-  transition: opacity 0.2s;
-}
-.form-submit:hover { opacity: 0.85; }
-
-/* ── 自定义命令卡片 ──────────────────────────────────── */
-.cmd-card {
-  background: var(--bg, #09090b);
-  border: 1px solid var(--border, #23232a);
-  border-radius: 6px;
-  overflow: hidden;
-  transition: border-color 0.15s;
-  flex-shrink: 0;
-  min-height: 72px;
-  display: flex; flex-direction: column;
-}
-.cmd-card:hover { border-color: rgba(34,238,102,0.3); }
-.cmd-card-body {
-  flex: 1; padding: 10px 12px 8px;
-  cursor: pointer;
-  overflow: hidden;
-  display: flex; flex-direction: column; gap: 4px;
-}
-.cmd-card-body:hover { background: rgba(34,238,102,0.03); }
-.cmd-card-foot {
-  display: flex; align-items: center; gap: 2px;
-  padding: 4px 6px;
-  border-top: 1px solid var(--border, #23232a);
-  background: rgba(0,0,0,0.15);
-}
-.foot-btn {
-  padding: 2px 8px;
-  border: none; background: transparent;
-  color: var(--text-dim, #6b6b78);
-  font-size: 10px; cursor: pointer; border-radius: 3px;
-  transition: color 0.15s, background 0.15s;
-}
-.foot-btn:hover:not(:disabled) { color: var(--text, #c8c8d0); background: rgba(255,255,255,0.05); }
-.foot-btn:disabled { opacity: 0.25; cursor: default; }
-.foot-btn.cfg:hover { color: var(--glow, #22ee66); }
-.foot-sep { width: 1px; height: 12px; background: var(--border, #23232a); margin: 0 2px; }
-
-/* ── 系统命令卡片 ──────────────────────────────────────── */
-.sys-card {
-  width: 100%; padding: 10px 12px;
-  background: var(--bg, #09090b);
-  border: 1px solid var(--border, #23232a);
-  border-radius: 6px;
-  color: var(--text, #c8c8d0);
-  cursor: pointer; text-align: left;
-  display: flex; flex-direction: column; gap: 4px;
-  transition: border-color 0.15s, background 0.15s;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-.sys-card:hover { border-color: var(--glow, #22ee66); background: rgba(34,238,102,0.05); }
-
-/* ── Tmux 会话列表 ─────────────────────────────────────── */
-.tmux-item {
-  background: var(--bg, #09090b);
-  border: 1px solid var(--border, #23232a);
-  border-radius: 6px;
-  overflow: hidden;
-  flex-shrink: 0;
-  display: flex; flex-direction: column;
-  transition: border-color 0.15s;
-}
-.tmux-item:hover { border-color: rgba(34,238,102,0.3); }
-.tmux-body {
-  padding: 10px 12px 8px;
-  cursor: pointer;
-  display: flex; flex-direction: column; gap: 4px;
-}
-.tmux-body:hover { background: rgba(34,238,102,0.03); }
-.tmux-badge {
-  font-size: 10px; font-weight: 600;
-  color: #3fb950;
-  margin-left: 4px;
-}
-.tmux-actions {
-  display: flex; justify-content: flex-end; gap: 2px;
-  padding: 4px 6px;
-  border-top: 1px solid var(--border, #23232a);
-  background: rgba(0,0,0,0.15);
-}
-.foot-btn.danger:hover { color: #f44747; }
-
-/* ── 编辑弹窗 ─────────────────────────────────────────── */
-.modal-backdrop {
-  position: fixed; inset: 0;
-  z-index: 20000;
-  background: rgba(0,0,0,0.5);
-}
-.modal-dialog {
-  position: fixed; top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 20001;
-  width: 360px; max-width: calc(100vw - 32px);
-  background: var(--surface, #131316);
-  border: 1px solid var(--border, #23232a);
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-  display: flex; flex-direction: column;
-}
-.modal-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border, #23232a);
-  font-size: 14px; font-weight: 600; color: var(--text, #c8c8d0);
-}
-.modal-close {
-  background: transparent; border: none;
-  color: var(--text-dim, #6b6b78);
-  cursor: pointer; font-size: 16px;
-}
-.modal-close:hover { color: #f44747; }
-.modal-body {
-  padding: 16px;
-  display: flex; flex-direction: column; gap: 10px;
-}
-.modal-footer {
-  display: flex; justify-content: flex-end; gap: 8px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--border, #23232a);
-}
-.btn-cancel {
-  padding: 8px 16px;
-  border: 1px solid var(--border, #23232a);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-dim, #6b6b78);
-  cursor: pointer; font-size: 13px;
-}
-.btn-cancel:hover { color: var(--text, #c8c8d0); }
-.btn-save {
-  padding: 8px 20px;
-  border: none; border-radius: 4px;
-  background: var(--glow, #22ee66);
-  color: #09090b; cursor: pointer; font-size: 13px; font-weight: 600;
-}
-.btn-save:hover { opacity: 0.85; }
-.btn-danger {
-  padding: 8px 16px;
-  border: 1px solid rgba(255,68,68,0.3);
-  border-radius: 4px;
-  background: transparent;
-  color: #f44747;
-  cursor: pointer; font-size: 13px;
-  transition: background 0.15s, border-color 0.15s;
-}
-.btn-danger:hover { background: rgba(255,68,68,0.1); border-color: #f44747; }
-.foot-gap { flex: 1; }
-
 /* ── 通用 ─────────────────────────────────────────────── */
 .section-hint {
   color: var(--text-dim, #6b6b78);
@@ -1019,43 +463,6 @@ async function saveReorder(ids: string[]) {
   line-height: 16px;
 }
 .cmd-label { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cmd-preview {
-  font-size: 11px; color: var(--text-dim, #6b6b78);
-  font-family: var(--font, monospace);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-
-/* ── 活跃终端 / 最小化列表 ────────────────────────────── */
-.divider {
-  height: 1px; background: var(--border, #23232a);
-  margin: 4px 0;
-}
-.session-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 10px;
-  background: var(--bg, #09090b);
-  border: 1px solid var(--border, #23232a);
-  border-radius: 6px;
-  color: var(--text, #c8c8d0);
-  cursor: pointer; text-align: left;
-  transition: border-color 0.2s;
-}
-.session-item:hover {
-  border-color: var(--glow, #22ee66);
-}
-.session-dot {
-  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-  background: #3fb950;
-}
-.session-label { flex: 1; font-size: 13px; }
-.session-close {
-  background: transparent; border: none; color: var(--text-dim, #6b6b78);
-  cursor: pointer; font-size: 12px; padding: 2px;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-.session-item:hover .session-close { opacity: 1; }
-.session-close:hover { color: #f44747; }
 
 /* ── 底部固定按钮 ─────────────────────────────────────── */
 .drawer-footer {

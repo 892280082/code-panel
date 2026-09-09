@@ -8,8 +8,8 @@
 //     GET/PUT /api/nginx/config         → 全局 override(settings.nginx {bin,confPath})
 
 import { Router, Request, Response } from 'express';
-import type { ProjectRow } from '../db/global-store';
-import { requireProject } from '../projects/context';
+import { requireProject, reqProject } from '../projects/context';
+import { route } from '../utils/route-utils';
 import {
   resolveNginx, listProjectConfs, readProjectConf, checkProjectConf,
   nginxOverride, saveNginxOverride,
@@ -17,73 +17,45 @@ import {
 
 const router = Router();
 
-function reqProject(req: Request): ProjectRow {
-  return (req as Request & { project: ProjectRow }).project;
-}
-
 // GET /api/nginx/status — 本机 nginx 状态(进程/版本/conf 目录/include 目录)
-router.get('/api/nginx/status', requireProject, (_req: Request, res: Response) => {
-  try {
-    res.json({ ok: true, data: resolveNginx() });
-  } catch (e: unknown) {
-    res.status(500).json({ ok: false, error: (e as Error).message });
-  }
-});
+router.get('/api/nginx/status', requireProject, route((_req: Request, res: Response) => {
+  res.json({ ok: true, data: resolveNginx() });
+}));
 
 // GET /api/nginx/confs — 项目 .code-panel/nginx 下 conf 列表
-router.get('/api/nginx/confs', requireProject, (req: Request, res: Response) => {
-  try {
-    const project = reqProject(req);
-    res.json({ ok: true, data: listProjectConfs(project) });
-  } catch (e: unknown) {
-    res.status(500).json({ ok: false, error: (e as Error).message });
-  }
-});
+router.get('/api/nginx/confs', requireProject, route((req: Request, res: Response) => {
+  const project = reqProject(req);
+  res.json({ ok: true, data: listProjectConfs(project) });
+}));
 
 // GET /api/nginx/conf — 读某 conf 内容(仅限项目 nginx 目录内)
-router.get('/api/nginx/conf', requireProject, (req: Request, res: Response) => {
-  try {
-    const project = reqProject(req);
-    const file = typeof req.query.file === 'string' ? req.query.file : '';
-    const read = readProjectConf(project, file);
-    if (!read) return res.status(404).json({ ok: false, error: '文件不存在(仅支持项目 .code-panel/nginx 下 .conf)' });
-    res.json({ ok: true, data: read });
-  } catch (e: unknown) {
-    res.status(500).json({ ok: false, error: (e as Error).message });
-  }
-});
+router.get('/api/nginx/conf', requireProject, route((req: Request, res: Response) => {
+  const project = reqProject(req);
+  const file = typeof req.query.file === 'string' ? req.query.file : '';
+  const read = readProjectConf(project, file);
+  if (!read) return res.status(404).json({ ok: false, error: '文件不存在(仅支持项目 .code-panel/nginx 下 .conf)' });
+  res.json({ ok: true, data: read });
+}));
 
 // POST /api/nginx/check — 语法 + 是否加载 + md5 一致性
-router.post('/api/nginx/check', requireProject, (req: Request, res: Response) => {
-  try {
-    const project = reqProject(req);
-    const file = typeof req.body?.file === 'string' ? req.body.file : '';
-    const result = checkProjectConf(project, file);
-    if (!result) return res.status(404).json({ ok: false, error: '文件不存在(仅支持项目 .code-panel/nginx 下 .conf)' });
-    res.json({ ok: true, data: result });
-  } catch (e: unknown) {
-    res.status(500).json({ ok: false, error: (e as Error).message });
-  }
-});
+router.post('/api/nginx/check', requireProject, route((req: Request, res: Response) => {
+  const project = reqProject(req);
+  const file = typeof req.body?.file === 'string' ? req.body.file : '';
+  const result = checkProjectConf(project, file);
+  if (!result) return res.status(404).json({ ok: false, error: '文件不存在(仅支持项目 .code-panel/nginx 下 .conf)' });
+  res.json({ ok: true, data: result });
+}));
 
 // GET /api/nginx/config — 全局 override(settings.nginx)
-router.get('/api/nginx/config', (_req: Request, res: Response) => {
-  try {
-    res.json({ ok: true, data: nginxOverride() });
-  } catch (e: unknown) {
-    res.status(500).json({ ok: false, error: (e as Error).message });
-  }
-});
+router.get('/api/nginx/config', route((_req: Request, res: Response) => {
+  res.json({ ok: true, data: nginxOverride() });
+}));
 
 // PUT /api/nginx/config — 保存 override { bin?, confPath? }(空串清除)
-router.put('/api/nginx/config', (req: Request, res: Response) => {
-  try {
-    const b = (req.body ?? {}) as { bin?: unknown; confPath?: unknown };
-    const saved = saveNginxOverride({ bin: typeof b.bin === 'string' ? b.bin : '', confPath: typeof b.confPath === 'string' ? b.confPath : '' });
-    res.json({ ok: true, data: saved });
-  } catch (e: unknown) {
-    res.status(500).json({ ok: false, error: (e as Error).message });
-  }
-});
+router.put('/api/nginx/config', route((req: Request, res: Response) => {
+  const b = (req.body ?? {}) as { bin?: unknown; confPath?: unknown };
+  const saved = saveNginxOverride({ bin: typeof b.bin === 'string' ? b.bin : '', confPath: typeof b.confPath === 'string' ? b.confPath : '' });
+  res.json({ ok: true, data: saved });
+}));
 
 export default router;
