@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { marked } from 'marked'
-import { highlightCode } from '@/utils/highlight'
+import { highlightLines } from '@/utils/highlight'
+import { parseRawDiffHunks, mergeToUnified } from '@/utils/diff'
 import { useRepoBrowserStore } from '@/stores/repo-browser'
 import { copyToClipboard } from '@/utils/clipboard'
 import HistoryPanel from './HistoryPanel.vue'
@@ -17,50 +18,14 @@ function renderMarkdown(text: string): string {
   try { return marked.parse(text) as string } catch { return text }
 }
 
-// ── Diff hunk parser ──────────────────────────────────────
-//    Parse git diff hunk headers to map changed/new lines
-
-interface DiffHunk {
-  oldStart: number
-  oldCount: number
-  newStart: number
-  newCount: number
-  lines: { type: 'ctx' | 'add' | 'del'; text: string }[]
-}
-
-function parseDiffHunks(diffLines: { type: string; text: string }[]): DiffHunk[] {
-  const hunks: DiffHunk[] = []
-  let current: DiffHunk | null = null
-
-  for (const line of diffLines) {
-    // Hunk header: @@ -oldStart,oldCount +newStart,newCount @@
-    const hunkMatch = line.text.match(/^@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@/)
-    if (hunkMatch) {
-      if (current) hunks.push(current)
-      current = {
-        oldStart: parseInt(hunkMatch[1]),
-        oldCount: parseInt(hunkMatch[2] || '1'),
-        newStart: parseInt(hunkMatch[3]),
-        newCount: parseInt(hunkMatch[4] || '1'),
-        lines: [],
-      }
-    } else if (current) {
-      const type = line.type as 'ctx' | 'add' | 'del'
-      current.lines.push({ type, text: line.text })
-    }
-  }
-  if (current) hunks.push(current)
-  return hunks
-}
-
 // ── Unified line view ─────────────────────────────────────
-//    Merge full source with diff hunks → inline diff like VS Code
+//    全文 + diff hunks → VSCode 式内联行(解析/合并/高亮统一走 utils)
 
 interface UnifiedLine {
   text: string
   type: 'ctx' | 'add' | 'del'
-  lineNum: number | null   // new file line number (null for deleted lines)
-  oldLineNum: number | null // old file line number
+  lineNum: number | null    // new file line number (null for deleted lines)
+  oldLineNum: number | null
   html: string              // syntax-highlighted
 }
 
@@ -70,108 +35,24 @@ const unifiedLines = computed<UnifiedLine[]>(() => {
   const sourceText = store.fileContent
   const diff = store.diffLines
   const filePath = store.selectedFilePath || ''
-
   if (!sourceText) return []
 
   const sourceLines = sourceText.split('\n')
+  const hunks = parseRawDiffHunks(diff)
+  const merged = mergeToUnified(sourceLines, hunks)
 
-  // If no diff or pure source mode, just return source
-  if (!diff.length || !showInlineDiff.value) {
-    return sourceLines.map((text, i) => ({
-      text,
-      type: 'ctx' as const,
-      lineNum: i + 1,
-      oldLineNum: null,
-      html: highlightCode(text + '\n', filePath),  // highlight line by line for perf
-    }))
-  }
+  // 批量语法高亮(删除行不参与 bulk,html 留空)
+  const toHl = merged.map((l, i) => ({ l, i })).filter(x => x.l.type !== 'deletion')
+  const htmls = highlightLines(toHl.map(x => x.l.content), filePath)
+  toHl.forEach((x, j) => { x.l.html = htmls[j] ?? '' })
 
-  // Parse diff hunks
-  const hunks = parseDiffHunks(diff)
-  const result: UnifiedLine[] = []
-
-  // Build a map of new-line types from diff hunks
-  // addedLines: set of new file line numbers that are additions
-  // deletedChunks: deleted lines grouped by position
-  const addedSet = new Set<number>()
-  const deletedAtNewPos = new Map<number, string[]>() // newLineNum → deleted texts
-
-  for (const hunk of hunks) {
-    let oldAt = hunk.oldStart
-    let newAt = hunk.newStart
-
-    for (const line of hunk.lines) {
-      if (line.type === 'ctx') {
-        oldAt++
-        newAt++
-      } else if (line.type === 'add') {
-        addedSet.add(newAt)
-        newAt++
-      } else if (line.type === 'del') {
-        const delText = line.text.slice(1) // strip leading '-'
-        const existing = deletedAtNewPos.get(newAt) || []
-        existing.push(delText)
-        deletedAtNewPos.set(newAt, existing)
-        oldAt++
-      }
-    }
-  }
-
-  // Walk through source lines, inserting deleted lines and marking added lines
-  for (let i = 0; i < sourceLines.length; i++) {
-    const lineNum = i + 1
-
-    // Show deleted lines BEFORE the current new line
-    if (deletedAtNewPos.has(lineNum)) {
-      for (const delText of deletedAtNewPos.get(lineNum)!) {
-        result.push({
-          text: delText,
-          type: 'del',
-          lineNum: null,
-          oldLineNum: null,
-          html: '',
-        })
-      }
-    }
-
-    const isAdded = addedSet.has(lineNum)
-    result.push({
-      text: sourceLines[i],
-      type: isAdded ? 'add' : 'ctx',
-      lineNum,
-      oldLineNum: null,
-      html: '',
-    })
-  }
-
-  // Any deleted lines after the last source line
-  const lastLineNum = sourceLines.length + 1
-  if (deletedAtNewPos.has(lastLineNum)) {
-    for (const delText of deletedAtNewPos.get(lastLineNum)!) {
-      result.push({
-        text: delText,
-        type: 'del',
-        lineNum: null,
-        oldLineNum: null,
-        html: '',
-      })
-    }
-  }
-
-  // Apply syntax highlighting to non-deleted lines in bulk
-  const toHighlight = result
-    .map((l, i) => ({ line: l, idx: i }))
-    .filter(x => x.line.type !== 'del')
-
-  const bulkText = toHighlight.map(x => x.line.text).join('\n')
-  const highlighted = highlightCode(bulkText, filePath)
-  // Extract individual line highlights — hljs wraps each line
-  const highlightedLines = highlighted.split('\n')
-  for (let j = 0; j < toHighlight.length; j++) {
-    toHighlight[j].line.html = highlightedLines[j] || ''
-  }
-
-  return result
+  return merged.map(l => ({
+    text: l.content,
+    type: (l.type === 'addition' ? 'add' : l.type === 'deletion' ? 'del' : 'ctx') as UnifiedLine['type'],
+    lineNum: l.newLine ?? null,
+    oldLineNum: l.oldLine ?? null,
+    html: l.html,
+  }))
 })
 
 const renderMode = computed<'empty' | 'binary' | 'markdown' | 'code' | 'history'>(() => {

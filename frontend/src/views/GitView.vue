@@ -7,8 +7,11 @@ import TopRightTools from '@/components/TopRightTools.vue'
 import { useCopySelection } from '@/composables/useCopySelection'
 import { copyToClipboard } from '@/utils/clipboard'
 import { highlightLines } from '@/utils/highlight'
+import { mergeToUnified, buildDiffBlocks, type UnifiedLine } from '@/utils/diff'
+import { useFileTree } from '@/composables/useFileTree'
 import Sidebar from '@/components/Sidebar.vue'
 import StatusDot from '@/components/StatusDot.vue'
+import DiffOverviewRuler from '@/components/DiffOverviewRuler.vue'
 
 const store = useGitStore()
 const projects = useProjectsStore()
@@ -22,64 +25,13 @@ const { showCopy, copyLeft, copyTop, doCopy } = useCopySelection(currentFilePath
 const fileListRef = ref<HTMLElement | null>(null)
 const currentFileList = computed(() => store.diffResult?.files ?? [])
 
-// ── 变动模式：整个文件 + 高亮变动行（不再只显示 diff 片段）──
-//   服务端解析规则：deletion 行 newLine 不递增 → 删除行挂在
-//   其后第一个非删除行的 newLine 之前；hunk 以删除行结尾时
-//   挂在 hunk 新文件末尾（newStart + newCount）之后。
-interface UnifiedDiffLine {
-  type: 'context' | 'addition' | 'deletion'
-  content: string
-  oldLine?: number
-  newLine?: number
-}
-
-const unifiedDiffLines = computed<UnifiedDiffLine[]>(() => {
+// ── 变动模式:整个文件 + 高亮变动行(解析/合并统一在 utils/diff)──
+const unifiedDiffLines = computed<UnifiedLine[]>(() => {
   const f = store.diffResult?.files.find(x => x.path === store.selectedFile)
   if (!f) return []
-
-  // 源码未加载（删除的文件/加载失败）→ 退化为纯 hunk 片段
-  if (!store.fileSource) return f.hunks.flatMap(h => h.lines)
-
-  const sourceLines = store.fileSource.split('\n')
-  const addedSet = new Set<number>()
-  const deletedAtNewPos = new Map<number, UnifiedDiffLine[]>()  // 新行号 → 删除行
-
-  for (const hunk of f.hunks) {
-    let delBuf: UnifiedDiffLine[] = []
-    for (const line of hunk.lines) {
-      if (line.type === 'deletion') { delBuf.push(line); continue }
-      // context / addition：删除行先挂到它前面
-      if (delBuf.length && line.newLine != null) {
-        deletedAtNewPos.set(line.newLine, (deletedAtNewPos.get(line.newLine) || []).concat(delBuf))
-        delBuf = []
-      }
-      if (line.type === 'addition' && line.newLine != null) addedSet.add(line.newLine)
-    }
-    // hunk 以删除行结尾 → 挂在 hunk 新文件末尾之后
-    if (delBuf.length) {
-      const hm = hunk.header.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/)
-      const tailPos = (hm ? parseInt(hm[1]) : 1) + (hm && hm[2] ? parseInt(hm[2]) : 1)
-      deletedAtNewPos.set(tailPos, (deletedAtNewPos.get(tailPos) || []).concat(delBuf))
-    }
-  }
-
-  const result: UnifiedDiffLine[] = []
-  for (let i = 0; i < sourceLines.length; i++) {
-    const lineNum = i + 1
-    // 删除行先于当前新行显示
-    const dels = deletedAtNewPos.get(lineNum)
-    if (dels) for (const d of dels) result.push({ ...d, newLine: undefined })
-    result.push({
-      type: addedSet.has(lineNum) ? 'addition' : 'context',
-      content: sourceLines[i],
-      newLine: lineNum,
-    })
-  }
-  // 文件末尾的删除行
-  const tailDels = deletedAtNewPos.get(sourceLines.length + 1)
-  if (tailDels) for (const d of tailDels) result.push({ ...d, newLine: undefined })
-
-  return result
+  // 源码未加载(删除的文件/加载失败)→ 退化为纯 hunk 片段
+  if (!store.fileSource) return f.hunks
+  return mergeToUnified(store.fileSource.split('\n'), f.hunks)
 })
 
 function handleFileKeydown(e: KeyboardEvent) {
@@ -109,113 +61,10 @@ function scrollSelectedIntoView() {
   })
 }
 
-// ── 改动文件层级树:公共前缀目录压缩(VSCode 式),从分叉处开始显示 ──
+// ── 层级树(GitHub 式压缩) / 概览条 / 语法高亮:统一走共享模块 ──
+const { visibleRows: visibleFileRows, expandedDirs, toggleDir } =
+  useFileTree(computed(() => store.diffResult?.files ?? []))
 
-interface FileTreeNode {
-  key: string                       // 目录 = 压缩链全路径;文件 = path
-  name: string                      // 显示名(目录 = 链的最后一级)
-  fullName: string
-  path: string                      // 文件全路径(目录同 fullName)
-  dir: boolean
-  file?: { path: string; status: string; additions: number; deletions: number }
-  children?: FileTreeNode[]
-}
-
-const expandedDirs = ref<Set<string>>(new Set())
-
-const fileTree = computed<FileTreeNode[]>(() => {
-  const files = store.diffResult?.files ?? []
-  if (!files.length) return []
-
-  // 原始树:目录 Map + 文件叶子
-  type Raw = { name: string; children: Map<string, Raw>; file?: typeof files[0] }
-  const root: Raw = { name: '', children: new Map() }
-  for (const f of files) {
-    const parts = f.path.split('/')
-    let cur = root
-    for (let i = 0; i < parts.length - 1; i++) {
-      const p = parts[i]
-      if (!cur.children.has(p)) cur.children.set(p, { name: p, children: new Map() })
-      cur = cur.children.get(p)!
-    }
-    const leafName = parts[parts.length - 1]
-    cur.children.set(leafName + '·f', { name: leafName, children: new Map(), file: f })  // key 加·f 防与同名目录撞
-  }
-
-  // 压缩:单孩子目录链合并为一个节点(name = a/b/c),分叉处停止
-  const convert = (raw: Raw, prefix: string): FileTreeNode[] => {
-    const out: FileTreeNode[] = []
-    for (const [, node] of raw.children) {
-      if (node.file) {
-        const base = prefix ? prefix + '/' + node.name : node.name
-        out.push({ key: base, name: node.name, fullName: base, path: base, dir: false, file: node.file })
-        continue
-      }
-      let name = node.name
-      let full = prefix ? prefix + '/' + name : name
-      let children = node.children
-      while (children.size === 1) {
-        const only = [...children.values()][0]
-        if (only.file) break   // 孩子是文件:目录名保留,文件在下层
-        const k = [...children.keys()][0]
-        name = k                        // 显示名 = 链的最后一级(公共链直接跳过)
-        full = full + '/' + k
-        children = only.children
-      }
-      out.push({ key: full, name, fullName: full, path: full, dir: true, children: convert({ name, children }, full) })
-    }
-    return out
-  }
-  const tree = convert(root, '')
-
-  // 排序:目录在前、字母序
-  const sortRec = (nodes: FileTreeNode[]) => {
-    nodes.sort((a, b) => (a.dir === b.dir ? a.name.localeCompare(b.name) : a.dir ? -1 : 1))
-    nodes.forEach(n => n.children && sortRec(n.children))
-  }
-  sortRec(tree)
-  return tree
-})
-
-// 默认全展开:diffResult 变化(切仓库/刷新)后重置
-watch(() => store.diffResult, () => {
-  const all: string[] = []
-  const walk = (nodes: FileTreeNode[]) => nodes.forEach(n => {
-    if (n.dir) { all.push(n.key); walk(n.children!) }
-  })
-  walk(fileTree.value)
-  expandedDirs.value = new Set(all)
-})
-
-// 扁平化可见行(按折叠状态)
-const visibleFileRows = computed(() => {
-  const rows: { type: 'dir' | 'file'; node: FileTreeNode; depth: number }[] = []
-  const walk = (nodes: FileTreeNode[], depth: number) => {
-    for (const n of nodes) {
-      if (n.dir) {
-        rows.push({ type: 'dir', node: n, depth })
-        if (expandedDirs.value.has(n.key)) walk(n.children!, depth + 1)
-      } else {
-        rows.push({ type: 'file', node: n, depth })
-      }
-    }
-  }
-  walk(fileTree.value, 0)
-  return rows
-})
-
-function toggleDir(key: string): void {
-  const next = new Set(expandedDirs.value)
-  if (next.has(key)) next.delete(key)
-  else next.add(key)
-  expandedDirs.value = next
-}
-
-// ── diff 概览条(VSCode 式 ruler):变动块按行号比例分布,点击/拖动跳转 ──
-const diffScrollRef = ref<HTMLElement | null>(null)
-const rulerRef = ref<HTMLElement | null>(null)
-
-// ── 语法高亮:diff 行 / 源码行均整段高亮后按行拆(保跨行语法),挂 hljs-dark 主题 ──
 const highlightedDiffHtml = computed<string[]>(() => {
   const lines = unifiedDiffLines.value
   if (!lines.length || !store.selectedFile) return []
@@ -225,45 +74,11 @@ const highlightedSourceHtml = computed<string[]>(() => {
   if (!store.fileSource || !store.selectedFile) return []
   return highlightLines(store.fileSource.split('\n'), store.selectedFile)
 })
-
-const diffBlocks = computed(() => {
-  const lines = unifiedDiffLines.value
-  const total = lines.length
-  if (!total) return []
-  const blocks: { top: number; height: number; type: 'addition' | 'deletion' }[] = []
-  let cur: { start: number; count: number; type: 'addition' | 'deletion' } | null = null
-  const flush = () => {
-    if (cur) {
-      blocks.push({ top: cur.start / total, height: Math.max(cur.count / total, 0.006), type: cur.type })
-      cur = null
-    }
-  }
-  lines.forEach((l, i) => {
-    if (l.type === 'context') { flush(); return }
-    if (cur && cur.type === l.type) cur.count++
-    else { flush(); cur = { start: i, count: 1, type: l.type as 'addition' | 'deletion' } }
-  })
-  flush()
-  return blocks
-})
-
-function rulerJump(e: MouseEvent): void {
-  const ruler = rulerRef.value, sc = diffScrollRef.value
-  if (!ruler || !sc) return
-  const rect = ruler.getBoundingClientRect()
-  const ratio = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+const diffBlocks = computed(() => buildDiffBlocks(unifiedDiffLines.value))
+const onRulerJump = (ratio: number) => {
+  const sc = diffScrollRef.value
+  if (!sc) return
   sc.scrollTop = ratio * sc.scrollHeight - sc.clientHeight / 2
-}
-
-function onRulerDown(e: MouseEvent): void {
-  rulerJump(e)
-  const move = (ev: MouseEvent) => rulerJump(ev)
-  const up = () => {
-    window.removeEventListener('mousemove', move)
-    window.removeEventListener('mouseup', up)
-  }
-  window.addEventListener('mousemove', move)
-  window.addEventListener('mouseup', up)
 }
 
 onMounted(() => store.init())
@@ -391,11 +206,11 @@ function switchToLog() {
                 :style="{ paddingLeft: 10 + row.depth * 13 + 'px' }"
                 @click.stop="onFileClick(row.node.path)"
               >
-                <span class="file-status" :style="{ color: statusColor(row.node.file.status) }">{{ statusBadge(row.node.file.status) }}</span>
+                <span class="file-status" :style="{ color: statusColor(row.node.item?.status) }">{{ statusBadge(row.node.item?.status) }}</span>
                 <span class="file-name" :title="row.node.fullName">{{ row.node.name }}</span>
                 <span class="file-stat">
-                  <span class="add">+{{ row.node.file.additions }}</span>
-                  <span class="del">−{{ row.node.file.deletions }}</span>
+                  <span class="add">+{{ row.node.item?.additions }}</span>
+                  <span class="del">−{{ row.node.item?.deletions }}</span>
                 </span>
               </div>
             </template>
@@ -545,19 +360,8 @@ function switchToLog() {
                   </div>
                 </div>
               </div>
-              <!-- 概览条:绿块=新增 红块=删除,按行号比例分布;点击/拖动跳转 -->
-              <div
-                class="diff-ruler"
-                ref="rulerRef"
-                title="diff 概览:绿=新增 红=删除,点击跳转"
-                @mousedown="onRulerDown"
-              >
-                <span
-                  v-for="(b, bi) in diffBlocks" :key="bi"
-                  class="ruler-block" :class="b.type"
-                  :style="{ top: (b.top * 100) + '%', height: (Math.max(b.height * 100, 0.6)) + '%' }"
-                />
-              </div>
+              <!-- 概览条(组件):绿块=新增 红块=删除,点击/拖动跳转 -->
+              <DiffOverviewRuler :blocks="diffBlocks" :target="diffScrollRef" />
             </div>
 
             <!-- Source mode:整文件纯流式,变动行保留底色 + 语法着色 -->
