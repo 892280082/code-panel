@@ -88,6 +88,26 @@
 | GET | `/api/env?project=` | 环境组列表 + 当前生效 |
 | POST | `/api/env/ensure|activate|reset|mount` | 兜底/选用/重置/补挂 shell rc |
 
+## 模型供应商(LLM,全局作用域,非项目级)
+
+一套供应商 = 一段环境变量文本(`vars`,每行 `KEY=VALUE`,含 Key)。切换 = 重写 `~/.code-panel/active-llm.sh` + shell rc 独立 managed 块 + `~/.claude/settings.json` 的 env 受管键同步。
+
+| 方法 | 路径 | 权限 | 说明 |
+|---|---|---|---|
+| GET | `/api/llm/providers` | 登录 | 快照:`providers`(vars 脱敏,敏感值 → `****尾4`;另有结构化 `entries[]` 供表单渲染)+ `active` + `envFile/rc/rcMounted` + `foreignKeys`(settings.json 里不受管的外部键) |
+| GET | `/api/llm/providers/:id/reveal` | super | 明文 vars(前端点 👁 才调;平时前端只有脱敏值) |
+| POST | `/api/llm/providers` | super | `{name, vars, enabled?}` 新增;vars 逐行校验,非法 KEY → 400 带行号 |
+| PUT | `/api/llm/providers/:id` | super | 部分更新;**值含 `****` 的行 = 保留旧值**(防脱敏回显固化);停用激活项 → 自动回落「不注入」 |
+| DELETE | `/api/llm/providers/:id` | super | 删除;若为激活项 → 联动清空激活态并重写空档 |
+| POST | `/api/llm/activate` | super | `{providerId: string\|null}`,`null` = 不注入(恢复官方登录态) |
+| POST | `/api/llm/mount` | super | 幂等补挂 shell rc |
+
+- 前端:右上「🤖 模型」切换器(只列**已启用**的)+ ⚙ 配置 → 「模型」Tab(顶部卡片切换、下面逐行变量表单、敏感行密码态 + 👁 看明文)
+- **占位符机制**:模板里 token 等写 `<你的 Key>`;未填的行 UI 显示空框 + 提示,导出时**跳过**(不会把字面量写进配置),激活时后端直接 400 拦下
+- 内置预设(纯前端常量):DeepSeek / 智谱 GLM / Kimi / 自定义中转站
+- ⚠ 鉴权方式各家不同:DeepSeek 走 `ANTHROPIC_API_KEY`(x-api-key),GLM/Kimi 走 `ANTHROPIC_AUTH_TOKEN`(Bearer)—— 按各家模板填即可
+- ⚠ `~/.claude/settings.json` 的 env **优先级高于 shell 导出**,故切换时同步受管键(只动自己的键,其余键绝不碰;切走时按 manifest 精确删除)
+
 ## 终端 / 文件 / 备份 / nginx / 全局
 
 | 方法 | 路径 | 说明 |

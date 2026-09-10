@@ -35,6 +35,7 @@ import linksRouter from './routes/links';
 import resourcesRouter from './routes/resources';
 import filesRouter from './routes/files';
 import envRouter from './routes/env';
+import llmRouter from './routes/llm';
 import nginxRouter from './routes/nginx';
 import inspectRouter from './routes/inspect';
 import { stealthMiddleware } from './security/stealth';
@@ -83,6 +84,7 @@ app.use(linksRouter);
 app.use(resourcesRouter);
 app.use(filesRouter);
 app.use(envRouter);
+app.use(llmRouter);
 app.use(nginxRouter);
 app.use(inspectRouter);
 

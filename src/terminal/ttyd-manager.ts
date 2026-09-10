@@ -6,6 +6,7 @@ import { spawn, ChildProcess } from 'child_process';
 import * as net from 'net';
 import { getConfig, getTerminalDefaultCwd } from '../config-manager';
 import { readActiveEnvVars } from '../env/env-store';
+import { readLlmProviderEnv } from '../llm/provider-store';
 
 interface TTYDState {
   process: ChildProcess | null;
@@ -63,7 +64,8 @@ function spawnTTYD(port: number, opts?: { cmd?: string; cwd?: string; keepShell?
   console.log(`[TTYD] starting on port ${port}: ttyd ${spawnArgs.join(' ')}`);
 
   // 注入全局 active-env(code-panel 终端是 bash,不 source ~/.zshrc,须显式带上环境组变量)
-  const extraEnv = readActiveEnvVars();
+  // + LLM 供应商变量(在后,覆盖环境组同名)
+  const extraEnv = { ...readActiveEnvVars(), ...readLlmProviderEnv() };
   const proc = spawn('ttyd', spawnArgs, {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,

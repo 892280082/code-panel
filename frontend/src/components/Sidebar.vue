@@ -2,16 +2,16 @@
 // ── Sidebar:标题 + 导航 + 左上角 ⚙(全局配置) + 内容插槽 ──
 //   项目切换/登出都收纳进 ⚙ 配置面板,不再占用侧栏。
 
-import { ref, onMounted } from 'vue'
+import { onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useProjectsStore } from '@/stores/projects'
+import { useUiStore } from '@/stores/ui'
 import GlobalConfigModal from '@/components/GlobalConfigModal.vue'
 
 const router = useRouter()
 const route = useRoute()
 const projects = useProjectsStore()
-
-const showCfg = ref(false)
+const ui = useUiStore()
 
 const tabs = [
   { path: '/log', label: 'Apps' },
@@ -40,7 +40,7 @@ onMounted(() => {
       </div>
       <div class="title-row">
         <h2>▸ {{ route.path === '/sql' ? 'SQL Review' : route.path === '/redis' ? 'Redis' : route.path === '/prd' ? 'PRD Docs' : route.path === '/git' ? 'Git Diff' : 'Apps' }}</h2>
-        <button class="gear" title="配置(项目/账号)" @click="showCfg = true">⚙</button>
+        <button class="gear" title="配置(项目/模型/账号)" @click="ui.openConfig()">⚙</button>
       </div>
       <div class="sidebar-nav">
         <a v-for="t in tabs" :key="t.path"
@@ -54,7 +54,7 @@ onMounted(() => {
 
     <slot />
 
-    <GlobalConfigModal v-if="showCfg" @close="showCfg = false" />
+    <GlobalConfigModal v-if="ui.cfgOpen" @close="ui.closeConfig()" />
   </aside>
 </template>
 

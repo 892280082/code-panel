@@ -14,6 +14,7 @@ import { projectModuleYamlFile, projectCodePanelDir } from '../paths';
 import { sqlConnections, redisConnections, gitRepos, logsFlatEntries } from '../projects/adapters';
 import { getHealthStatus } from '../db/health-check';
 import { envSnapshot } from '../env/env-store';
+import { llmSnapshot } from '../llm/provider-store';
 import type { LogsModuleYaml, PrdModuleYaml, GitModuleYaml, CommandsModuleYaml, LinksModuleYaml } from '../projects/yaml';
 
 const router = Router();
@@ -96,6 +97,10 @@ router.get('/api/inspect', requireProject, route(async (req, res) => {
   // ── 环境组(当前生效)──
   const env = envSnapshot(project);
 
+  // ── LLM 供应商(当前激活;脱敏)──
+  const llm = llmSnapshot();
+  const activeLlm = llm.providers.find(p => p.id === llm.active.providerId) ?? null;
+
   // ── 静态校验 errors ──
   const errors: string[] = [];
   for (const m of ['logs', 'sql', 'redis', 'prd', 'git', 'commands', 'links', 'envs'] as const) {
@@ -121,6 +126,20 @@ router.get('/api/inspect', requireProject, route(async (req, res) => {
     data: {
       project: { id: project.id, name: project.name, root: project.root, note: project.note ?? '' },
       env: { activeGroup: env.current, groups: env.groups.map(g => g.id) },
+      llm: {
+        active: activeLlm && {
+          name: activeLlm.name,
+          baseUrl: activeLlm.baseUrl,
+          token: activeLlm.tokenTail,
+          enabled: activeLlm.enabled,
+          varCount: activeLlm.varCount,
+        },
+        enabledProviders: llm.providers.filter(p => p.enabled).map(p => p.name),
+        rcMounted: llm.rcMounted,
+        rc: llm.rc,
+        envFile: llm.envFile,
+        settingsForeignKeys: llm.foreignKeys,
+      },
       modules: {
         apps:    { ...brief('logs', p => (p as LogsModuleYaml).platforms?.length ?? 0), services: services.length, portsAlive: `${Object.values(portAlive).filter(Boolean).length}/${ports.length}` },
         sql:     { ...brief('sql', p => (p as { connections?: unknown[] }).connections?.length ?? 0), connections: sql },

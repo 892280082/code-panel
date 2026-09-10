@@ -7,21 +7,25 @@
 
 import { ref } from 'vue'
 import { useProjectsStore } from '@/stores/projects'
+import { useUiStore } from '@/stores/ui'
 import BackupPanel from '@/components/BackupPanel.vue'
 import NginxPanel from '@/components/NginxPanel.vue'
 import SecurityPanel from '@/components/SecurityPanel.vue'
 import ProjectPanel from '@/components/ProjectPanel.vue'
 import FilesPanel from '@/components/FilesPanel.vue'
 import AccountPanel from '@/components/AccountPanel.vue'
+import LlmPanel from '@/components/LlmPanel.vue'
 
 const emit = defineEmits<{ (e: 'close'): void }>()
 
 const projects = useProjectsStore()
+const ui = useUiStore()
 
-type TabKey = 'project' | 'backup' | 'files' | 'nginx' | 'security' | 'account'
-const activeTab = ref<TabKey>('project')
+type TabKey = 'project' | 'llm' | 'backup' | 'files' | 'nginx' | 'security' | 'account'
+const activeTab = ref<TabKey>((ui.cfgTab as TabKey) || 'project')
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'project', label: '项目' },
+  { key: 'llm', label: '模型' },
   { key: 'backup', label: '备份' },
   { key: 'files', label: '文件' },
   { key: 'nginx', label: 'nginx' },
@@ -51,6 +55,11 @@ const tabs: { key: TabKey; label: string }[] = [
           <!-- ── 项目 ── -->
           <div v-if="activeTab === 'project'" class="tab-pane">
             <ProjectPanel @used="emit('close')" />
+          </div>
+
+          <!-- ── 模型(LLM 供应商切换;全局作用域)── -->
+          <div v-else-if="activeTab === 'llm'" class="tab-pane">
+            <LlmPanel />
           </div>
 
           <!-- ── 备份 ── -->

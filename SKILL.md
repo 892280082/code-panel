@@ -62,9 +62,10 @@ bash ~/.claude/skills/code-panel/cp get "/api/inspect?project=<id>"
 
 ```
 ~/.code-panel/                    # 全局(CODE_PANEL_HOME 可覆盖;所有实例共享)
-├── data.db                       #   users / projects 注册表 / settings(面板级配置)
+├── data.db                       #   users / projects 注册表 / settings / llm_providers(含 API Key,0600)
 ├── jwt.secret · ai-token         #   登录密钥 / 本机免密 token(0600)
-└── active-env.sh                 #   当前环境组物化脚本(shell rc source → 新终端生效)
+├── active-env.sh                 #   当前环境组物化脚本(shell rc source → 新终端生效)
+└── active-llm.sh                 #   当前模型供应商物化脚本(同上;含 API Key,0600)
 
 <项目根>/.code-panel/             # 项目配置 = 提交式文件,随仓库走、可手改、修改即生效
 ├── apps.yaml                     # 应用服务(日志+启停;⚠ start 脚本保活铁律见 references/apps-lifecycle.md)
@@ -82,6 +83,18 @@ bash ~/.claude/skills/code-panel/cp get "/api/inspect?project=<id>"
 ## 环境变量组(跨机器零改配置)
 
 `envs.yaml` 定义组(`groups: [{id,name,default?,vars}]`);右上 🅰 切换 → 全量重写 `~/.code-panel/active-env.sh`(shell rc source 生效)+ 面板终端/启停自动注入。应用侧 yml 写 `${CODE_PANEL_DB_HOST:默认}` 占位读;**写 yaml 时占位符值必须加引号**(flow mapping 里裸 `${a:b}` 会 YAML 解析炸)。
+
+## 模型供应商(LLM 切换,给 Claude Code 换模型)
+
+国内用 DeepSeek/GLM 等跑 claude 的场景:**一套供应商 = 一段环境变量**(`vars`,每行 `KEY=VALUE`,Key 直接填在变量里),存**全局库** `llm_providers` 表(仓库外、不进 git)。
+
+- 入口:右上「🤖 模型」切换器(只列**已启用**的)+ ⚙ 配置 → **「模型」Tab**(增删改/启用开关/预设模板 DeepSeek·GLM·Kimi·自定义)
+- 切换 = 三件事:重写 `~/.code-panel/active-llm.sh`(0600)+ shell rc 独立 managed 块 + **同步 `~/.claude/settings.json` 的 env 受管键**
+- ⚠ **settings.json 的 env 优先级高于 shell 导出** —— 不同步这步,旧的 settings.json 配置会静默压掉切换结果。同步只动受管的键(所有供应商 vars 键的并集),其余键绝不碰;切走/删除时按 manifest 精确删键
+- 「不注入」档 = 清空受管键,恢复 claude 官方登录态
+- API 出参一律脱敏(`****尾4`);PUT 回传含 `****` 的值 = 保留旧 Key(防脱敏回显把真 Key 写没)
+- 改完自查:`cp get /api/llm/providers`(看 active/rc/settings 残留),或 `cp get "/api/inspect?project=<id>"` 的 `llm` 小节
+- ⚠ **动手前先备份 `~/.claude/settings.json`**:切换会真实改写它(尤其别拿假 Key 试)
 
 ## PRD 指令(用户说「PRD/写PRD/原型/方案文档」时)
 
