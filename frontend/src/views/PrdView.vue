@@ -38,7 +38,8 @@
             title="在新窗口打开双栏页"
             @click="openInTab"
           >新窗口 ↗</button>
-          <button @click="reload">↻ Refresh</button>
+          <button :disabled="refreshing" title="重绘各中心看板并刷新视图" @click="reload">{{ refreshing ? '↻ 重绘中…' : '↻ Refresh' }}</button>
+          <span v-if="refreshNote" class="refresh-note">{{ refreshNote }}</span>
           <TopRightTools />
         </span>
       </div>
@@ -144,7 +145,27 @@ async function selectFolder(dir: string) {
   } catch { entryFile.value = ''; currentFile.value = '' }
 }
 
-function reload() {
+/** ↻ Refresh = 先重绘看板(内置生成器,等价 AI 侧 `cp post /api/prd/gen-board`)再刷新视图;
+ *  无项目/接口失败时退化为纯视图刷新,不阻塞浏览。 */
+const refreshing = ref(false)
+const refreshNote = ref('')
+async function reload() {
+  if (projects.currentId && !refreshing.value) {
+    refreshing.value = true
+    try {
+      const res = await apiFetch('/api/prd/gen-board', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project: projects.currentId }),
+      })
+      const data = await res.json()
+      refreshNote.value = data.ok ? '✓ 看板已重绘' : ''
+      if (!data.ok) console.warn('[prd] 看板重绘失败:', data.error)
+    } catch { /* 面板未连上等:仍刷新视图 */ } finally {
+      refreshing.value = false
+      if (refreshNote.value) setTimeout(() => { refreshNote.value = '' }, 2500)
+    }
+  }
   frameKey.value++
   loadFolders()
 }
@@ -249,6 +270,7 @@ onMounted(loadFolders)
 .toolbar .copy-btn { color: var(--glow); border-color: var(--glow-dim); font-weight: 600; }
 .toolbar .copy-btn:hover { background: rgba(34,238,102,0.1); color: var(--glow); }
 .toolbar .open-btn { color: var(--glow); border-color: var(--glow-dim); font-weight: 600; }
+.toolbar .refresh-note { font-size: 10px; color: var(--glow); }
 
 /* 整屏 iframe:右侧主区一块撑满 */
 .content-area {

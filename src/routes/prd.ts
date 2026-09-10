@@ -12,6 +12,7 @@ import type { PrdModuleYaml } from '../projects/yaml';
 import { route } from '../utils/route-utils';
 import { buildViewPage, renderContentOnly, CODE_EXTS } from '../prd/view-pages';
 import { sendPrdFile, codeFileHandler } from '../prd/file-serve';
+import { genAllBoards } from '../prd/board-gen';
 
 const router = Router();
 
@@ -50,6 +51,14 @@ function setDirDone(project: ProjectRow, dir: string, done: boolean): void {
 }
 
 // ── 路由 ────────────────────────────────────────────────
+
+/** 看板重绘:跑内置生成器整份重写 <项目根>/.code-panel/prd/<人名>/index.md(全中心)。
+ *  消费方:前端 ↻ Refresh 按钮 + 本机 AI `cp post /api/prd/gen-board`(免密)。 */
+router.post('/api/prd/gen-board', requireProject, route((req, res) => {
+  const project = reqProject(req);
+  const output = genAllBoards(project.root);
+  res.json({ ok: true, output });
+}));
 
 /** 文件夹列表（名称 / 目录 / 创建日期;来自该项目 prd.yaml） */
 router.get('/api/prd/folders', requireProject, route((req, res) => {

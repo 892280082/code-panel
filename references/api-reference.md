@@ -84,6 +84,7 @@
 | GET | `/api/prd/folders?project=` | 目录清单(文件数/完成态) |
 | GET | `/api/prd/files|content|view|file|code-file` | 文件列表/内嵌渲染/双栏页/原型直读/伪代码高亮 |
 | POST | `/api/prd/done` | `{project,dir,done}` 完成态 |
+| POST | `/api/prd/gen-board` | `{project:"<id>"}` 看板重绘 —— 内置生成器整份重写 `<项目根>/.code-panel/prd/<人名>/index.md`(全中心;前端 ↻ Refresh 与本机 `cp post /api/prd/gen-board` 同源) |
 | GET | `/api/links?project=` | 快捷方式分组 |
 | GET | `/api/env?project=` | 环境组列表 + 当前生效 |
 | POST | `/api/env/ensure|activate|reset|mount` | 兜底/选用/重置/补挂 shell rc |
