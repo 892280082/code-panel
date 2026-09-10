@@ -7,6 +7,8 @@ import { ref } from 'vue'
 import { useProjectsStore } from '@/stores/projects'
 import { useAuthStore } from '@/stores/auth'
 
+const emit = defineEmits<{ (e: 'used'): void }>()
+
 const projects = useProjectsStore()
 const auth = useAuthStore()
 
@@ -105,7 +107,7 @@ async function saveEdit() {
             <button class="mini danger" title="移除注册" @click="handleRemoveProject(p.id)">移除</button>
           </template>
         </span>
-        <button class="use-btn" :disabled="p.id === projects.currentId" @click="projects.setProject(p.id)">
+        <button class="use-btn" :disabled="p.id === projects.currentId" @click="projects.setProject(p.id); emit('used')">
           {{ p.id === projects.currentId ? '✓ 使用中' : '使用' }}
         </button>
       </div>

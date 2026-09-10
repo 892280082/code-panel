@@ -1,6 +1,8 @@
 // ── 项目注册表 Store ──────────────────────────────────────
-//   管理项目列表与「当前选中项目」。选中项持久化到 localStorage `panel-project`,
-//   切换项目时所有视图/抽屉通过 watch currentId 重新加载数据。
+//   管理项目列表与「当前选中项目」。切换项目时所有视图/抽屉通过 watch currentId
+//   重新加载数据。
+//   选中项双层存储:sessionStorage(按标签页隔离 → 两个标签页可各开一个项目,
+//   刷新互不影响)+ localStorage(全局「最近使用」,新标签页/新会话的兜底默认)。
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
@@ -8,6 +10,22 @@ import { apiJson } from '@/utils/api-fetch'
 import type { ProjectInfo } from '@/types'
 
 const KEY = 'panel-project'
+const TAB_KEY = 'panel-project-tab'
+
+/** 当前标签页锁定的项目(无则回落全局最近使用) */
+function readSaved(): string | null {
+  return sessionStorage.getItem(TAB_KEY) ?? localStorage.getItem(KEY)
+}
+
+function persist(id: string | null) {
+  if (id) {
+    sessionStorage.setItem(TAB_KEY, id)   // 本标签页锁定
+    localStorage.setItem(KEY, id)         // 全局「最近使用」(新标签页的默认)
+  } else {
+    sessionStorage.removeItem(TAB_KEY)
+    localStorage.removeItem(KEY)
+  }
+}
 
 /** 拼 URL query:project=<id>;无当前项目时返回 '' */
 export function projectQS(): string {
@@ -30,17 +48,12 @@ export const useProjectsStore = defineStore('projects', () => {
     projects.value.find(p => p.id === currentId.value) || null
   )
 
-  function persist() {
-    if (currentId.value) localStorage.setItem(KEY, currentId.value)
-    else localStorage.removeItem(KEY)
-  }
-
-  /** 拉取项目列表,并按「记住的/第一个」选中 */
+  /** 拉取项目列表,并按「本标签页记住的/全局最近使用/第一个」选中 */
   async function load() {
     const data = await apiJson<{ data: ProjectInfo[] }>('/api/projects')
     projects.value = data?.data || []
     loaded.value = true
-    const saved = localStorage.getItem(KEY)
+    const saved = readSaved()
     if (saved && projects.value.some(p => p.id === saved)) {
       currentId.value = saved
     } else if (projects.value.length) {
@@ -48,13 +61,13 @@ export const useProjectsStore = defineStore('projects', () => {
     } else {
       currentId.value = null
     }
-    persist()
+    persist(currentId.value)
   }
 
   function setProject(id: string) {
     if (!projects.value.some(p => p.id === id)) return
     currentId.value = id
-    persist()
+    persist(id)
   }
 
   /** 添加项目:POST → 刷新列表 → 选中新项目。后端错误向上抛,由调用方提示 */

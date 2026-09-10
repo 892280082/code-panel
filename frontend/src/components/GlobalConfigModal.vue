@@ -50,7 +50,7 @@ const tabs: { key: TabKey; label: string }[] = [
         <div class="modal-body">
           <!-- ── 项目 ── -->
           <div v-if="activeTab === 'project'" class="tab-pane">
-            <ProjectPanel />
+            <ProjectPanel @used="emit('close')" />
           </div>
 
           <!-- ── 备份 ── -->
