@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, watchEffect } from 'vue'
 import CommandDrawer from '@/components/CommandDrawer.vue'
 import TerminalPanel from '@/components/TerminalPanel.vue'
 import RepoBrowserModal from '@/components/RepoBrowserModal.vue'
@@ -7,8 +7,16 @@ import CloudPanel from '@/components/CloudPanel.vue'
 import { useTerminalStore } from '@/stores/terminal'
 import { useRepoBrowserStore } from '@/stores/repo-browser'
 import { useAuthStore } from '@/stores/auth'
+import { useProjectsStore } from '@/stores/projects'
 
 const auth = useAuthStore()
+const projects = useProjectsStore()
+
+// 浏览器标签页标题跟随当前项目(多标签页各开一个项目时,靠标题区分)
+watchEffect(() => {
+  const name = projects.currentProject?.name
+  document.title = name ? `${name} · code-panel` : 'code-panel'
+})
 const terminalStore = useTerminalStore()
 const browserStore = useRepoBrowserStore()
 
