@@ -94,20 +94,31 @@ function close() {
   minimized.value = false
 }
 
-function clampToViewport() {
-  const c = clampPos({ x: fabX.value, y: fabY.value })
-  if (c) { fabX.value = c.x; fabY.value = c.y }
+/** 视口变化(切分辨率/拔外接屏):FAB 跑出屏幕 → 重置回初始位置(默认 24,24)
+ *  原来只是 clamp 拉回边缘,现在按用户定:出界即回初始位,并写回存储 */
+function resetFabIfOffscreen() {
+  const maxX = window.innerWidth - FAB_SIZE - EDGE
+  const maxY = window.innerHeight - FAB_SIZE - EDGE
+  if (maxX < EDGE || maxY < EDGE) {
+    fabX.value = EDGE; fabY.value = EDGE
+    localStorage.setItem(POS_KEY, JSON.stringify({ x: EDGE, y: EDGE }))
+    return
+  }
+  if (fabX.value > maxX || fabY.value > maxY) {
+    fabX.value = 24; fabY.value = 24
+    localStorage.setItem(POS_KEY, JSON.stringify({ x: 24, y: 24 }))
+  }
 }
 
 onMounted(() => {
   checkStatus()
   pollTimer = setInterval(checkStatus, 5000)
-  window.addEventListener('resize', clampToViewport)
+  window.addEventListener('resize', resetFabIfOffscreen)
 })
 
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
-  window.removeEventListener('resize', clampToViewport)
+  window.removeEventListener('resize', resetFabIfOffscreen)
 })
 </script>
 

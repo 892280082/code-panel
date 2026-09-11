@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted } from 'vue'
 import { useTerminalStore } from '@/stores/terminal'
 import { useAuthStore } from '@/stores/auth'
 
@@ -55,6 +56,35 @@ function tmuxProjectOf(s: any): string | null {
   const m = /^p_([A-Za-z0-9-]+)_/.exec(s.tmuxSession || '')
   return m ? m[1] : null
 }
+
+// ── 视口变化:跑出屏幕的窗口重置回初始居中位 ──────────────
+//   窗口位置持久化(含跨会话),换分辨率/拔外接屏后旧偏移可能落到
+//   视口外 → 窗口「失踪」拖不回来。监听 resize(debounce 300ms,
+//   拖浏览器窗口边缘的连续 resize 不触发误重置),窗口中心出界
+//   (留 40px 余量)即重置 x=y=0 —— 与新建窗口的初始化位置一致。
+let resizeTimer: ReturnType<typeof setTimeout> | null = null
+
+function onViewportResize() {
+  if (resizeTimer) clearTimeout(resizeTimer)
+  resizeTimer = setTimeout(() => {
+    resizeTimer = null
+    const w = window.innerWidth, h = window.innerHeight
+    let changed = false
+    for (const s of store.sessions.values()) {
+      if (w / 2 + s.x < 40 || w / 2 + s.x > w - 40 || h / 2 + s.y < 40 || h / 2 + s.y > h - 40) {
+        s.x = 0; s.y = 0
+        changed = true
+      }
+    }
+    if (changed) store.persistWindows()
+  }, 300)
+}
+
+onMounted(() => window.addEventListener('resize', onViewportResize))
+onUnmounted(() => {
+  window.removeEventListener('resize', onViewportResize)
+  if (resizeTimer) clearTimeout(resizeTimer)
+})
 </script>
 
 <template>
