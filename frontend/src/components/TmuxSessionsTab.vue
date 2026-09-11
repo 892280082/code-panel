@@ -1,13 +1,14 @@
 <script setup lang="ts">
 // ── 「会话」Tab:Tmux 持久化终端管理(从 CommandDrawer 拆出)──────
+//   全局平铺(2026-09-11 用户定:不按项目分组/过滤 —— 会话里跑着 claude ≈500MB,
+//   藏在别的项目后面看不见但一直吃内存;全部列出,项目归属用 chip 标注)。
 //   列表 / 新建表单 / 点击已开窗口恢复 / 断开(仅关窗口) / 彻底删除(kill session)。
 //   数据自治:直接用 projects / terminal store 拉取与操作(props 最少化),
-//   自带 5s 轮询、与抽屉开合 / 项目切换同步(拆分前由父组件统一轮询,现各管各的)。
-//   新建表单展开态由父组件持有 —— 底部「＋ 新建 Tmux」按钮的文案与高亮也依赖它;
-//   创建成功后 emit update:showForm(false) 让父组件收起表单。
+//   自带 5s 轮询、与抽屉开合同步。新建表单展开态由父组件持有 ——
+//   底部「＋ 新建 Tmux」按钮的文案与高亮也依赖它;创建成功后 emit 收起表单。
 
 import { apiFetch } from '@/utils/api-fetch'
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useProjectsStore } from '@/stores/projects'
 import { useTerminalStore } from '@/stores/terminal'
 
@@ -23,26 +24,42 @@ const newTmuxDesc = ref('')
 const tmuxError = ref('')
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
-// 表单展开瞬间清空上次输入(拆分前 onNewTmux 只清 name/desc,错误提示保留到下次提交)
+// 表单展开瞬间:清名称,备注默认 = 当前项目名(归属一眼可见,可改)
 watch(() => props.showForm, (open) => {
-  if (open) { newTmuxName.value = ''; newTmuxDesc.value = '' }
+  if (open) {
+    newTmuxName.value = ''
+    newTmuxDesc.value = projects.currentProject?.name || ''
+  }
 })
 
-/** 拉取本项目 tmux 会话(后端带 project 过滤;这里再兜底过滤一次) */
+/** 拉取宿主全部 tmux 会话(不带 project = 全项目平铺;项目归属前端用 chip 展示) */
 async function loadTmuxSessions() {
-  if (!projects.currentId) { tmuxSessions.value = []; return }
   try {
-    const url = `/api/terminal/tmux/list?project=${encodeURIComponent(projects.currentId)}`
-    const res = await apiFetch(url)
+    const res = await apiFetch('/api/terminal/tmux/list')
     const data = await res.json()
     if (data.ok) {
-      const pid = projects.currentId
       tmuxSessions.value = (data.data || [])
-        .filter((s: any) => s.project === pid)
         .sort((a: any, b: any) => b.createdAt - a.createdAt)
     }
   } catch { /* ignore */ }
 }
+
+/** 项目 id → 显示名(盒子标题;项目被删时退化为 #id) */
+function projectName(id: string): string {
+  return projects.projects.find(p => p.id === id)?.name || `#${id}`
+}
+
+/** 按项目分盒(全项目一屏可见,组序 = 各组最新会话时间倒序);样式对齐 Apps 页 platform-card */
+const groupedTmux = computed(() => {
+  const map = new Map<string, any[]>()
+  for (const s of tmuxSessions.value) {
+    if (!map.has(s.project)) map.set(s.project, [])
+    map.get(s.project)!.push(s)
+  }
+  return [...map.entries()]
+    .map(([project, sessions]) => ({ project, sessions }))
+    .sort((a, b) => (b.sessions[0]?.createdAt ?? 0) - (a.sessions[0]?.createdAt ?? 0))
+})
 
 /** 该 tmux 会话在本页是否已开窗口(有则返回端口,null=未连接) */
 function attachedTmuxPort(fullName: string): number | null {
@@ -56,16 +73,17 @@ function attachedTmuxPort(fullName: string): number | null {
 function prettyTmuxName(s: any): string { return s.name || s.fullName }
 
 async function onConnectTmux(s: any) {
-  if (!projects.currentId) return
   const port = attachedTmuxPort(s.fullName)
   if (port !== null) { terminal.restoreSession(port); return }
-  await terminal.attachTmux(s.fullName, prettyTmuxName(s), projects.currentId, s.description || '')
+  await terminal.attachTmux(s.fullName, prettyTmuxName(s), s.project, s.description || '')
 }
 
 async function handleCreateTmux() {
   tmuxError.value = ''
   if (!projects.currentId) { tmuxError.value = '无当前项目'; return }
   if (!newTmuxName.value.trim()) { tmuxError.value = '请输入会话名称'; return }
+  // 备注留空则以添加当时的项目名兜底(归属一眼可见)
+  const desc = newTmuxDesc.value.trim() || projects.currentProject?.name || ''
   try {
     const res = await apiFetch('/api/terminal/tmux/create', {
       method: 'POST',
@@ -73,13 +91,12 @@ async function handleCreateTmux() {
       body: JSON.stringify({
         project: projects.currentId,
         name: newTmuxName.value.trim(),
-        description: newTmuxDesc.value.trim() || undefined,
+        description: desc || undefined,
       }),
     })
     const data = await res.json()
     if (!data.ok) { tmuxError.value = data.error || '创建失败'; return }
     const { name, fullName } = data.data
-    const desc = newTmuxDesc.value.trim()
     newTmuxName.value = ''; newTmuxDesc.value = ''
     emit('update:showForm', false)
     loadTmuxSessions()
@@ -95,11 +112,10 @@ function onDetachTmux(s: any) {
   if (port !== null) terminal.closeSession(port)
 }
 
-/** 彻底删除:断开 + kill session + 清备注 */
+/** 彻底删除:断开 + kill session + 清备注(按会话归属项目操作,与当前选中项目无关) */
 function onDeleteTmux(s: any) {
-  if (!projects.currentId) return
   if (!confirm(`确定删除 tmux 会话「${prettyTmuxName(s)}」?会话内的所有进程将被终止!`)) return
-  terminal.deleteTmuxSession(s.fullName, projects.currentId).then(loadTmuxSessions)
+  terminal.deleteTmuxSession(s.fullName, s.project).then(loadTmuxSessions)
 }
 
 function fmtTime(ms: number): string {
@@ -117,11 +133,7 @@ function stopPolling() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
 }
 
-// 项目切换时清空并重拉(命令列表由父组件另行处理)
-watch(() => projects.currentId, () => {
-  tmuxSessions.value = []
-  if (terminal.drawerOpen) loadTmuxSessions()
-})
+// 列表 = 宿主全局平铺,与当前选中项目无关(项目切换不再清空重拉)
 
 // 抽屉开 → 轮询;关 → 停
 watch(() => terminal.drawerOpen, (open) => {
@@ -143,24 +155,29 @@ onUnmounted(stopPolling)
   </div>
 
   <div v-if="tmuxSessions.length === 0 && !showForm" class="section-hint">
-    没有 tmux 会话。创建后终端会常驻服务器，刷新页面 / 重启服务后也能重连。
+    没有 tmux 会话。创建后终端会常驻服务器，刷新页面 / 重启服务后也能重连。<br>
+    全部项目的会话一屏可见(按项目分盒)—— 别让跑着 claude 的会话藏着吃内存。
   </div>
 
-  <div v-for="s in tmuxSessions" :key="s.fullName" class="tmux-item">
-    <div class="tmux-body" @click="onConnectTmux(s)">
-      <span class="cmd-label">
-        {{ prettyTmuxName(s) }}
-        <span v-if="attachedTmuxPort(s.fullName) !== null" class="tmux-badge">● 已连接</span>
-      </span>
-      <span class="cmd-preview">
-        {{ s.description || `${s.windows} 个窗口` }} · {{ s.attached ? '已有接入' : '空闲' }} · {{ fmtTime(s.createdAt) }}
-      </span>
-    </div>
-    <div class="tmux-actions">
-      <button v-if="attachedTmuxPort(s.fullName) !== null" class="foot-btn" @click.stop="onDetachTmux(s)">
-        断开
-      </button>
-      <button class="foot-btn danger" @click.stop="onDeleteTmux(s)">删除</button>
+  <!-- 按项目分盒:盒头 = 项目名,盒内 = 该项目具体会话(对齐 Apps 页 platform-card) -->
+  <div v-for="g in groupedTmux" :key="g.project" class="platform-card">
+    <h3 class="platform-name">🗂 {{ projectName(g.project) }}<span class="cnt">{{ g.sessions.length }}</span></h3>
+    <div v-for="s in g.sessions" :key="s.fullName" class="tmux-item">
+      <div class="tmux-body" @click="onConnectTmux(s)">
+        <span class="cmd-label">
+          {{ prettyTmuxName(s) }}
+          <span v-if="attachedTmuxPort(s.fullName) !== null" class="tmux-badge">● 已连接</span>
+        </span>
+        <span class="cmd-preview">
+          {{ s.description || `${s.windows} 个窗口` }} · {{ s.attached ? '已有接入' : '空闲' }} · {{ fmtTime(s.createdAt) }}
+        </span>
+      </div>
+      <div class="tmux-actions">
+        <button v-if="attachedTmuxPort(s.fullName) !== null" class="foot-btn" @click.stop="onDetachTmux(s)">
+          断开
+        </button>
+        <button class="foot-btn danger" @click.stop="onDeleteTmux(s)">删除</button>
+      </div>
     </div>
   </div>
 </template>
@@ -202,6 +219,37 @@ onUnmounted(stopPolling)
 .section-hint {
   color: var(--text-dim, #6b6b78);
   font-size: 12px; text-align: center; padding: 16px 0;
+}
+
+/* ── 项目分盒(样式对齐 Apps 页 platform-card:大框 + 左上角缺口放项目名)── */
+.platform-card {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border, #23232a);
+  border-radius: 10px;
+  background: var(--bg, #09090b);
+  padding: 16px 10px 6px;
+}
+.platform-card + .platform-card { margin-top: 12px; }
+.platform-name {
+  position: absolute; top: -11px; left: 14px; margin: 0; z-index: 2;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-dim, #6b6b78);
+  background: var(--surface, #131316);
+  border: 1px solid var(--border, #23232a);
+  border-radius: 10px;
+  padding: 2px 12px;
+  white-space: nowrap;
+  cursor: default;
+}
+.platform-name .cnt {
+  font-size: 9px; color: var(--text-dim, #6b6b78);
+  background: var(--bg, #09090b); border: 1px solid var(--border, #23232a);
+  border-radius: 8px; padding: 0 5px; line-height: 14px;
 }
 
 /* ── Tmux 会话列表 ─────────────────────────────────────── */
