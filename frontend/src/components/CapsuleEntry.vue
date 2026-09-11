@@ -126,12 +126,12 @@ function fmtTime(ms: number): string {
             class="cp-clear"
             title="清空全部胶囊(挪入临时目录,7 天内可问 AI 找回)"
             @click="onClearAll"
-          >清空</button>
+          >🗑 清空</button>
           <button
             class="cp-copy"
             :title="'复制命令前缀,粘到终端后自己补主题:' + brainstormPrompt() + '<主题>'"
             @click="copyBrainstorm"
-          >{{ copiedCmd ? '✓ 已复制' : '⧉ 复制' }}</button>
+          >{{ copiedCmd ? '✓ 已复制' : '⧉ 提示词' }}</button>
         </div>
 
         <div class="cp-body">
