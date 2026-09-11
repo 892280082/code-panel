@@ -7,7 +7,9 @@
 //   attach 只返回端口,token 由前端自己拼(与其他终端一致)。
 
 import { Router, Request, Response } from 'express';
-import { requireProject, reqProject } from '../projects/context';
+import { requireProject, reqProject, canAccessProject } from '../projects/context';
+import { reqUser } from '../auth/jwt';
+import { listUserProjectIds } from '../db/global-store';
 import { route } from '../utils/route-utils';
 import {
   listTmuxSessions, createTmuxSession, startTmuxAttach,
@@ -17,14 +19,25 @@ import {
 const router = Router();
 
 // GET /api/terminal/tmux/list?project=<id> — 列出 tmux 会话(含备注)
-//   带 project 时按项目过滤;不带则返回宿主全部(每项带 project 字段,前端自行过滤)
+//   带 project 时按项目过滤(未分配该项目 → 403);不带则返回宿主全部
+//   —— 按登录用户收口:超管见全部;普通用户仅见被分配项目(user_projects)的会话,
+//   未归属到任何项目的孤儿会话(project=null)对普通用户一律不可见。
 router.get('/api/terminal/tmux/list', route(async (req: Request, res: Response) => {
   try {
     const sessions = await listTmuxSessions();
     const projectId = typeof req.query.project === 'string' ? req.query.project.trim() : '';
-    const data = projectId
+    if (projectId && !canAccessProject(req, projectId)) {
+      res.status(403).json({ ok: false, error: '无该项目权限' });
+      return;
+    }
+    let data = projectId
       ? sessions.filter(s => s.project === projectId)
       : sessions;
+    const user = reqUser(req);
+    if (user && user.role !== 'superadmin') {
+      const visible = new Set(listUserProjectIds(user.username));
+      data = data.filter(s => s.project !== null && visible.has(s.project));
+    }
     res.json({ ok: true, data });
   } catch {
     // tmux 未安装或无会话 → 空列表
