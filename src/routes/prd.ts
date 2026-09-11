@@ -32,10 +32,18 @@ function prdCtxFromReq(req: Request): PrdModuleYaml {
 
 function listMdFiles(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir)
-    .filter(f => f.endsWith('.md'))
-    .sort()
-    .map(f => path.join(dir, f));
+  // 2026-09-11 递归子目录(fileCount 含 plan/{todo,doing,done} 计划文档;跳过软链防绕环,深度≤4)
+  const out: string[] = [];
+  const walk = (d: string, depth: number): void => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      if (e.isSymbolicLink()) continue;
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) { if (depth < 4) walk(p, depth + 1); continue; }
+      if (e.name.endsWith('.md')) out.push(p);
+    }
+  };
+  walk(dir, 0);
+  return out.sort();
 }
 
 // ── 完成状态：针对整个目录(随项目,落 data/prd-status.json) ──
@@ -111,7 +119,7 @@ router.get('/api/prd/folders', requireProject, route((req, res) => {
 router.get('/api/prd/files', route((req, res) => {
   const dir = String(req.query.dir || '');
   if (!fs.existsSync(dir)) return res.status(404).json({ ok: false, error: '目录不存在' });
-  const files = listMdFiles(dir).map(f => ({ name: path.basename(f), path: f }));
+  const files = listMdFiles(dir).map(f => ({ name: path.relative(dir, f), path: f }));
   res.json({ ok: true, files });
 }));
 

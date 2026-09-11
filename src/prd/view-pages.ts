@@ -13,13 +13,20 @@ export const CODE_EXTS = ['.ts', '.js', '.jsx', '.tsx', '.java', '.sql', '.py', 
 /** 视图导航文件列表：md + 代码文件（伪代码目录能看到所有步骤文件） */
 export function listViewFiles(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir)
-    .filter(f => {
-      const ext = path.extname(f).toLowerCase();
-      return f.endsWith('.md') || CODE_EXTS.includes(ext);
-    })
-    .sort()
-    .map(f => path.join(dir, f));
+  // 2026-09-11 递归列子目录(计划文档在 plan/{todo,doing,done}/ 下,只扫一层永远看不见;
+  // 跳过软链防绕环,深度≤4)。显示名 = 相对 dir 的路径(plan/doing/plan-02-xx.md)。
+  const out: string[] = [];
+  const walk = (d: string, depth: number): void => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      if (e.isSymbolicLink()) continue;
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) { if (depth < 4) walk(p, depth + 1); continue; }
+      const ext = path.extname(e.name).toLowerCase();
+      if (e.name.endsWith('.md') || CODE_EXTS.includes(ext)) out.push(p);
+    }
+  };
+  walk(dir, 0);
+  return out.sort();
 }
 
 // ── 原型引用 ─────────────────────────────────────────────
@@ -192,10 +199,11 @@ export function buildViewPage(md: string, mdName: string, dir: string, extraBase
     ? `<pre class="code-pre"><code>${esc(md)}</code></pre>`
     : rewriteLinks(inlineTabWidgets(inlineProtoSections(markdownToHtml(md), refs), md, dir), dir, projQ);
   const files = listViewFiles(dir);
+  // 2026-09-11 递归列表:导航名/链接用相对路径(plan/doing/plan-02-xx.md),子目录文件可达且不撞名
   const nav = files.map(f => {
-    const name = path.basename(f);
-    const active = f === path.join(dir, mdName) ? ' class="on"' : '';
-    return `<a${active} href="/api/prd/view?dir=${encodeURIComponent(dir)}&file=${encodeURIComponent(name)}${projQ}">${name}</a>`;
+    const rel = path.relative(dir, f);
+    const active = f === path.resolve(dir, mdName) ? ' class="on"' : '';
+    return `<a${active} href="/api/prd/view?dir=${encodeURIComponent(dir)}&file=${encodeURIComponent(rel)}${projQ}">${rel}</a>`;
   }).join('\n');
 
   return `<!DOCTYPE html>
