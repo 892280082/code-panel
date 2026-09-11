@@ -60,6 +60,35 @@ router.post('/api/prd/gen-board', requireProject, route((req, res) => {
   res.json({ ok: true, output });
 }));
 
+/** 初始化 design-prd skill:内置模板 → <项目根>/.claude/skills/design-prd/。
+ *  幂等:已存在的文件永不覆盖(项目定制不被冲掉);顺带补 .code-panel/prd/ 目录与各中心 specs 软链。
+ *  消费方:前端 PRD 空状态按钮 + `cp post /api/prd/init-skill`(新项目统一原型调用方法)。 */
+router.post('/api/prd/init-skill', requireProject, route((req, res) => {
+  const project = reqProject(req);
+  const tplDir = path.resolve(__dirname, '..', '..', 'templates', 'design-prd');
+  if (!fs.existsSync(tplDir)) return res.status(500).json({ ok: false, error: `模板缺失:${tplDir}` });
+  const dst = path.join(project.root, '.claude', 'skills', 'design-prd');
+  fs.mkdirSync(dst, { recursive: true });
+  const created: string[] = [], skipped: string[] = [];
+  for (const f of fs.readdirSync(tplDir)) {
+    if (fs.existsSync(path.join(dst, f))) { skipped.push(f); continue; }
+    fs.copyFileSync(path.join(tplDir, f), path.join(dst, f));
+    created.push(f);
+  }
+  const prdRoot = path.join(project.root, '.code-panel', 'prd');
+  fs.mkdirSync(prdRoot, { recursive: true });
+  let specsLinks = 0;
+  for (const ent of fs.readdirSync(prdRoot, { withFileTypes: true })) {
+    if (!ent.isDirectory() || ent.isSymbolicLink()) continue;
+    if (['原型规范', '总进度', 'specs'].includes(ent.name)) continue;
+    const link = path.join(prdRoot, ent.name, 'specs');
+    if (!fs.existsSync(link)) {
+      try { fs.symlinkSync('../../../specs', link); specsLinks++; } catch { /* 非 unix 忽略 */ }
+    }
+  }
+  res.json({ ok: true, skillDir: dst, created, skipped, specsLinks });
+}));
+
 /** 文件夹列表（名称 / 目录 / 创建日期;来自该项目 prd.yaml） */
 router.get('/api/prd/folders', requireProject, route((req, res) => {
   const project = reqProject(req);

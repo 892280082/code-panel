@@ -85,6 +85,7 @@
 | GET | `/api/prd/files|content|view|file|code-file` | 文件列表/内嵌渲染/双栏页/原型直读/伪代码高亮 |
 | POST | `/api/prd/done` | `{project,dir,done}` 完成态 |
 | POST | `/api/prd/gen-board` | `{project:"<id>"}` 看板重绘 —— 内置生成器整份重写 `<项目根>/.code-panel/prd/<人名>/index.md`(全中心;前端 ↻ Refresh 与本机 `cp post /api/prd/gen-board` 同源) |
+| POST | `/api/prd/init-skill` | `{project:"<id>"}` 初始化 design-prd skill —— 模板(`templates/design-prd/`)拷到 `<项目根>/.claude/skills/design-prd/`,**幂等不覆盖已有文件**;顺带补 `.code-panel/prd/` 目录与各中心 specs 软链(前端 PRD 空状态按钮 / `cp post /api/prd/init-skill`) |
 | GET | `/api/links?project=` | 快捷方式分组 |
 | GET | `/api/env?project=` | 环境组列表 + 当前生效 |
 | POST | `/api/env/ensure|activate|reset|mount` | 兜底/选用/重置/补挂 shell rc |

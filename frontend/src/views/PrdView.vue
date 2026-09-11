@@ -52,7 +52,15 @@
         </div>
         <div v-else-if="!currentDir" class="empty-state">
           <span class="icon">◈</span>
-          <span>从左侧选择 PRD 文件夹</span>
+          <template v-if="!folders.length">
+            <span>还没有需求中心 —— 新项目先初始化 design-prd skill(统一原型调用方法),再按人名建中心</span>
+            <button class="init-btn" :disabled="initializing" @click="initSkill">
+              {{ initializing ? '⏳ 初始化中…' : '⚡ 初始化 design-prd skill' }}
+            </button>
+            <span class="hint">需求写 <code>.code-panel/prd/&lt;人名&gt;/</code>,看板由 ↻ Refresh 程序渲染</span>
+            <span v-if="initMsg" class="init-msg">{{ initMsg }}</span>
+          </template>
+          <span v-else>从左侧选择 PRD 文件夹</span>
         </div>
         <div v-else-if="!entryFile" class="empty-state">
           <span class="icon">◌</span>
@@ -72,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { apiFetch } from '@/utils/api-fetch'
+import { apiFetch, apiJson } from '@/utils/api-fetch'
 import { ref, computed, watch, onMounted } from 'vue'
 import { useProjectsStore } from '@/stores/projects'
 import Sidebar from '@/components/Sidebar.vue'
@@ -143,6 +151,28 @@ async function selectFolder(dir: string) {
     entryFile.value = entry ? entry.name : ''
     currentFile.value = entryFile.value
   } catch { entryFile.value = ''; currentFile.value = '' }
+}
+
+/** 初始化 design-prd skill(新项目统一原型调用方法;幂等,已存在文件不覆盖) */
+const initializing = ref(false)
+const initMsg = ref('')
+async function initSkill() {
+  if (!projects.currentId || initializing.value) return
+  initializing.value = true
+  initMsg.value = ''
+  try {
+    const data = await apiJson<{ skillDir: string; created: string[]; skipped: string[]; specsLinks: number }>('/api/prd/init-skill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project: projects.currentId }),
+    })
+    initMsg.value = `✓ skill 已就绪(新建 ${data.created.length} · 保留 ${data.skipped.length})`
+  } catch (e) {
+    initMsg.value = `✗ ${(e as Error).message}`
+  } finally {
+    initializing.value = false
+    setTimeout(() => { initMsg.value = '' }, 4000)
+  }
 }
 
 /** ↻ Refresh = 先重绘看板(内置生成器,等价 AI 侧 `cp post /api/prd/gen-board`)再刷新视图;
@@ -287,4 +317,14 @@ onMounted(loadFolders)
 :deep(.empty-state) { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; height: 100%; color: var(--text-dim); }
 :deep(.empty-state .icon) { font-size: 32px; }
 :deep(.empty-state .hint) { font-size: 11px; color: var(--text-dim); }
+:deep(.empty-state .hint code) { font-family: var(--font, monospace); font-size: 10px; color: var(--text-dim); }
+.init-btn {
+  font-family: var(--font); font-size: 11px; padding: 7px 16px;
+  color: var(--glow); background: rgba(34,238,102,0.08);
+  border: 1px solid var(--glow-dim); border-radius: var(--radius);
+  cursor: pointer; font-weight: 600; transition: all 0.15s;
+}
+.init-btn:hover { background: rgba(34,238,102,0.15); }
+.init-btn:disabled { opacity: 0.5; cursor: wait; }
+.init-msg { font-size: 10px; color: var(--glow); }
 </style>
