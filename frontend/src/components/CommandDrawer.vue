@@ -12,6 +12,7 @@ import { useRepoBrowserStore } from '@/stores/repo-browser'
 import { useCloudStore } from '@/stores/cloud'
 import { useFabChips } from '@/composables/useFabChips'
 import TmuxSessionsTab from '@/components/TmuxSessionsTab.vue'
+import { pinLayout, resetLayout } from '@/utils/viewport-layout'
 
 const terminal = useTerminalStore()
 const projects = useProjectsStore()
@@ -21,6 +22,31 @@ const commands = ref<any[]>([])
 const activeTab = ref<'custom' | 'system' | 'tmux'>('custom')
 const showNewTmux = ref(false)
 let pollTimer: ReturnType<typeof setInterval> | null = null
+
+// 📍 定位:把当前终端窗口 + FAB 的最新位置存进当前屏幕尺寸档案,
+// 之后切到这个尺寸自动对齐(见 utils/viewport-layout)
+const pinMsg = ref('')
+let pinTimer: ReturnType<typeof setTimeout> | null = null
+
+function onPin(): void {
+  const key = pinLayout()
+  pinMsg.value = `✓ 已记住 ${key}`
+  if (pinTimer) clearTimeout(pinTimer)
+  pinTimer = setTimeout(() => { pinMsg.value = '' }, 2000)
+}
+
+// ⟲ 重置:当前分辨率下所有终端窗口一键居中,并清掉该尺寸的定位档案
+// (档案记的位置换了分辨率后可能不合适 → 重置回「未记过」状态兜底)
+function onReset(): void {
+  for (const s of terminal.sessions.values()) {
+    if (!s.maximized) { s.x = 0; s.y = 0 }
+  }
+  terminal.persistWindows()
+  const key = resetLayout()
+  pinMsg.value = `✓ 已居中并清除 ${key}`
+  if (pinTimer) clearTimeout(pinTimer)
+  pinTimer = setTimeout(() => { pinMsg.value = '' }, 2000)
+}
 
 const systemCmds = computed(() => commands.value.filter((c: any) => c.type === 'system'))
 const customCmds = computed(() => commands.value.filter((c: any) => c.type === 'custom'))
@@ -156,6 +182,16 @@ function onClickCommand(cmd: any) {
         <!-- 固定头部 -->
         <div class="drawer-header">
           <span class="drawer-title">命令终端</span>
+          <button
+            class="drawer-pin"
+            title="记住当前屏幕尺寸下终端窗口与浮标的位置;之后切到这个尺寸自动对齐"
+            @click="onPin"
+          >{{ pinMsg || '📍 定位' }}</button>
+          <button
+            class="drawer-pin reset"
+            title="当前分辨率下所有终端窗口居中,并清除该尺寸的定位记忆"
+            @click="onReset"
+          >⟲ 重置</button>
           <button class="drawer-close" @click="terminal.closeDrawer()">✕</button>
         </div>
 
@@ -409,7 +445,18 @@ function onClickCommand(cmd: any) {
   border-bottom: 1px solid var(--border, #23232a);
   flex-shrink: 0;
 }
-.drawer-title { font-size: 14px; font-weight: 600; color: var(--text, #c8c8d0); }
+.drawer-title { font-size: 14px; font-weight: 600; color: var(--text, #c8c8d0); margin-right: auto; }
+/* 📍 定位:记住当前屏幕尺寸的窗口/浮标位置,切屏自动对齐 */
+.drawer-pin {
+  font-family: var(--font); font-size: 10px;
+  padding: 3px 10px; margin-right: 8px;
+  color: var(--text-dim, #6b6b78); background: transparent;
+  border: 1px solid var(--border, #23232a); border-radius: var(--radius, 4px);
+  cursor: pointer; white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.drawer-pin:hover { color: var(--glow, #22ee66); border-color: var(--glow-dim); }
+.drawer-pin.reset:hover { color: #f44747; border-color: rgba(244,71,71,0.5); }
 .drawer-close { background: transparent; border: none; color: var(--text-dim, #6b6b78); cursor: pointer; font-size: 16px; }
 .drawer-close:hover { color: #f44747; }
 

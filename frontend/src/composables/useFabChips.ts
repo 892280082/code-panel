@@ -12,6 +12,7 @@ import { useProjectsStore } from '@/stores/projects'
 import { useTerminalStore } from '@/stores/terminal'
 import { useRepoBrowserStore } from '@/stores/repo-browser'
 import { useCloudStore } from '@/stores/cloud'
+import { getLayout, onViewportChange, updateLast } from '@/utils/viewport-layout'
 
 export function useFabChips() {
   const terminal = useTerminalStore()
@@ -28,12 +29,20 @@ export function useFabChips() {
   /** FAB 距右边缘的最小值:保证右侧 📂 仓库 + ☁ 云 两个芯片始终留在可视区内 */
   const MIN_FAB_RIGHT = EDGE + 2 * (CHIP_SIZE + GAP)
 
-  /** 屏幕分辨率变化后，上次记录的位置可能超出可视区域，越界则重置回屏幕内，避免图标丢失 */
+  /** 屏幕分辨率变化后，上次记录的位置可能超出可视区域，越界则重置回屏幕内，避免图标丢失。
+   *  ⭐ 任何情况都返回视口内的位置(永不 null):视口小到放不下完整芯片簇时,
+   *  至少把 FAB 本体贴到右下可视区内 —— FAB 是全部终端功能的入口,
+   *  它丢了用户就什么都打不开(用户铁律)。 */
   function clampBtnPos(v: { x: number; y: number } | null) {
     if (!v) return null
     const maxX = window.innerWidth - BTN_SIZE - EDGE
     const maxY = window.innerHeight - BTN_SIZE - EDGE
-    if (maxX < MIN_FAB_RIGHT || maxY < EDGE) return null
+    if (maxX < MIN_FAB_RIGHT || maxY < EDGE) {
+      return {
+        x: Math.max(4, window.innerWidth - BTN_SIZE - 4),
+        y: Math.max(4, Math.min(v.y, window.innerHeight - BTN_SIZE - 4)),
+      }
+    }
     return { x: Math.min(Math.max(v.x, MIN_FAB_RIGHT), maxX), y: Math.min(Math.max(v.y, EDGE), maxY) }
   }
   function readSavedPos() {
@@ -93,6 +102,7 @@ export function useFabChips() {
     const c = clampBtnPos({ x: btnX.value, y: btnY.value })
     if (c) { btnX.value = c.x; btnY.value = c.y }
     localStorage.setItem(POS_KEY, JSON.stringify({ x: btnX.value, y: btnY.value }))
+    updateLast({ fab: { x: btnX.value, y: btnY.value } })   // 记入「最新位置」暂存(定位存档来源)
     document.removeEventListener('mousemove', onTriggerDragMove)
     document.removeEventListener('mouseup', onTriggerDragEnd)
   }
@@ -140,13 +150,33 @@ export function useFabChips() {
     }
   }
 
-  /** 窗口尺寸变化后把簇钳回可视区(拆分前在组件 onMounted 注册,行为不变) */
+  /** 视口尺寸变化:该尺寸记过位 → FAB 对齐到当时位置;没记过 → 钳回可视区 */
   function clampToViewport() {
     const c = clampBtnPos({ x: btnX.value, y: btnY.value })
     if (c) { btnX.value = c.x; btnY.value = c.y }
   }
-  onMounted(() => { window.addEventListener('resize', clampToViewport) })
-  onUnmounted(() => { window.removeEventListener('resize', clampToViewport) })
+  let offViewportChange: (() => void) | null = null
+  onMounted(() => {
+    // 双保险:① resize 即时钳回(保命,FAB 任何瞬间都不许出视窗)
+    window.addEventListener('resize', clampToViewport)
+    // ② 尺寸稳定后(debounce 300ms)按该尺寸的定位档案对齐(体验)
+    offViewportChange = onViewportChange(() => {
+      const L = getLayout()
+      if (L.fab) {
+        const c = clampBtnPos(L.fab)
+        if (c) {
+          btnX.value = c.x; btnY.value = c.y
+          localStorage.setItem(POS_KEY, JSON.stringify(c))
+          return
+        }
+      }
+      clampToViewport() // 无档案/档案越界 → 原兜底:钳回可视区
+    })
+  })
+  onUnmounted(() => {
+    window.removeEventListener('resize', clampToViewport)
+    offViewportChange?.()
+  })
 
   return {
     btnX, btnY, sessionList,

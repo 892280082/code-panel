@@ -1,52 +1,49 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+// ── 终端窗口渲染(TerminalPanel)───────────────────────
+//   职责单一:渲染窗口卡片(标题栏 ⧉ ─ □ ✕ / iframe)+ 置顶激活 +
+//   抓屏归属解析 + iframe 内快捷键转发。
+//   标题栏拖拽 → composables/useTerminalDrag.ts;
+//   切分辨率布局 → composables/useTerminalViewport.ts;
+//   窗口生命周期/持久化 → stores/terminal.ts。
+
 import { useTerminalStore } from '@/stores/terminal'
 import { useAuthStore } from '@/stores/auth'
+import { useTerminalDrag } from '@/composables/useTerminalDrag'
+import { useTerminalViewport } from '@/composables/useTerminalViewport'
+import { getHotkeys, eventCombo } from '@/utils/hotkeys'
 
 const store = useTerminalStore()
 const auth = useAuthStore()
 
-// ── 拖拽 ────────────────────────────────────────
-//   窗口居中定位：left/top 固定 50%，再按 session.x / session.y 平移。
-//   最大化时禁止拖动（□ 全屏铺满，还原后 x/y 不变 → 回到原位）。
-let dragPort: number | null = null
-let dragStartX = 0, dragStartY = 0, dragOrigX = 0, dragOrigY = 0
-
-function onDragStart(e: MouseEvent, port: number) {
-  const s = store.sessions.get(port)
-  if (!s || s.maximized) return
-  dragPort = port
-  dragStartX = e.clientX; dragStartY = e.clientY
-  dragOrigX = s.x; dragOrigY = s.y
-  document.addEventListener('mousemove', onDragMove)
-  document.addEventListener('mouseup', onDragEnd)
-}
-
-function onDragMove(e: MouseEvent) {
-  if (dragPort === null) return
-  e.preventDefault()
-  const s = store.sessions.get(dragPort)
-  if (!s) return
-  s.x = dragOrigX + (e.clientX - dragStartX)
-  s.y = dragOrigY + (e.clientY - dragStartY)
-}
-
-function onDragEnd() {
-  if (dragPort !== null) {
-    const s = store.sessions.get(dragPort)
-    if (s) localStorage.setItem(`cmd-terminal-pos-${dragPort}`, JSON.stringify({ x: s.x, y: s.y }))
-    store.persistWindows()
-  }
-  dragPort = null
-  document.removeEventListener('mousemove', onDragMove)
-  document.removeEventListener('mouseup', onDragEnd)
-}
+// 标题栏拖动(composable 自理:per-port 记忆/清单持久化/📍 定位快照)
+const { onDragStart } = useTerminalDrag()
+// 切分辨率:记过位对齐档案槽位,没记过出界重置(挂载/卸载自理)
+useTerminalViewport()
 
 // 点击/触碰窗口 = 置顶;一次性(启停)会话在 2s 展示期内点中 = 用户想保留看它 → 激活
 // (取消自动收起/20s 自动关),窗口一直留着可看、手动 ✕ 才关。没点中 → 2s 自动收起成 chip。
 function onWindowPointerDown(port: number, session: any) {
   store.bringToFront(port)
   if (session?.oneshot && !session.activated) store.markActivated(port)
+}
+
+/** 终端 iframe 加载完成:注入快捷键转发监听。
+ *  ⭐ 焦点在终端(ttyd/xterm)里时,按键事件被 iframe 吞掉,父窗口的
+ *  全局热键收不到 —— 必须在 iframe 内也监听(同源,可挂)。
+ *  ⭐⭐ 捕获阶段挂载:xterm 自己的按键处理即便 stopPropagation 也
+ *  拦不住捕获;先于它拿到事件。 */
+function onFrameLoad(e: Event): void {
+  const win = (e.target as HTMLIFrameElement).contentWindow
+  if (!win) return
+  try {
+    win.addEventListener('keydown', (ev: KeyboardEvent) => {
+      const combo = eventCombo(ev)
+      if (combo && combo === getHotkeys().toggleTerm) {
+        ev.preventDefault()
+        store.toggleTmuxVisibility()
+      }
+    }, true)
+  } catch { /* 理论同源不会跨域;异常则仅父窗口热键生效 */ }
 }
 
 /** 抓屏要用的归属项目:新窗口直接取字段;旧窗口(本次升级前开的)没存 →
@@ -56,35 +53,6 @@ function tmuxProjectOf(s: any): string | null {
   const m = /^p_([A-Za-z0-9-]+)_/.exec(s.tmuxSession || '')
   return m ? m[1] : null
 }
-
-// ── 视口变化:跑出屏幕的窗口重置回初始居中位 ──────────────
-//   窗口位置持久化(含跨会话),换分辨率/拔外接屏后旧偏移可能落到
-//   视口外 → 窗口「失踪」拖不回来。监听 resize(debounce 300ms,
-//   拖浏览器窗口边缘的连续 resize 不触发误重置),窗口中心出界
-//   (留 40px 余量)即重置 x=y=0 —— 与新建窗口的初始化位置一致。
-let resizeTimer: ReturnType<typeof setTimeout> | null = null
-
-function onViewportResize() {
-  if (resizeTimer) clearTimeout(resizeTimer)
-  resizeTimer = setTimeout(() => {
-    resizeTimer = null
-    const w = window.innerWidth, h = window.innerHeight
-    let changed = false
-    for (const s of store.sessions.values()) {
-      if (w / 2 + s.x < 40 || w / 2 + s.x > w - 40 || h / 2 + s.y < 40 || h / 2 + s.y > h - 40) {
-        s.x = 0; s.y = 0
-        changed = true
-      }
-    }
-    if (changed) store.persistWindows()
-  }, 300)
-}
-
-onMounted(() => window.addEventListener('resize', onViewportResize))
-onUnmounted(() => {
-  window.removeEventListener('resize', onViewportResize)
-  if (resizeTimer) clearTimeout(resizeTimer)
-})
 </script>
 
 <template>
@@ -128,6 +96,7 @@ onUnmounted(() => {
         v-if="!session.minimized"
         :src="`/api/terminal/${port}/?token=${auth.token}`"
         class="terminal-iframe"
+        @load="onFrameLoad"
       />
     </div>
   </div>

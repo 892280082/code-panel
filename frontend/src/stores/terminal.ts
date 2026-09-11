@@ -9,6 +9,7 @@
 
 import { apiFetch } from '@/utils/api-fetch'
 import { raise } from '@/utils/z-layer'
+import { slotPos } from '@/utils/viewport-layout'
 import { useProjectsStore } from './projects'
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
@@ -55,9 +56,10 @@ export const useTerminalStore = defineStore('terminal', () => {
   function toggleDrawer() { drawerOpen.value = !drawerOpen.value }
   function closeDrawer() { drawerOpen.value = false }
 
-  /** 读取保存的位置(越界自动重置到可视区,和面板一致) */
+  /** 窗口落位:per-port 记忆优先(该窗口刷新后回原位,越界钳回可视区);
+   *  新窗口(无记忆)→ 按已占槽位找空位落座(当前尺寸记过位用档案槽,
+   *  否则向右阶梯错开)—— 第 1 个/第 2 个…各就各位 */
   function readSavedPos(port: number): { x: number; y: number } {
-    let x = 0, y = 0
     try {
       const saved = JSON.parse(localStorage.getItem(`cmd-terminal-pos-${port}`) || 'null')
       if (saved && typeof saved.x === 'number' && typeof saved.y === 'number') {
@@ -65,11 +67,14 @@ export const useTerminalStore = defineStore('terminal', () => {
         const panelH = Math.min(580, window.innerHeight - 48)
         const maxX = Math.max(0, (window.innerWidth - panelW) / 2)
         const maxY = Math.max(0, (window.innerHeight - panelH) / 2)
-        x = Math.min(Math.max(saved.x, -maxX), maxX)
-        y = Math.min(Math.max(saved.y, -maxY), maxY)
+        return {
+          x: Math.min(Math.max(saved.x, -maxX), maxX),
+          y: Math.min(Math.max(saved.y, -maxY), maxY),
+        }
       }
-    } catch {}
-    return { x, y }
+    } catch { /* 无记忆/坏数据 → 落到槽位 */ }
+    const taken = [...sessions.values()].map(s => ({ x: s.x, y: s.y }))
+    return slotPos(sessions.size, taken)
   }
 
   // ── 窗口持久化(位置 + 打开状态;刷新自动恢复) ────────────
@@ -312,6 +317,10 @@ export const useTerminalStore = defineStore('terminal', () => {
       }
     } catch { /* ignore */ }
     sessions.delete(port)
+    // ⭐ 清 per-port 位置记忆:窗口实例没了记忆随走 —— 否则 ttyd 端口
+    // 复用时,新开的窗口会顶在旧窗口的位置上,而不是按槽位就座。
+    // (刷新恢复走 PERSIST_KEY 的窗口清单,不受影响)
+    try { localStorage.removeItem(`cmd-terminal-pos-${port}`) } catch { /* ignore */ }
     persistWindows()
   }
 
@@ -380,6 +389,19 @@ export const useTerminalStore = defineStore('terminal', () => {
     capTarget.value = null
   }
 
+  /** 快捷键动作:显示/隐藏全部 tmux 终端窗口(一个都没有时开命令抽屉)。
+   *  供两处调用:App.vue 全局热键 + TerminalPanel 注入终端 iframe 的
+   *  转发监听(焦点在终端 iframe 里时父窗口收不到按键,必须内也监听) */
+  function toggleTmuxVisibility(): void {
+    const tmux = [...sessions.values()].filter(s => s.kind === 'tmux')
+    if (!tmux.length) { toggleDrawer(); return }
+    const anyVisible = tmux.some(s => !s.minimized)
+    for (const s of tmux) {
+      if (anyVisible) minimizeSession(s.port)
+      else if (s.minimized) restoreSession(s.port)
+    }
+  }
+
   return {
     sessions, drawerOpen,
     toggleDrawer, closeDrawer,
@@ -390,5 +412,6 @@ export const useTerminalStore = defineStore('terminal', () => {
     persistWindows, restorePersisted,
     markActivated,
     capTarget, openCapture, closeCapture,
+    toggleTmuxVisibility,
   }
 })

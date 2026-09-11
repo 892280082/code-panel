@@ -16,13 +16,14 @@ import FilesPanel from '@/components/FilesPanel.vue'
 import AccountPanel from '@/components/AccountPanel.vue'
 import LlmPanel from '@/components/LlmPanel.vue'
 import WikiPanel from '@/components/WikiPanel.vue'
+import HotkeyPanel from '@/components/HotkeyPanel.vue'
 
 const emit = defineEmits<{ (e: 'close'): void }>()
 
 const projects = useProjectsStore()
 const ui = useUiStore()
 
-type TabKey = 'project' | 'llm' | 'capsule' | 'backup' | 'files' | 'nginx' | 'security' | 'account'
+type TabKey = 'project' | 'llm' | 'capsule' | 'backup' | 'files' | 'nginx' | 'security' | 'account' | 'hotkey'
 const activeTab = ref<TabKey>((ui.cfgTab as TabKey) || 'project')
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'project', label: '项目' },
@@ -33,6 +34,7 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: 'nginx', label: 'nginx' },
   { key: 'security', label: '安全' },
   { key: 'account', label: '账号' },
+  { key: 'hotkey', label: '快捷键' },
 ]
 </script>
 
@@ -87,6 +89,11 @@ const tabs: { key: TabKey; label: string }[] = [
           <!-- ── 安全(安全模式:未解锁访问一律 404,秘密链接解锁)── -->
           <div v-else-if="activeTab === 'security'" class="tab-pane">
             <SecurityPanel />
+          </div>
+
+          <!-- ── 快捷键(全局热键;localStorage,改完即时生效)── -->
+          <div v-else-if="activeTab === 'hotkey'" class="tab-pane">
+            <HotkeyPanel />
           </div>
 
           <!-- ── 账号 ── -->
