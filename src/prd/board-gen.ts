@@ -6,7 +6,8 @@
 //   结构统一铁律:每个人中心的看板都由本程序渲染,结构一模一样。
 //   列:计划 | 内容 | 伪代码 | spec | 评审 | 状态
 //     - 内容  = 计划文档 `> 主题:` 行(缺省取「一、目标一句话」首行)
-//     - 伪代码 = plan/plan-NN-伪代码/index.md 链接 + plan 根的 plan-NN-*.html 原型链接
+//     - 伪代码 = 步骤书(plan/ 或 plan/pseudocode/ 下 plan-NN-伪代码/index.md;存量单文件 plan-NN-伪代码.md 兼容)
+//              + 原型 plan-NN-*.html(plan/ 与 pseudocode/ 同扫)+ 核心实现(plan/pseudocode/plan-NN-核心实现[/index.md|.md])
 //     - spec  = 计划文档全部 `> spec 访问:[t](u)` 行 → [spec](u) / [spec①][spec②]
 //     - 评审  = 计划文档 `## 评审` 章节最后一条(最新),展示前 50 字
 //     - 状态  = 目录(todo ⏳ / doing 🔄)+ done 的 `> 归档:` 日期
@@ -36,7 +37,8 @@ function parsePlan(md: string, statusDir: string, prdDir: string): PlanRow {
   const m = stem.match(/plan-(\d+)/);
   const nn = m ? m[1] : stem;
 
-  // 内容:主题行 → 一、目标一句话首行 → 文件名
+  // 内容:主题行 → 一、目标一句话首行 → H1 标题(剥状态前缀)→ 文件名
+  // ⚠️ 2026-09-11 补 H1 兜底:存量 33 份计划文档全无主题行/目标节,此前内容列全渲染「(见计划文档)」
   let theme = '';
   const mt = text.match(/^>\s*主题:\s*(.*)$/m);
   if (mt) theme = mt[1].trim();
@@ -50,6 +52,14 @@ function parsePlan(md: string, statusDir: string, prdDir: string): PlanRow {
       }
     }
   }
+  if (!theme) {
+    const mh = text.match(/^#\s+(.+)$/m);
+    if (mh) {
+      theme = mh[1].trim()
+        .replace(/^(待办计划|进行中计划|当前开发计划|开发计划)\s*[:：]\s*/, '')
+        .replace(/^plan-\d+\s*[:：]?\s*/, '');
+    }
+  }
 
   // spec:全部 spec 访问行
   const specs: string[] = [];
@@ -59,7 +69,8 @@ function parsePlan(md: string, statusDir: string, prdDir: string): PlanRow {
 
   // 评审:## 评审 章节最后一条,前 50 字
   let review = '';
-  const sec = text.match(/^## 评审\s*$(.*?)(?=^## |\Z)/ms);
+  // ⚠️ 2026-09-11 修:`\Z` 是 Python 写法,JS 里被当字面量 "Z" → 评审列永远为空;改标准「串尾」断言
+  const sec = text.match(/^## 评审\s*$(.*?)(?=^## |(?![\s\S]))/ms);
   if (sec) {
     const entries = sec[1].split('\n').filter(l => l.startsWith('- ')).map(l => l.slice(2).trim());
     if (entries.length) {
@@ -68,14 +79,31 @@ function parsePlan(md: string, statusDir: string, prdDir: string): PlanRow {
     }
   }
 
-  // 伪代码:步骤书 + 原型
+  // 伪代码:步骤书/单文件伪代码 + 原型 + 核心实现
+  // ⚠️ 2026-09-11 修:原逻辑只认 plan/ 根目录形式 → pseudocode/ 下目录与存量单文件(38/39 等)整列全 —;
+  //   三形态 = plan/plan-NN-伪代码/(根,活跃)/ plan/pseudocode/plan-NN-伪代码/(目录)/ plan/pseudocode/plan-NN-伪代码.md(老式单文件)
   const pseudo: string[] = [];
-  const stepBook = path.join(prdDir, 'plan', `plan-${nn}-伪代码`, 'index.md');
-  if (fs.existsSync(stepBook)) pseudo.push(`[步骤书](plan/plan-${nn}-伪代码/index.md)`);
   const planRoot = path.join(prdDir, 'plan');
-  for (const html of listDir(planRoot).filter(f => f.startsWith(`plan-${nn}-`) && f.endsWith('.html')).sort()) {
-    const label = html.slice(nn.length + 5, -'.html'.length);   // 去 `plan-NN-` 前缀与 .html 后缀
-    pseudo.push(`[${label}](plan/${html})`);
+  const pseudoRoot = path.join(planRoot, 'pseudocode');
+  const nnPad = `plan-${nn}`;
+  if (fs.existsSync(path.join(planRoot, nnPad + '-伪代码', 'index.md')))
+    pseudo.push(`[步骤书](plan/${nnPad}-伪代码/index.md)`);
+  else if (fs.existsSync(path.join(pseudoRoot, nnPad + '-伪代码', 'index.md')))
+    pseudo.push(`[步骤书](plan/pseudocode/${nnPad}-伪代码/index.md)`);
+  else if (fs.existsSync(path.join(pseudoRoot, nnPad + '-伪代码.md')))
+    pseudo.push(`[伪代码](plan/pseudocode/${nnPad}-伪代码.md)`);
+  // 核心实现(归档产物,目录/单文件;SKILL 契约「与伪代码目录配对,看板自动出链接」)
+  if (fs.existsSync(path.join(pseudoRoot, nnPad + '-核心实现', 'index.md')))
+    pseudo.push(`[核心实现](plan/pseudocode/${nnPad}-核心实现/index.md)`);
+  else if (fs.existsSync(path.join(pseudoRoot, nnPad + '-核心实现.md')))
+    pseudo.push(`[核心实现](plan/pseudocode/${nnPad}-核心实现.md)`);
+  // 原型 html:plan/ 根与 pseudocode/ 同扫
+  for (const dir of [planRoot, pseudoRoot]) {
+    const base = dir === planRoot ? 'plan' : 'plan/pseudocode';
+    for (const html of listDir(dir).filter(f => f.startsWith(nnPad + '-') && f.endsWith('.html')).sort()) {
+      const label = html.slice(nnPad.length + 1, -'.html'.length);   // 去 `plan-NN-` 前缀与 .html 后缀
+      pseudo.push(`[${label}](${base}/${html})`);
+    }
   }
 
   const archiveLine = text.split('\n').find(l => l.startsWith('> 归档:')) ?? '';
@@ -174,7 +202,7 @@ function processCenter(prdDir: string, init: boolean): string {
     `# ${name} 的需求看板`, '',
     '> **状态 = 目录位置**:计划放 `plan/todo/`(待启动)/ `plan/doing/`(进行中)/ `plan/done/`(已完成),移动文件即流转。',
     '> **看板 = 程序渲染**(code-panel 内置生成器,全中心结构统一;本文件整份由程序输出,勿手改 —— 手写内容写 [notes.md](notes.md))。',
-    '> **列说明**:内容 = 计划文档 `> 主题:` 行;伪代码 = 步骤书 + 原型;spec = `> spec 访问:` 行(跳规格化目录);'
+    '> **列说明**:内容 = 计划文档 `> 主题:` 行(缺省依次取「一、目标一句话」首行 / H1 标题);伪代码 = 步骤书/单文件伪代码 + 原型 + 核心实现;spec = `> spec 访问:` 行(跳规格化目录);'
       + '评审 = 计划文档 `## 评审` 章节最新一条前 50 字(评审人把意见写进计划文档即可)。',
     '',
   ].join('\n');
