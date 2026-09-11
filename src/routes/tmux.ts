@@ -14,6 +14,7 @@ import { route } from '../utils/route-utils';
 import {
   listTmuxSessions, createTmuxSession, startTmuxAttach,
   stopTmuxAttach, killTmuxSession, resolveTmuxName,
+  captureTmuxPane, setTmuxMouse,
 } from '../terminal/tmux-manager';
 
 const router = Router();
@@ -65,6 +66,46 @@ router.post('/api/terminal/tmux/create', requireProject, route(async (req: Reque
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     res.status(400).json({ ok: false, error: msg });
+  }
+}));
+
+// GET /api/terminal/tmux/capture?project=<id>&name=<物理名>&lines=200
+//   抓取会话屏幕文本(网页复制的唯一可靠通道 —— mouse on 截获拖选,ttyd 无 OSC52)
+router.get('/api/terminal/tmux/capture', requireProject, route(async (req: Request, res: Response) => {
+  const project = reqProject(req);
+  const name = typeof req.query.name === 'string' ? req.query.name : '';
+  const lines = parseInt(String(req.query.lines ?? ''), 10) || 200;
+  if (!name.trim()) {
+    res.status(400).json({ ok: false, error: '请提供会话名称' });
+    return;
+  }
+  try {
+    const text = await captureTmuxPane(project, name, lines);
+    res.json({ ok: true, data: { text } });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(msg.includes('不属于该项目') ? 403 : 500).json({ ok: false, error: msg });
+  }
+}));
+
+// PUT /api/terminal/tmux/mouse — 会话级鼠标模式开关 body { project, name, enabled }
+router.put('/api/terminal/tmux/mouse', requireProject, route(async (req: Request, res: Response) => {
+  const project = reqProject(req);
+  const { name, enabled } = (req.body ?? {}) as { name?: unknown; enabled?: unknown };
+  if (typeof name !== 'string' || !name.trim()) {
+    res.status(400).json({ ok: false, error: '请提供会话名称' });
+    return;
+  }
+  if (typeof enabled !== 'boolean') {
+    res.status(400).json({ ok: false, error: 'enabled 需为布尔值' });
+    return;
+  }
+  try {
+    await setTmuxMouse(project, name, enabled);
+    res.json({ ok: true, data: { enabled } });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(msg.includes('不属于该项目') ? 403 : 500).json({ ok: false, error: msg });
   }
 }));
 

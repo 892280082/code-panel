@@ -47,6 +47,14 @@ function onWindowPointerDown(port: number, session: any) {
   store.bringToFront(port)
   if (session?.oneshot && !session.activated) store.markActivated(port)
 }
+
+/** 抓屏要用的归属项目:新窗口直接取字段;旧窗口(本次升级前开的)没存 →
+ *  从物理名 p_<projectId>_<name> 第二段解析兜底(projectId 为数字串,无下划线) */
+function tmuxProjectOf(s: any): string | null {
+  if (s.tmuxProject) return s.tmuxProject
+  const m = /^p_([A-Za-z0-9-]+)_/.exec(s.tmuxSession || '')
+  return m ? m[1] : null
+}
 </script>
 
 <template>
@@ -67,6 +75,14 @@ function onWindowPointerDown(port: number, session: any) {
     <div class="terminal-header" @mousedown.prevent="(e) => onDragStart(e, port)">
       <span class="terminal-title">▸ {{ session.label }}</span>
       <div class="terminal-actions">
+        <!-- ⧉ 复制屏幕:tmux mouse on 截获网页拖选 → 抓屏弹窗是唯一可靠复制通道(仅 tmux 会话) -->
+        <button
+          v-if="session.kind === 'tmux' && session.tmuxSession && tmuxProjectOf(session)"
+          class="btn-copy"
+          title="复制屏幕文本(弹窗里可拖选局部 / 一键复制)"
+          @mousedown.stop
+          @click.stop="store.openCapture({ fullName: session.tmuxSession!, label: session.label, project: tmuxProjectOf(session)! })"
+        >⧉</button>
         <button class="btn-minimize" title="最小化" @mousedown.stop @click.stop="store.minimizeSession(port)">─</button>
         <button
           class="btn-maximize"
@@ -133,7 +149,7 @@ function onWindowPointerDown(port: number, session: any) {
   pointer-events: none;
 }
 .terminal-actions { display: flex; gap: 4px; pointer-events: auto; }
-.btn-minimize, .btn-maximize, .btn-close {
+.btn-copy, .btn-minimize, .btn-maximize, .btn-close {
   width: 24px; height: 24px;
   border: none; background: transparent;
   color: var(--text-dim, #6b6b78);
@@ -144,6 +160,7 @@ function onWindowPointerDown(port: number, session: any) {
   transition: all 0.15s;
 }
 .btn-minimize:hover, .btn-maximize:hover { color: var(--text, #c8c8d0); background: rgba(255,255,255,0.08); }
+.btn-copy:hover { color: var(--glow, #22ee66); background: rgba(34,238,102,0.12); }
 .btn-maximize:hover { color: #f2cc60; background: rgba(242,204,96,0.12); }
 .btn-close:hover { color: #f44747; background: rgba(255,68,68,0.1); }
 .terminal-body {

@@ -119,6 +119,29 @@ function onDeleteTmux(s: any) {
   terminal.deleteTmuxSession(s.fullName, s.project).then(loadTmuxSessions)
 }
 
+// ── 抓屏复制(mouse on 时网页拖选被 tmux 截获 → 后端 capture-pane 出纯文本)──
+//   弹窗是全局组件 TmuxCaptureModal(终端窗口标题栏 ⧉ 与此处共用),
+//   这里只负责把目标塞进 store。
+function openCapture(s: any) {
+  if (!s.project) return
+  terminal.openCapture({ fullName: s.fullName, label: prettyTmuxName(s), project: s.project })
+}
+
+/** 鼠标模式开关(会话级,不动全局 conf):
+ *  关 → 网页里恢复原生拖选 + Cmd/Ctrl+C 复制(滚轮退化为方向键,滚动用 Ctrl+B [)
+ *  开 → 恢复滚轮滚动(复制走「抓屏」弹窗) */
+async function onToggleMouse(s: any) {
+  try {
+    const res = await apiFetch('/api/terminal/tmux/mouse', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project: s.project, name: s.fullName, enabled: !s.mouse }),
+    })
+    const data = await res.json()
+    if (data.ok) loadTmuxSessions()
+  } catch { /* ignore */ }
+}
+
 function fmtTime(ms: number): string {
   if (!ms) return ''
   const d = new Date(ms)
@@ -174,6 +197,19 @@ onUnmounted(stopPolling)
         </span>
       </div>
       <div class="tmux-actions">
+        <button
+          v-if="s.project"
+          class="foot-btn"
+          :title="s.mouse
+            ? '当前:滚轮可滚动,但网页里拖选/复制会被 tmux 截获。点击关闭后可拖选 + Cmd/Ctrl+C 复制(滚轮变方向键,滚动用 Ctrl+B [)'
+            : '当前:网页里可拖选复制,滚轮是方向键。点击恢复滚轮滚动'"
+          @click.stop="onToggleMouse(s)"
+        >
+          鼠标:{{ s.mouse ? '开' : '关' }}
+        </button>
+        <button v-if="s.project" class="foot-btn" title="抓取会话屏幕文本,弹窗里随意选/一键复制" @click.stop="openCapture(s)">
+          复制
+        </button>
         <button v-if="attachedTmuxPort(s.fullName) !== null" class="foot-btn" @click.stop="onDetachTmux(s)">
           断开
         </button>

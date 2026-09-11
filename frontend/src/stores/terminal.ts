@@ -25,6 +25,7 @@ export interface TerminalSession {
   zIndex: number            // 层级：与 Repo Browser 共用全局计数器，点击置顶
   kind: 'cmd' | 'tmux'
   tmuxSession?: string // tmux 物理会话名(p_<projectId>_<name>),作会话唯一 key
+  tmuxProject?: string // tmux 会话归属项目 id(标题栏「复制屏幕」抓屏要用)
   tmuxDesc?: string
   /** 一次性启停会话(Apps 启动/停止,keepShell=false):大窗展示 2s → 自动最小化到左上角 chip → 20s 未放大自动关闭 */
   oneshot?: boolean
@@ -39,6 +40,7 @@ interface SavedWindow {
   command: string
   cwd: string
   tmuxSession?: string
+  tmuxProject?: string
   minimized: boolean
   x: number
   y: number
@@ -86,6 +88,7 @@ export const useTerminalStore = defineStore('terminal', () => {
         command: s.command,
         cwd: s.cwd,
         tmuxSession: s.tmuxSession,
+        tmuxProject: s.tmuxProject,
         minimized: s.minimized,
         x: s.x,
         y: s.y,
@@ -108,7 +111,7 @@ export const useTerminalStore = defineStore('terminal', () => {
 
     for (const w of saved) {
       if (w.kind === 'tmux' && w.tmuxSession) {
-        const pid = useProjectsStore().currentId || ''
+        const pid = w.tmuxProject || useProjectsStore().currentId || ''
         if (!pid) continue
         // label 形如 "名 — 描述",拆回展示名/描述(无则退化 label)
         const sep = w.label.indexOf(' — ')
@@ -285,6 +288,7 @@ export const useTerminalStore = defineStore('terminal', () => {
         zIndex: raise(),
         kind: 'tmux',
         tmuxSession: sessionName,
+        tmuxProject: projectId,
         tmuxDesc: desc,
       })
       persistWindows()
@@ -364,6 +368,18 @@ export const useTerminalStore = defineStore('terminal', () => {
     persistWindows()
   }
 
+  // ── 抓屏复制弹窗(全局唯一;终端窗口标题栏 ⧉ 与会话列表「复制」共用)──
+  //   背景:tmux mouse on 截获网页拖选(Mac 浏览器无 Shift 绕过)、ttyd 无
+  //   OSC52 —— 后端 capture-pane 出纯文本是网页远程时唯一可靠复制通道。
+  const capTarget = ref<{ fullName: string; label: string; project: string } | null>(null)
+
+  function openCapture(t: { fullName: string; label: string; project: string }) {
+    capTarget.value = t
+  }
+  function closeCapture() {
+    capTarget.value = null
+  }
+
   return {
     sessions, drawerOpen,
     toggleDrawer, closeDrawer,
@@ -373,5 +389,6 @@ export const useTerminalStore = defineStore('terminal', () => {
     bringToFront, toggleMaximizeSession,
     persistWindows, restorePersisted,
     markActivated,
+    capTarget, openCapture, closeCapture,
   }
 })

@@ -145,6 +145,7 @@ export interface TmuxSessionInfo {
   windows: number;
   createdAt: number;       // ms
   attached: boolean;       // 当前是否有 tmux client 连着(含我们自己的 ttyd 接入)
+  mouse: boolean;          // 会话鼠标模式(on=滚轮滚动;off=网页可拖选复制)
 }
 
 export async function listTmuxSessions(): Promise<TmuxSessionInfo[]> {
@@ -158,7 +159,7 @@ export async function listTmuxSessions(): Promise<TmuxSessionInfo[]> {
   // 识别前缀时用更长的 projectId 优先,减少 p_a 与 p_a_b 这类歧义
   const projects = allProjects().slice().sort((a, b) => b.id.length - a.id.length);
 
-  return raw.split('\n').filter(Boolean).map(line => {
+  const sessions = raw.split('\n').filter(Boolean).map(line => {
     const [fullName, windows, createdAt, attached] = line.split('|');
 
     const note = notesMap.get(fullName);
@@ -188,8 +189,18 @@ export async function listTmuxSessions(): Promise<TmuxSessionInfo[]> {
       windows: parseInt(windows, 10) || 0,
       createdAt: (parseInt(createdAt, 10) || 0) * 1000,
       attached: attached === '1',
+      mouse: true, // 兜底 = 全局 conf 的 mouse on;下面逐会话覆盖
     };
   });
+
+  // 逐会话补鼠标模式(show-options 返回 session 生效值,含全局继承)
+  for (const s of sessions) {
+    try {
+      const v = await execAsync(`tmux show-options -t "${s.fullName}" -v mouse 2>/dev/null`);
+      if (v === 'on' || v === 'off') s.mouse = v === 'on';
+    } catch { /* 会话刚好消亡 → 保留兜底值 */ }
+  }
+  return sessions;
 }
 
 // ── 创建会话 ────────────────────────────────────────────
@@ -335,6 +346,56 @@ export async function killTmuxSession(project: ProjectRow, name: string): Promis
     delete notes[session];
     writeNotes(project, notes);
   }
+}
+
+// ── 抓屏复制:capture-pane 拿会话纯文本 ─────────────────
+//   网页终端里复制是死路:tmux mouse on 截获拖选;ttyd 的 xterm.js 仅
+//   非 Mac 浏览器支持 Shift 强制选区,且不支持 OSC52(tmux buffer 无法
+//   桥到浏览器剪贴板)。→ 后端 capture-pane 把屏幕+回滚区变纯文本,
+//   前端弹窗里随便选/一键复制。
+
+export async function captureTmuxPane(
+  project: ProjectRow, name: string, lines = 200,
+): Promise<string> {
+  const raw = name.trim();
+  // 物理名带别人项目前缀 → 明确拒绝(不拼成 p_A_p_B_x 去撞 tmux 报 500)
+  if (raw.startsWith('p_') && !raw.startsWith(`p_${project.id}_`)) {
+    throw new Error('会话不属于该项目');
+  }
+  const session = resolveTmuxName(project, raw);
+  if (!FULL_NAME_RE.test(session) || (!raw.startsWith(`p_${project.id}_`) && !SESSION_NAME_RE.test(raw))) {
+    throw new Error('会话名非法');
+  }
+  const n = Math.max(1, Math.min(2000, Math.floor(lines) || 200));
+  const text = await execAsync(
+    `tmux capture-pane -p -t "${session}" -S -${n} 2>/dev/null`,
+    5000,
+  );
+  // 去尾部空白行(提示符以下的整屏空区)
+  return text.replace(/\s+$/, '');
+}
+
+// ── 鼠标模式开关(会话级)────────────────────────────────
+//   off → 网页里恢复浏览器原生拖选 + Cmd/Ctrl+C 复制
+//         (代价:滚轮退化为 ↑↓ 键,滚动改用 Ctrl+B [ 进 copy-mode)
+//   on  → 恢复滚轮滚动(复制走「抓屏」按钮)。
+//   只 set 会话级选项,不动 ~/.tmux.conf 全局值。
+
+export async function setTmuxMouse(
+  project: ProjectRow, name: string, enabled: boolean,
+): Promise<void> {
+  const raw = name.trim();
+  if (raw.startsWith('p_') && !raw.startsWith(`p_${project.id}_`)) {
+    throw new Error('会话不属于该项目');
+  }
+  const session = resolveTmuxName(project, raw);
+  if (!FULL_NAME_RE.test(session) || (!raw.startsWith(`p_${project.id}_`) && !SESSION_NAME_RE.test(raw))) {
+    throw new Error('会话名非法');
+  }
+  await execAsync(
+    `tmux set-option -t "${session}" mouse ${enabled ? 'on' : 'off'} 2>/dev/null`,
+    5000,
+  );
 }
 
 // ── 启动清理:杀上次服务器残留的 ttyd attach(9020-9029)──

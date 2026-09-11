@@ -2,6 +2,7 @@
 import { onMounted, watchEffect } from 'vue'
 import CommandDrawer from '@/components/CommandDrawer.vue'
 import TerminalPanel from '@/components/TerminalPanel.vue'
+import TmuxCaptureModal from '@/components/TmuxCaptureModal.vue'
 import RepoBrowserModal from '@/components/RepoBrowserModal.vue'
 import CloudPanel from '@/components/CloudPanel.vue'
 import { useTerminalStore } from '@/stores/terminal'
@@ -35,6 +36,7 @@ onMounted(() => {
   <template v-if="auth.isLoggedIn">
     <CommandDrawer />
     <TerminalPanel />
+    <TmuxCaptureModal />
     <RepoBrowserModal
       :visible="browserStore.visible"
       :repo-id="browserStore.repoId"
