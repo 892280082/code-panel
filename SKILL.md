@@ -16,7 +16,7 @@ bash ~/.claude/skills/code-panel/start.sh    # 端口 3008;开发:npx tsx src/se
 | 路径 | 用途 |
 |---|---|
 | `http://localhost:3008/login` | 登录页(默认账号:仓库 `config.json` 的 `credentials`,首次启动播种为超管) |
-| `/log` `/sql` `/redis` `/prd` `/git` | Apps(卡片+日志页签)/ SQL 评审 / Redis / PRD 文档 / Git |
+| `/log` `/sql` `/redis` `/prd` `/git` `/wiki` | Apps(卡片+日志页签)/ SQL 评审 / Redis / PRD 文档 / Git / Wiki |
 
 左侧栏页签 + 左上 ⚙ 配置(项目/备份/文件/nginx/安全/账号);右上资源圆环 + 🔗 快捷 + 🅰 环境组;右下浮动:💻 命令终端、📂 仓库浏览、☁ 云文件。
 
@@ -65,7 +65,10 @@ bash ~/.claude/skills/code-panel/cp get "/api/inspect?project=<id>"
 ├── data.db                       #   users / projects 注册表 / settings / llm_providers(含 API Key,0600)
 ├── jwt.secret · ai-token         #   登录密钥 / 本机免密 token(0600)
 ├── active-env.sh                 #   当前环境组物化脚本(shell rc source → 新终端生效)
-└── active-llm.sh                 #   当前模型供应商物化脚本(同上;含 API Key,0600)
+├── active-llm.sh                 #   当前模型供应商物化脚本(同上;含 API Key,0600)
+└── wiki/                         #   个人 wiki 克隆(SSH 公钥 pull;写入/push 由终端 claude code 做)
+
+~/.code-panel-capsules/           # 时空胶囊文档(⭐独立目录,不进 ~/.code-panel 备份链路)
 
 <项目根>/.code-panel/             # 项目配置 = 提交式文件,随仓库走、可手改、修改即生效
 ├── apps.yaml                     # 应用服务(日志+启停;⚠ start 脚本保活铁律见 references/apps-lifecycle.md)
@@ -100,6 +103,28 @@ bash ~/.claude/skills/code-panel/cp get "/api/inspect?project=<id>"
 
 写 PRD 前必读 `references/prd-directory-format.md`;模板在 `templates/prd/`(**复制即用,禁止自创结构**)。一条龙:cp 模板 → 填总看板 index.md → 子计划(入口 index + 步骤 md + 原型 html + 伪代码/)→ 在项目 `.code-panel/prd.yaml` 的 folders 注册 → `cp get /api/prd/folders?project=<id>` 验收。
 
+## 时空胶囊(用户说「时空胶囊/记个想法/胶囊」时)
+
+胶囊 = 写进全局目录的一篇 MD(或小目录),面板监听并**主动弹卡**通知用户;适合速记突发的思路。面板只负责监听/渲染,写文档完全由你完成。
+
+**步骤(必须全做):**
+1. 查胶囊目录(用户可能改过,别写死):`bash ~/.claude/skills/code-panel/cp get /api/capsule/config` → `data.dir`(默认 `~/.code-panel-capsules/`)
+2. 按 `references/capsule-format.md` 生成:命名 `<主题slug>-YYYYMMDD-HHmm.md`(目录形态=同名文件夹+index.md);名字里禁止 `/`、`..`、换行
+3. **一次性写完整再落盘,写完不再碰**—— 面板以「3 秒无变化」判定完成,持续写入会推迟弹卡
+4. 自查:`cp get /api/capsule/list` 确认条目出现(约 3~4 秒后)
+
+## 归入 wiki(用户说「/code-panel 归入wiki <分类>:<名字>」或粘来面板复制的提示词时)
+
+把胶囊沉淀进个人 wiki 仓库并推送。wiki 克隆在 `~/.code-panel/wiki/`(未配置 → 提示用户先在 ⚙ →「胶囊」Tab 配 SSH 地址,**不要自己 clone**)。
+
+**步骤(顺序执行,任一步失败立即停止并保留胶囊):**
+1. 解析参数:`<分类>` 默认 `思维文档`;`<名字>` = 胶囊条目名。`cp get /api/capsule/config` 拿真实胶囊目录;条目不存在 → 报错并列出相近名字
+2. 读胶囊内容;wiki 目标 = `~/.code-panel/wiki/<分类>/<名字>.md`(目录形态拷整目录,入口 `<分类>/<名字>/index.md`)。**提炼并入**:先 `cp get /api/wiki/files` 看现有结构,内容按归属合并/去重,不要整篇硬拷;必要时新建页,并按 wiki 现有格式补索引链接(没有索引就不造)
+3. `git -C ~/.code-panel/wiki pull --ff-only` 先同步;冲突 → 停,让用户手动处理。
+   ⚠ **空仓库**(还没首个提交,`git rev-parse HEAD` 报「有歧义的参数 'HEAD'」/「unknown revision」):跳过 pull,直接下一步 —— 首次 push 会自动建立远程分支
+4. 写入目标文件 → `git -C ~/.code-panel/wiki add -A && git -C ~/.code-panel/wiki commit -m "docs(<分类>): <名字>" && git -C ~/.code-panel/wiki push`(SSH 公钥;空仓库首次 push 若被拒,用 `git push -u origin HEAD`)
+5. **push 成功后**删除胶囊条目(`rm` 文件 / `rm -rf` 目录)并告知「已归档」;push 失败 → 保留胶囊、贴出 stderr,**绝不删源**
+
 ## 子文档索引(按需读)
 
 | 文档 | 内容 |
@@ -108,3 +133,4 @@ bash ~/.claude/skills/code-panel/cp get "/api/inspect?project=<id>"
 | [references/apps-lifecycle.md](references/apps-lifecycle.md) | apps.yaml 字段 + 启停 oneshot 语义 + **start 脚本保活三大坑(AI 写 apps.yaml 前必读)** |
 | [references/accounts-security.md](references/accounts-security.md) | 多账号/项目授权/安全模式/ai-token 机制 |
 | [references/prd-directory-format.md](references/prd-directory-format.md) | PRD 目录结构与文档格式 |
+| [references/capsule-format.md](references/capsule-format.md) | 时空胶囊文档规范(命名/形态/写入纪律) |

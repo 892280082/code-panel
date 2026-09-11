@@ -3,10 +3,13 @@ import { onMounted, watchEffect } from 'vue'
 import CommandDrawer from '@/components/CommandDrawer.vue'
 import TerminalPanel from '@/components/TerminalPanel.vue'
 import TmuxCaptureModal from '@/components/TmuxCaptureModal.vue'
+import CapsuleToast from '@/components/CapsuleToast.vue'
+import CapsulePreviewModal from '@/components/CapsulePreviewModal.vue'
 import RepoBrowserModal from '@/components/RepoBrowserModal.vue'
 import CloudPanel from '@/components/CloudPanel.vue'
 import { useTerminalStore } from '@/stores/terminal'
 import { useRepoBrowserStore } from '@/stores/repo-browser'
+import { useCapsuleStore } from '@/stores/capsule'
 import { useAuthStore } from '@/stores/auth'
 import { useProjectsStore } from '@/stores/projects'
 
@@ -20,9 +23,12 @@ watchEffect(() => {
 })
 const terminalStore = useTerminalStore()
 const browserStore = useRepoBrowserStore()
+const capsuleStore = useCapsuleStore()
 
 onMounted(() => {
   auth.checkAuth()
+  // 时空胶囊:登录即拉列表 + 连 SSE(全局,与项目无关)
+  if (auth.isLoggedIn) capsuleStore.init()
   // 刷新后恢复上次打开的终端窗口(tmux 重连 / cmd 复用服务端会话)。
   // 稍等片刻,让项目列表(auth 后异步)加载完,再对 tmux 发起 attach。
   setTimeout(() => {
@@ -37,6 +43,8 @@ onMounted(() => {
     <CommandDrawer />
     <TerminalPanel />
     <TmuxCaptureModal />
+    <CapsuleToast />
+    <CapsulePreviewModal />
     <RepoBrowserModal
       :visible="browserStore.visible"
       :repo-id="browserStore.repoId"

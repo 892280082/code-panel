@@ -39,8 +39,8 @@ onMounted(() => {
         <span v-else class="proj-empty">未选择项目 · ⚙ 添加/切换</span>
       </div>
       <div class="title-row">
-        <h2>▸ {{ route.path === '/sql' ? 'SQL Review' : route.path === '/redis' ? 'Redis' : route.path === '/prd' ? 'PRD Docs' : route.path === '/git' ? 'Git Diff' : 'Apps' }}</h2>
-        <button class="gear" title="配置(项目/模型/账号)" @click="ui.openConfig()">⚙</button>
+        <h2>▸ {{ route.path === '/sql' ? 'SQL Review' : route.path === '/redis' ? 'Redis' : route.path === '/prd' ? 'PRD Docs' : route.path === '/git' ? 'Git Diff' : route.path === '/wiki' ? 'Wiki' : 'Apps' }}</h2>
+        <button class="gear" title="配置(项目/模型/胶囊/账号)" @click="ui.openConfig()">⚙</button>
       </div>
       <div class="sidebar-nav">
         <a v-for="t in tabs" :key="t.path"

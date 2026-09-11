@@ -114,13 +114,31 @@ function inlineTabWidgets(body: string, md: string, dir: string): string {
 
 /** 改写正文相对链接（2026-08-24）：.md → 面板 view 页；.html → file 直读；绝对/锚点不动 */
 // ⭐2026-09-05：追加 projQ —— 整屏 iframe 内点正文链接翻页时把 ?project= 带上，新页才认得 prd.yaml（extraBase/返回首页）
-function rewriteLinks(html: string, dir: string, projQ = ''): string {
+// ⭐2026-09-12：追加 target(LinkTarget)—— 时空胶囊/wiki 渲染复用本管线时,
+//   .md 内链改写到各自路由(/api/capsule/view、/api/wiki/view),不裸奔去 prd 的 dir 参数路由。
+export interface LinkTarget {
+  mode: 'capsule' | 'wiki';
+  /** 相对化根:胶囊条目根 / wiki 克隆根(算目标文件相对路径用) */
+  root: string;
+  /** capsule 模式的条目 id */
+  id?: string;
+}
+
+function viewHref(t: LinkTarget, abs: string): string {
+  const rel = path.relative(t.root, abs);
+  return t.mode === 'capsule'
+    ? `/api/capsule/view?id=${encodeURIComponent(t.id || '')}&file=${encodeURIComponent(rel)}`
+    : `/api/wiki/view?file=${encodeURIComponent(rel)}`;
+}
+
+function rewriteLinks(html: string, dir: string, projQ = '', target?: LinkTarget): string {
   return html.replace(/<a href="([^"]+)">/g, (m, href: string) => {
     if (/^(https?:|\/\/|#|mailto:|\/api\/)/.test(href)) return m;
     let raw = href;
     try { raw = decodeURIComponent(href); } catch { /* 保留原样 */ }
     const abs = path.resolve(dir, raw);
     if (/\.md$/i.test(raw)) {
+      if (target) return `<a href="${viewHref(target, abs)}">`;
       return `<a href="/api/prd/view?dir=${encodeURIComponent(path.dirname(abs))}&file=${encodeURIComponent(path.basename(abs))}${projQ}">`;
     }
     if (/\.html?$/i.test(raw)) {
@@ -184,8 +202,9 @@ document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ document.
 
 // ── 整页组装 ─────────────────────────────────────────────
 
-/** 双栏查看页：左 = 该目录 MD 文件列表，右 = 渲染当前 MD + 原型 iframe */
-export function buildViewPage(md: string, mdName: string, dir: string, extraBases: string[], title: string, isCode = false, prdCtx?: PrdModuleYaml, projectId?: string): string {
+/** 双栏查看页：左 = 该目录 MD 文件列表，右 = 渲染当前 MD + 原型 iframe
+ *  target(LinkTarget)传入时 = 胶囊/wiki 渲染:左栏导航与 .md 内链都改写到各自路由 */
+export function buildViewPage(md: string, mdName: string, dir: string, extraBases: string[], title: string, isCode = false, prdCtx?: PrdModuleYaml, projectId?: string, target?: LinkTarget): string {
   // 返回需求中心首页：该项目 prd.yaml folders 中当前 dir 的祖先目录（有 index.md 才显示）
   const folders = prdCtx?.folders ?? [];
   const projQ = projectId ? `&project=${encodeURIComponent(projectId)}` : '';
@@ -197,13 +216,15 @@ export function buildViewPage(md: string, mdName: string, dir: string, extraBase
   // 代码文件（伪代码目录的 .ts 等）→ 原样代码视图；md → 正常 markdown 渲染
   const bodyHtml = isCode
     ? `<pre class="code-pre"><code>${esc(md)}</code></pre>`
-    : rewriteLinks(inlineTabWidgets(inlineProtoSections(markdownToHtml(md), refs), md, dir), dir, projQ);
+    : rewriteLinks(inlineTabWidgets(inlineProtoSections(markdownToHtml(md), refs), md, dir), dir, projQ, target);
   const files = listViewFiles(dir);
   // 2026-09-11 递归列表:导航名/链接用相对路径(plan/doing/plan-02-xx.md),子目录文件可达且不撞名
+  // 2026-09-12 target 模式:导航链接走胶囊/wiki 自己的 view 路由(不暴露 prd 裸 dir)
   const nav = files.map(f => {
     const rel = path.relative(dir, f);
     const active = f === path.resolve(dir, mdName) ? ' class="on"' : '';
-    return `<a${active} href="/api/prd/view?dir=${encodeURIComponent(dir)}&file=${encodeURIComponent(rel)}${projQ}">${rel}</a>`;
+    const href = target ? viewHref(target, f) : `/api/prd/view?dir=${encodeURIComponent(dir)}&file=${encodeURIComponent(rel)}${projQ}`;
+    return `<a${active} href="${href}">${rel}</a>`;
   }).join('\n');
 
   return `<!DOCTYPE html>
@@ -260,10 +281,11 @@ body{background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"PingFang
 </body></html>`;
 }
 
-/** 内嵌预览：只返回渲染的 MD 内容（doc + 原型 iframe，无左侧导航） */
-export function renderContentOnly(md: string, dir: string, extraBases: string[], title: string): string {
+/** 内嵌预览：只返回渲染的 MD 内容（doc + 原型 iframe，无左侧导航）
+ *  target(LinkTarget)传入时 = 胶囊单文件渲染:.md 内链改写到胶囊 view 路由 */
+export function renderContentOnly(md: string, dir: string, extraBases: string[], title: string, target?: LinkTarget): string {
   const refs = findHtmlRefs(md, dir, extraBases);
-  const bodyHtml = inlineTabWidgets(inlineProtoSections(markdownToHtml(md), refs), md, dir);
+  const bodyHtml = rewriteLinks(inlineTabWidgets(inlineProtoSections(markdownToHtml(md), refs), md, dir), dir, '', target);
   return `<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="UTF-8">
 <title>${title}</title>

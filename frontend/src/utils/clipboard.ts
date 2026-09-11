@@ -36,3 +36,28 @@ export function copyToClipboard(text: string): boolean {
 
   return success
 }
+
+// ── 异步版(时空胶囊/并入 wiki 用;用户手势内调用)────────
+//   与 copyToClipboard 同思路:navigator.clipboard 优先(secure
+//   context),http 内网退化 execCommand 兜底。
+
+export async function copyText(text: string): Promise<boolean> {
+  if (window.isSecureContext && navigator.clipboard) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch { /* 落到兜底 */ }
+  }
+  return copyToClipboard(text)
+}
+
+/** 「并入 wiki」提示词:粘到终端给 claude code,由它执行归档(SKILL.md) */
+export function wikiPrompt(capsuleId: string): string {
+  const name = capsuleId.replace(/\.(md|markdown)$/i, '')
+  return `/code-panel 归入wiki 思维文档:${name}`
+}
+
+/** 「时空胶囊」命令前缀:粘到终端后由用户自己补主题 */
+export function brainstormPrompt(): string {
+  return '/code-panel 时空胶囊 '
+}

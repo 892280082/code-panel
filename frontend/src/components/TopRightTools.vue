@@ -6,10 +6,12 @@ import SystemResourceMonitor from '@/components/SystemResourceMonitor.vue'
 import QuickLinks from '@/components/QuickLinks.vue'
 import ProviderSwitcher from '@/components/ProviderSwitcher.vue'
 import EnvSwitcher from '@/components/EnvSwitcher.vue'
+import CapsuleEntry from '@/components/CapsuleEntry.vue'
 </script>
 
 <template>
   <div class="top-tools">
+    <CapsuleEntry />
     <SystemResourceMonitor />
     <QuickLinks />
     <ProviderSwitcher />

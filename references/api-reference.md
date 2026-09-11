@@ -90,6 +90,27 @@
 | GET | `/api/env?project=` | 环境组列表 + 当前生效 |
 | POST | `/api/env/ensure|activate|reset|mount` | 兜底/选用/重置/补挂 shell rc |
 
+## 时空胶囊 / Wiki(全局作用域,非项目级)
+
+胶囊目录默认 `~/.code-panel-capsules/`(独立于 `~/.code-panel`,不进备份链路);wiki 克隆固定 `~/.code-panel/wiki/`。读=登录即可,写=超管。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET/PUT | `/api/capsule/config` | 胶囊目录(PUT `{dir}`,空=恢复默认;超管) |
+| GET | `/api/capsule/list` | 顶层条目 `{id,kind,mtime,size,fileCount}`(mtime 倒序) |
+| GET | `/api/capsule/stream` | SSE;消息 `{type:'capsule',event:'new'|'update',capsule}`(写入停 3s 才推) |
+| GET | `/api/capsule/files?id=` | 条目内可渲染文件平铺列表 |
+| GET | `/api/capsule/content?id=` | 单文件暗色渲染页(html) |
+| GET | `/api/capsule/view?id=&file=` | 双栏页(左导航=条目全部文件;file 缺省=index.md 优先) |
+| POST | `/api/capsule/remove` | `{id}` 删除 → 挪 `.trash/`(7 天自动清;超管) |
+| POST | `/api/capsule/clear` | 清空全部 → `.trash/`;返回 `{cleared}`(超管) |
+| GET | `/api/capsule/trash` | 临时目录列表(AI 找回用) |
+| POST | `/api/capsule/restore` | `{name=trash 条目名}` 恢复(超管) |
+| GET/PUT | `/api/wiki/config` | `{url,cloned,branch,commit,dirty,lastPullAt}`;PUT 仅收 `git@`/`ssh://git@`(公钥),保存即 clone(超管) |
+| POST | `/api/wiki/clone` `/api/wiki/pull` | 手动克隆 / `--ff-only` 拉取(空仓库返回 up-to-date;超管) |
+| GET | `/api/wiki/files` | wiki 平铺文件列表 |
+| GET | `/api/wiki/view?file=` | 双栏渲染页(file 缺省=README/index 优先) |
+
 ## 模型供应商(LLM,全局作用域,非项目级)
 
 一套供应商 = 一段环境变量文本(`vars`,每行 `KEY=VALUE`,含 Key)。切换 = 重写 `~/.code-panel/active-llm.sh` + shell rc 独立 managed 块 + `~/.claude/settings.json` 的 env 受管键同步。

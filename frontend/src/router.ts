@@ -46,6 +46,12 @@ const router = createRouter({
       component: () => import('@/views/GitView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/wiki',
+      name: 'wiki',
+      component: () => import('@/views/WikiView.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 })
 

@@ -38,6 +38,9 @@ import envRouter from './routes/env';
 import llmRouter from './routes/llm';
 import nginxRouter from './routes/nginx';
 import inspectRouter from './routes/inspect';
+import capsuleRouter from './routes/capsule';
+import wikiRouter from './routes/wiki';
+import { startCapsuleMonitor } from './capsule/capsule-monitor';
 import { stealthMiddleware } from './security/stealth';
 import { ensureAiToken } from './auth/ai-token';
 
@@ -87,6 +90,8 @@ app.use(envRouter);
 app.use(llmRouter);
 app.use(nginxRouter);
 app.use(inspectRouter);
+app.use(capsuleRouter);   // 时空胶囊(全局,读=登录/写=超管)
+app.use(wikiRouter);      // Wiki 仓库(全局,clone/pull 只走 SSH 公钥)
 
 // ── SPA fallback — all non-API routes serve index.html ───
 const indexHtml = path.join(DIST_DIR, 'index.html');
@@ -120,6 +125,7 @@ async function start() {
 
   await startTTYD();
   startMonitor();
+  startCapsuleMonitor();   // 时空胶囊:首轮基线不弹旧通知,之后 1s 轮询+3s 稳定判定
   startHealthCheck();
 
   // 程序启动自动备份一次(同天覆盖替换),路径未配置时跳过

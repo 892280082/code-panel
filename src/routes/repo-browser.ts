@@ -6,6 +6,7 @@ import { Router, Request, Response } from 'express';
 import { requireProject, reqProject } from '../projects/context';
 import { getRepo, type GitRepo } from '../git/git-repo-store';
 import { errorMessage } from '../utils/route-utils';
+import { safeResolve } from '../utils/safe-resolve';
 import {
   getFileLog,
   getFileCommitDiff,
@@ -71,29 +72,7 @@ const LANG_MAP: Record<string, string> = {
 
 // ── Helpers ──────────────────────────────────────────────
 
-/** Resolve subPath safely within repoPath — prevent path traversal */
-function safeResolve(repoPath: string, subPath: string): string {
-  // Strip leading slashes, null bytes, and dot-dot segments
-  const clean = subPath
-    .replace(/\0/g, '')
-    .replace(/^\/+/, '')
-    .replace(/^"|"$/g, '') // 防御: 去掉 git 引号转义路径的首尾 "
-    .split('/')
-    .filter(seg => seg !== '..' && seg !== '')
-    .join('/');
-
-  const full = path.resolve(repoPath, clean);
-
-  // Must be within repoPath
-  const normalizedRepo = path.resolve(repoPath) + path.sep;
-  const normalizedFull = path.resolve(full) + (full.endsWith(path.sep) ? path.sep : '');
-
-  if (!normalizedFull.startsWith(normalizedRepo) && normalizedFull !== path.resolve(repoPath)) {
-    throw new Error('Path traversal denied');
-  }
-
-  return path.resolve(repoPath, clean);
-}
+// safeResolve 已提取到 src/utils/safe-resolve.ts 共享(胶囊/wiki 路由同用)
 
 function getLang(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();

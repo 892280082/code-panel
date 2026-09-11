@@ -15,17 +15,19 @@ import ProjectPanel from '@/components/ProjectPanel.vue'
 import FilesPanel from '@/components/FilesPanel.vue'
 import AccountPanel from '@/components/AccountPanel.vue'
 import LlmPanel from '@/components/LlmPanel.vue'
+import WikiPanel from '@/components/WikiPanel.vue'
 
 const emit = defineEmits<{ (e: 'close'): void }>()
 
 const projects = useProjectsStore()
 const ui = useUiStore()
 
-type TabKey = 'project' | 'llm' | 'backup' | 'files' | 'nginx' | 'security' | 'account'
+type TabKey = 'project' | 'llm' | 'capsule' | 'backup' | 'files' | 'nginx' | 'security' | 'account'
 const activeTab = ref<TabKey>((ui.cfgTab as TabKey) || 'project')
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'project', label: '项目' },
   { key: 'llm', label: '模型' },
+  { key: 'capsule', label: '胶囊' },
   { key: 'backup', label: '备份' },
   { key: 'files', label: '文件' },
   { key: 'nginx', label: 'nginx' },
@@ -60,6 +62,11 @@ const tabs: { key: TabKey; label: string }[] = [
           <!-- ── 模型(LLM 供应商切换;全局作用域)── -->
           <div v-else-if="activeTab === 'llm'" class="tab-pane">
             <LlmPanel />
+          </div>
+
+          <!-- ── 胶囊(时空胶囊目录 + Wiki 仓库,全局作用域)── -->
+          <div v-else-if="activeTab === 'capsule'" class="tab-pane">
+            <WikiPanel />
           </div>
 
           <!-- ── 备份 ── -->
