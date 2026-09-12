@@ -39,6 +39,7 @@ import llmRouter from './routes/llm';
 import nginxRouter from './routes/nginx';
 import inspectRouter from './routes/inspect';
 import capsuleRouter from './routes/capsule';
+import { watchdogRouter } from './routes/watchdog';
 import wikiRouter from './routes/wiki';
 import { startCapsuleMonitor } from './capsule/capsule-monitor';
 import { stealthMiddleware } from './security/stealth';
@@ -92,6 +93,7 @@ app.use(nginxRouter);
 app.use(inspectRouter);
 app.use(capsuleRouter);   // 时空胶囊(全局,读=登录/写=超管)
 app.use(wikiRouter);      // Wiki 仓库(全局,clone/pull 只走 SSH 公钥)
+app.use(watchdogRouter);  // 看门狗(⚙ 安全 Tab):status/install/uninstall
 
 // ── SPA fallback — all non-API routes serve index.html ───
 const indexHtml = path.join(DIST_DIR, 'index.html');

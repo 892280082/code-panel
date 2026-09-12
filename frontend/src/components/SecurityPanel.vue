@@ -5,7 +5,10 @@
 
 import { apiFetch, errText } from '@/utils/api-fetch'
 import { copyText } from '@/utils/clipboard'
+import { useAuthStore } from '@/stores/auth'
 import { ref, computed, onMounted } from 'vue'
+
+const auth = useAuthStore()
 
 const enabled = ref(false)
 const secretPath = ref('')
@@ -15,6 +18,54 @@ const msg = ref('')
 const errMsg = ref('')
 const customPath = ref('')
 const copied = ref(false)
+
+// ── 服务看门狗(systemd 定时器,仅 Ubuntu/Linux 可用)──────
+interface WatchdogInfo {
+  supported: boolean
+  installed: boolean
+  timerActive: boolean
+  panelActive: boolean
+  scriptPath: string
+  timerUnit: string
+  graceSec: number
+  intervalMin: number
+}
+const wd = ref<WatchdogInfo | null>(null)
+const wdBusy = ref(false)
+const wdMsg = ref('')
+const wdErr = ref('')
+
+async function loadWatchdog(): Promise<void> {
+  try {
+    const res = await apiFetch('/api/security/watchdog')
+    const data = await res.json()
+    if (data?.ok) wd.value = data.data
+  } catch { /* 面板旧版本无此接口 → 保持 null,卡片按不支持展示 */ }
+}
+
+async function watchdogAction(act: 'install' | 'uninstall'): Promise<void> {
+  if (wdBusy.value) return
+  if (act === 'install' && !window.confirm(
+    '开启服务看门狗?\n\n' +
+    `将部署 systemd 定时器:每 ${wd.value?.intervalMin ?? 1} 分钟检查,面板停机超过 ${wd.value?.graceSec ?? 30} 秒自动拉起` +
+    '(停机不满缓冲时长不打扰,留给 systemd 自身重试)。',
+  )) return
+  if (act === 'uninstall' && !window.confirm('停用看门狗?\n\n面板服务本体(code-panel.service)保留,仅移除自动拉起。')) return
+  wdBusy.value = true
+  wdMsg.value = ''
+  wdErr.value = ''
+  try {
+    const res = await apiFetch(`/api/security/watchdog/${act}`, { method: 'POST' })
+    const data = await res.json()
+    if (!data?.ok) throw new Error(data?.error || '操作失败')
+    wd.value = data.data
+    wdMsg.value = act === 'install' ? '✓ 看门狗已部署并启用(开机自启)' : '✓ 看门狗已停用并清理'
+  } catch (e) {
+    wdErr.value = errText(e, '操作失败')
+  } finally {
+    wdBusy.value = false
+  }
+}
 
 const gateUrl = computed(() => (secretPath.value ? location.origin + secretPath.value : '')) // 当前浏览入口的完整地址(仅示例)
 
@@ -100,7 +151,7 @@ async function copyLink() {
   }
 }
 
-onMounted(load)
+onMounted(() => { load(); loadWatchdog() })
 </script>
 
 <template>
@@ -161,6 +212,40 @@ onMounted(load)
     <div v-else-if="!loading" class="section-hint">
       尚未生成秘密链接 —— 开启安全模式会自动随机生成,也可在开启前先自定义一个路径。
     </div>
+
+    <!-- 服务看门狗 -->
+    <div class="cfg-card">
+      <div class="cfg-head">
+        <div class="cfg-title">
+          🐕 服务看门狗(自动重启)
+          <span class="badge" :class="wd?.timerActive ? 'on' : 'off'">
+            {{ wd?.supported === false ? '不支持' : wd?.timerActive ? '已启用' : '未启用' }}
+          </span>
+        </div>
+        <button
+          v-if="auth.isSuper"
+          class="toggle-btn"
+          :class="wd?.timerActive ? 'off' : 'on'"
+          :disabled="wdBusy || !wd?.supported"
+          @click="watchdogAction(wd?.timerActive ? 'uninstall' : 'install')"
+        >
+          {{ wdBusy ? '处理中…' : wd?.timerActive ? '停用看门狗' : '启动自动重启' }}
+        </button>
+      </div>
+      <div class="cfg-hint">
+        面板服务停机超过 {{ wd?.graceSec ?? 30 }} 秒 → 自动拉起(每 {{ wd?.intervalMin ?? 1 }} 分钟检查一次)。
+        停机不满缓冲时长不打扰 —— 留给 systemd 自身重试,避免两边同时启动互相打架。
+      </div>
+      <div class="cfg-hint warn">
+        ⚠️ 仅乌班图(Ubuntu)/Linux(systemd)环境可用,Mac 与容器不支持。
+        <template v-if="wd && !wd.supported">当前环境不满足,无法开启。</template>
+      </div>
+      <div v-if="wd?.timerActive" class="cfg-hint mono-ex">
+        脚本 {{ wd.scriptPath }} · 定时器 {{ wd.timerUnit }} · 面板服务:{{ wd.panelActive ? '运行中' : '未运行' }}
+      </div>
+      <div v-if="wdMsg" class="ok">{{ wdMsg }}</div>
+      <div v-if="wdErr" class="form-error">{{ wdErr }}</div>
+    </div>
   </div>
 </template>
 
@@ -196,6 +281,7 @@ onMounted(load)
 .form-input.mono { font-family: var(--font, monospace); }
 .form-error { color: #f44747; font-size: 11px; }
 .ok { color: var(--glow, #22ee66); font-size: 11px; }
+.cfg-hint.warn { color: #e8b339; }
 .save-btn {
   padding: 8px 14px; border: 1px solid var(--glow-dim, rgba(34,238,102,0.3));
   border-radius: 4px; background: transparent; color: var(--glow, #22ee66);
