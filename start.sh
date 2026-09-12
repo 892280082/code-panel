@@ -5,6 +5,14 @@
 SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
 PORT=3008
 
+# systemd 托管的机器(Linux 面板服务):一律转交 systemctl,由单元 ExecStartPre 清场后接管,
+# 杜绝"手动实例 vs 服务"抢 3008 打架(2026-09-12 3700 事故:孤儿实例抢端口 → 服务崩溃循环 135 次)
+if command -v systemctl >/dev/null 2>&1 && systemctl --user cat code-panel >/dev/null 2>&1; then
+    export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    echo "🔄 面板由 systemd 托管 → systemctl --user restart code-panel(restart 对未运行状态等同 start)"
+    exec systemctl --user restart code-panel
+fi
+
 # 检查是否已在运行
 if lsof -i :$PORT -t >/dev/null 2>&1; then
     echo "⏳ 服务已在运行 → http://localhost:$PORT/log"

@@ -40,6 +40,7 @@ import nginxRouter from './routes/nginx';
 import inspectRouter from './routes/inspect';
 import capsuleRouter from './routes/capsule';
 import { watchdogRouter } from './routes/watchdog';
+import { frpRouter } from './routes/frp';
 import appearanceRouter, { faviconRouter } from './routes/appearance';
 import wikiRouter from './routes/wiki';
 import { startCapsuleMonitor } from './capsule/capsule-monitor';
@@ -98,6 +99,7 @@ app.use(inspectRouter);
 app.use(capsuleRouter);   // 时空胶囊(全局,读=登录/写=超管)
 app.use(wikiRouter);      // Wiki 仓库(全局,clone/pull 只走 SSH 公钥)
 app.use(watchdogRouter);  // 看门狗(⚙ 安全 Tab):status/install/uninstall
+app.use(frpRouter);       // FRP 公网开关(⚙ 安全 Tab 首卡 + 🔗 快捷方式)
 app.use(appearanceRouter); // 装修(⚙ 装修 Tab):favicon 预设读写
 
 // ── SPA fallback — all non-API routes serve index.html ───
@@ -147,6 +149,18 @@ async function start() {
 
   // WebSocket 代理（在 HTTP server 升级事件上）
   mountTerminalProxy(server);
+
+  // 端口被占(典型:另一个面板实例抢跑)→ 一句话说明并干净退出,不打堆栈。
+  // systemd 托管机由单元 ExecStartPre fuser -k 清场,正常轮不到这里触发。
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`❌ 端口 ${PORT} 已被占用 —— 多半有另一个面板实例在跑。`);
+      console.error(`   systemd 托管机 → systemctl --user restart code-panel(启动时自动清场接管)`);
+      console.error(`   手动环境       → 先 lsof -i :${PORT} 杀掉占用者,再 bash start.sh`);
+      process.exit(1);
+    }
+    throw err;
+  });
 
   server.listen(PORT, () => {
     console.log(`╔══════════════════════════════════════════════╗`);

@@ -6,12 +6,22 @@ import { onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useProjectsStore } from '@/stores/projects'
 import { useUiStore } from '@/stores/ui'
+import { useLlmStore } from '@/stores/llm'
 import GlobalConfigModal from '@/components/GlobalConfigModal.vue'
 
 const router = useRouter()
 const route = useRoute()
 const projects = useProjectsStore()
 const ui = useUiStore()
+const llm = useLlmStore()
+
+/** 当前模型短名(左上角项目名旁;右上切换器已撤,换模型走 ⚙ → 模型)
+ *  数据驱动:直接取供应商名最后一个词 —— 「智谱 GLM」→GLM、「DeepSeek」→DeepSeek,新增供应商零维护 */
+function shortModel(n: string | null | undefined): string {
+  if (!n) return ''
+  const words = n.trim().split(/\s+/)
+  return words[words.length - 1] || n
+}
 
 const tabs = [
   { path: '/log', label: 'Apps' },
@@ -24,6 +34,8 @@ const tabs = [
 onMounted(() => {
   // 登录后装载项目列表(切换/默认选中),使各视图能按当前项目加载
   projects.load().catch(() => {})
+  // 模型快照(ProviderSwitcher 已从右上角撤下,快照改由侧栏装载)
+  llm.load().catch(() => {})
 })
 </script>
 
@@ -34,6 +46,7 @@ onMounted(() => {
       <div class="proj-line" :title="projects.currentProject?.root || '当前项目根目录'">
         <template v-if="projects.currentProject">
           <span class="proj-folder">🗂 {{ projects.currentProject.name }}</span>
+          <span v-if="shortModel(llm.activeName)" class="proj-model" title="当前模型(⚙ 可切换)">{{ shortModel(llm.activeName) }}</span>
           <span v-if="projects.currentProject.note" class="proj-note">{{ projects.currentProject.note }}</span>
         </template>
         <span v-else class="proj-empty">未选择项目 · ⚙ 添加/切换</span>
@@ -79,6 +92,12 @@ onMounted(() => {
 .proj-folder {
   font-size: 13px; font-weight: 700; color: var(--glow, #22ee66);
   overflow: hidden; text-overflow: ellipsis;
+}
+.proj-model {
+  margin-left: auto; /* 推到项目行最右 */
+  font-size: 11px; color: var(--text-dim, #6b6b78);
+  border: 1px solid var(--border, #23232a); border-radius: 6px;
+  padding: 0 5px; white-space: nowrap; flex-shrink: 0;
 }
 .proj-note {
   font-size: 11px; color: var(--text, #c8c8d0);

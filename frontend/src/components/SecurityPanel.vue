@@ -35,6 +35,46 @@ const wdBusy = ref(false)
 const wdMsg = ref('')
 const wdErr = ref('')
 
+// ── FRP 公网开关(首卡;🔗 快捷方式「公网开关」同效,走同一 API)──────
+interface FrpPort { port: number; service: string }
+interface FrpInfo { on: boolean; reachable: boolean; raw: string; ports: FrpPort[] }
+const frp = ref<FrpInfo | null>(null)
+const frpBusy = ref(false)
+const frpMsg = ref('')
+const frpErr = ref('')
+
+async function loadFrp(): Promise<void> {
+  try {
+    const res = await apiFetch('/api/security/frp')
+    const data = await res.json()
+    if (data?.ok) frp.value = data.data
+  } catch { /* 面板旧版本无此接口 → 保持 null,卡片隐藏 */ }
+}
+
+async function frpToggle(next: boolean): Promise<void> {
+  if (frpBusy.value) return
+  if (next && !window.confirm(
+    '开启 FRP 公网暴露?\n\n' +
+    '公网 203.0.113.10 的 60101/60111/60112/60113 将对所有人开放,\n' +
+    '存在暴露风险 —— 仅在需要外网访问/演示时开启。')) return
+  if (!next && !window.confirm('关闭 FRP 公网暴露?\n\n公网口全部下线;管理隧道(SSH/code-server/code-panel)不受影响。')) return
+  frpBusy.value = true
+  frpMsg.value = ''
+  frpErr.value = ''
+  try {
+    const res = await apiFetch(`/api/security/frp/${next ? 'on' : 'off'}`)
+    const data = await res.json()
+    if (!data?.ok) throw new Error(data?.error || '操作失败')
+    frpMsg.value = data.data?.raw || (next ? '公网已开' : '公网已关')
+    await loadFrp()
+  } catch (e) {
+    frpErr.value = errText(e)
+  } finally {
+    frpBusy.value = false
+  }
+}
+onMounted(loadFrp)
+
 async function loadWatchdog(): Promise<void> {
   try {
     const res = await apiFetch('/api/security/watchdog')
@@ -156,6 +196,34 @@ onMounted(() => { load(); loadWatchdog() })
 
 <template>
   <div class="sec-panel">
+    <!-- FRP 公网开关(首卡;🔗 快捷方式「公网开关」同效) -->
+    <div v-if="frp" class="cfg-card">
+      <div class="cfg-head">
+        <div class="cfg-title">
+          🌐 FRP 公网暴露
+          <span class="badge" :class="frp.on ? 'on' : 'off'">
+            {{ !frp.reachable ? 'frpc 不可达' : frp.on ? '已开启' : '已关闭' }}
+          </span>
+        </div>
+        <button
+          class="toggle-btn"
+          :class="frp.on ? 'off' : 'on'"
+          :disabled="frpBusy || !frp.reachable"
+          @click="frpToggle(!frp.on)"
+        >
+          {{ frpBusy ? '处理中…' : frp.on ? '关闭公网' : '开启公网' }}
+        </button>
+      </div>
+      <div class="cfg-hint">公网口 → 服务:</div>
+      <div v-for="p in frp.ports" :key="p.port" class="cfg-hint mono-ex">{{ p.port }} → {{ p.service }}</div>
+      <div class="cfg-hint warn">
+        ⚠️ 开启后别人也可以访问,存在暴露风险 —— 只有在开发/演示需要外网时才启用,平时保持关闭。
+      </div>
+      <div v-if="frp.raw" class="cfg-hint mono-ex">{{ frp.raw }}</div>
+      <div v-if="frpMsg" class="ok">{{ frpMsg }}</div>
+      <div v-if="frpErr" class="form-error">{{ frpErr }}</div>
+    </div>
+
     <!-- 状态卡 + 开关 -->
     <div class="cfg-card">
       <div class="cfg-head">

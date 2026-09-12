@@ -6,6 +6,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { apiFetch } from '@/utils/api-fetch'
 import { useProjectsStore } from '@/stores/projects'
+import FrpSwitch from '@/components/FrpSwitch.vue'
 
 interface LinkUrl { label?: string; url: string }
 interface QuickItem { name: string; urls: LinkUrl[] }
@@ -128,6 +129,7 @@ onBeforeUnmount(() => {
       <div v-if="open" ref="panelEl" class="ql-panel" :style="panelStyle" @click.stop>
         <div class="ql-head">
           <span class="ql-title">快捷方式<template v-if="projects.currentProject"> · {{ projects.currentProject.name }}</template></span>
+          <FrpSwitch />
           <button class="ql-close" title="关闭" @click="close">✕</button>
         </div>
 
@@ -183,8 +185,15 @@ onBeforeUnmount(() => {
   transition: all 0.15s;
   white-space: nowrap;
 }
-.ql-trigger:hover { color: var(--text); border-color: var(--glow-dim); background: rgba(34,238,102,0.04); }
-.ql-trigger.on { color: var(--glow); border-color: var(--glow-dim); background: rgba(34,238,102,0.06); }
+.ql-trigger:hover { color: var(--text); border-color: var(--glow); background: rgba(34,238,102,0.04); }
+/* 常亮:最高频入口,绿色边框恒亮,一眼可扫 */
+.ql-trigger {
+  color: var(--glow);
+  border-color: var(--glow, #22ee66);
+  background: rgba(34,238,102,0.08);
+  box-shadow: 0 0 6px rgba(34,238,102,0.25);
+}
+.ql-trigger.on { color: var(--glow); border-color: var(--glow); background: rgba(34,238,102,0.14); }
 
 .ql-panel {
   position: fixed; z-index: 12000;
@@ -200,6 +209,7 @@ onBeforeUnmount(() => {
   padding: 8px 12px; border-bottom: 1px solid var(--border, #23232a); flex-shrink: 0;
 }
 .ql-title { font-size: 12px; font-weight: 600; color: var(--text, #c8c8d0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ql-head .frp-wrap { margin-left: auto; margin-right: 14px; }
 .ql-close {
   background: transparent; border: none; color: var(--text-dim, #6b6b78);
   cursor: pointer; font-size: 14px; line-height: 1; padding: 2px 4px; border-radius: 4px;
