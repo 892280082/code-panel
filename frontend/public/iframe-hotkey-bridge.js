@@ -13,19 +13,18 @@
     var t = e.target
     // 输入控件内不触发(与父页面热键系统同规则)
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
+    // ⭐ 只桥 Ctrl/⌘ + 数字(1-9/0):字母组合(Ctrl+C/V/X/A/S/F…)一律不碰,
+    //    原型页内复制粘贴/保存等原生行为零干扰(2026-09-13 修复:初版拦了所有
+    //    修饰键组合,导致 iframe 里连复制都不能)。
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return
+    var k = (e.key || '').toLowerCase()
+    if (!/^[0-9]$/.test(k)) return
     var parts = []
     if (e.ctrlKey) parts.push('ctrl')
     if (e.metaKey) parts.push('meta')
-    if (e.altKey) parts.push('alt')
-    if (e.shiftKey) parts.push('shift')
-    var k = (e.key || '').toLowerCase()
-    if (!k || ['control', 'meta', 'alt', 'shift'].indexOf(k) >= 0) return
     parts.push(k)
-    var combo = parts.join('+')
-    // 必须带 Ctrl/⌘/Alt(与父页面规则一致,不吞普通按键)
-    if (!/^ctrl|^meta|^alt/.test(combo)) return
     e.preventDefault() // 拦浏览器默认(如 Ctrl+1 切标签);动作由父页面决定
-    try { parent.postMessage({ __cpHotkeyBridge: combo }, location.origin) } catch (err) { /* 跨域父页面 */ }
+    try { parent.postMessage({ __cpHotkeyBridge: parts.join('+') }, location.origin) } catch (err) { /* 跨域父页面 */ }
   }, true)
 
   // ── 自我复制到内层 iframe ──────────────────────────────
