@@ -41,7 +41,9 @@ export function fmtCombo(combo: string): string {
 
 /** 挂全局监听:getMap 返回「组合串 → 动作」映射(每次按键实时取,改键即生效)。
  *  ⭐ 捕获阶段挂载:先于任何组件/库(如 xterm)的冒泡处理拿到事件,
- *  它们就算 stopPropagation 也拦不住捕获。 */
+ *  它们就算 stopPropagation 也拦不住捕获。
+ *  另收 iframe 快捷键桥的 postMessage(public/iframe-hotkey-bridge.js 注入方):
+ *  焦点在 PRD/Wiki 渲染 iframe 内时,组合键由桥上报 → 此处同 map 分发。 */
 export function startHotkeyListener(getMap: () => Record<string, () => void>): () => void {
   const onKey = (e: KeyboardEvent): void => {
     const t = e.target as HTMLElement | null
@@ -51,6 +53,17 @@ export function startHotkeyListener(getMap: () => Record<string, () => void>): (
     const fn = getMap()[combo]
     if (fn) { e.preventDefault(); fn() }
   }
+  const onBridgeMsg = (ev: MessageEvent): void => {
+    if (ev.origin !== location.origin) return // 只认同源 iframe 的上报
+    const d = ev.data as { __cpHotkeyBridge?: string } | null
+    if (!d || typeof d.__cpHotkeyBridge !== 'string') return
+    const fn = getMap()[d.__cpHotkeyBridge]
+    if (fn) fn() // preventDefault 已在 iframe 内做过
+  }
   window.addEventListener('keydown', onKey, true)
-  return () => window.removeEventListener('keydown', onKey, true)
+  window.addEventListener('message', onBridgeMsg)
+  return () => {
+    window.removeEventListener('keydown', onKey, true)
+    window.removeEventListener('message', onBridgeMsg)
+  }
 }

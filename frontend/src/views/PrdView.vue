@@ -81,6 +81,7 @@
 
 <script setup lang="ts">
 import { apiFetch, apiJson } from '@/utils/api-fetch'
+import { injectHotkeyBridge } from '@/utils/iframe-hotkey-bridge'
 import { ref, computed, watch, onMounted } from 'vue'
 import { useProjectsStore } from '@/stores/projects'
 import Sidebar from '@/components/Sidebar.vue'
@@ -205,6 +206,7 @@ async function reload() {
  *  ⚠️ 读 contentWindow.location 而非 .src:iframe 内部整页导航不改 DOM src 属性,只改 window.location。 */
 function onFrameLoad() {
   const el = frameEl.value
+  injectHotkeyBridge(el) // 快捷键桥:iframe 内 Ctrl+1 等组合上报父页面(见 utils/iframe-hotkey-bridge)
   const win = el?.contentWindow
   let href = ''
   try { href = win ? win.location.href : (el?.src || '') } catch { /* 跨域忽略 */ }

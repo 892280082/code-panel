@@ -7,6 +7,7 @@
 
 import { ref, computed, onMounted, watch } from 'vue'
 import { apiJson } from '@/utils/api-fetch'
+import { injectHotkeyBridge } from '@/utils/iframe-hotkey-bridge'
 import Sidebar from '@/components/Sidebar.vue'
 import TopRightTools from '@/components/TopRightTools.vue'
 import { useFileTree, type FileTreeNode } from '@/composables/useFileTree'
@@ -21,6 +22,7 @@ const files = ref<WikiFile[]>([])
 const cloned = ref(true)
 const currentFile = ref('')
 const frameKey = ref(0)
+const frameEl = ref<HTMLIFrameElement | null>(null)
 
 const { visibleRows, toggleDir } = useFileTree<WikiFile>(files, { compress: false })
 
@@ -113,7 +115,7 @@ watch(() => files.value.length, () => { /* 树自动响应(computed) */ })
           <span>尚未配置 wiki 仓库 —— ⚙ →「胶囊」Tab 填 SSH 公钥地址,保存即自动克隆</span>
           <button class="init-btn" @click="ui.openConfig('capsule')">⚙ 去配置</button>
         </div>
-        <iframe v-else :key="frameKey" :src="frameSrc" class="wv-full" />
+        <iframe v-else ref="frameEl" :key="frameKey" :src="frameSrc" class="wv-full" @load="injectHotkeyBridge(frameEl)" />
       </div>
     </main>
   </div>
