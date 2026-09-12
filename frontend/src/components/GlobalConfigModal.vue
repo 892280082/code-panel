@@ -2,7 +2,7 @@
 // ── 全局配置弹窗(外壳:弹窗框架 + Tab 栏 + 面板装配)──────────
 //   打开入口:每页左上角 ⚙(Sidebar)。项目切换/添加、账号改密/登出。
 //   各 Tab 内容在对应 *Panel.vue(ProjectPanel/BackupPanel/FilesPanel/
-//   NginxPanel/SecurityPanel/AccountPanel);日志/库/仓库/PRD 等不做
+//   NginxPanel/SecurityPanel/AppearancePanel/AccountPanel);日志/库/仓库/PRD 等不做
 //   手配 UI,统一在项目 .code-panel/*.yaml 维护。
 
 import { ref } from 'vue'
@@ -17,13 +17,14 @@ import AccountPanel from '@/components/AccountPanel.vue'
 import LlmPanel from '@/components/LlmPanel.vue'
 import WikiPanel from '@/components/WikiPanel.vue'
 import HotkeyPanel from '@/components/HotkeyPanel.vue'
+import AppearancePanel from '@/components/AppearancePanel.vue'
 
 const emit = defineEmits<{ (e: 'close'): void }>()
 
 const projects = useProjectsStore()
 const ui = useUiStore()
 
-type TabKey = 'project' | 'llm' | 'capsule' | 'backup' | 'files' | 'nginx' | 'security' | 'account' | 'hotkey'
+type TabKey = 'project' | 'llm' | 'capsule' | 'backup' | 'files' | 'nginx' | 'security' | 'account' | 'hotkey' | 'appearance'
 const activeTab = ref<TabKey>((ui.cfgTab as TabKey) || 'project')
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'project', label: '项目' },
@@ -35,6 +36,7 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: 'security', label: '安全' },
   { key: 'account', label: '账号' },
   { key: 'hotkey', label: '快捷键' },
+  { key: 'appearance', label: '装修' },
 ]
 </script>
 
@@ -94,6 +96,11 @@ const tabs: { key: TabKey; label: string }[] = [
           <!-- ── 快捷键(全局热键;localStorage,改完即时生效)── -->
           <div v-else-if="activeTab === 'hotkey'" class="tab-pane">
             <HotkeyPanel />
+          </div>
+
+          <!-- ── 装修(favicon 换色;全局作用域,选完即时生效)── -->
+          <div v-else-if="activeTab === 'appearance'" class="tab-pane">
+            <AppearancePanel />
           </div>
 
           <!-- ── 账号 ── -->

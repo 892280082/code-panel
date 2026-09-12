@@ -148,3 +148,5 @@
 | GET/PUT | `/api/backup/config` · POST `/api/backup/run` · GET `/api/backup/list` · GET `/api/backup/download/:name` | 备份(全局 settings.backup.path;保留 20 份) |
 | GET | `/api/nginx/status|confs|conf` · POST `/api/nginx/check` | 本机 nginx 检测(只读) |
 | GET/PUT | `/api/config` | 全局配置(reviewMode/security/jwt/ttyd…) |
+| GET/PUT | `/api/appearance/favicon` | 装修:favicon 预设列表/选色(⚙ 装修 Tab;存全局 settings) |
+| GET | `/favicon.svg` | favicon 本体(按预设色动态渲染,公开,先于静态文件) |

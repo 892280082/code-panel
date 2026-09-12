@@ -40,6 +40,7 @@ import nginxRouter from './routes/nginx';
 import inspectRouter from './routes/inspect';
 import capsuleRouter from './routes/capsule';
 import { watchdogRouter } from './routes/watchdog';
+import appearanceRouter, { faviconRouter } from './routes/appearance';
 import wikiRouter from './routes/wiki';
 import { startCapsuleMonitor } from './capsule/capsule-monitor';
 import { stealthMiddleware } from './security/stealth';
@@ -53,6 +54,9 @@ const PUBLIC_DIR = path.resolve(__dirname, '..', 'public');
 // ── Middleware ────────────────────────────────────────────
 app.use(stealthMiddleware);           // 安全模式(隐身):开启后未解锁一律 404,必须先于 static/SPA/json
 app.use(express.json({ limit: '2mb' }));
+
+// 装修:favicon 按预设色动态渲染 —— 必须先于 static,盖过 dist 里的静态文件
+app.use(faviconRouter);
 
 // Serve Vue build output
 app.use(express.static(DIST_DIR));
@@ -94,6 +98,7 @@ app.use(inspectRouter);
 app.use(capsuleRouter);   // 时空胶囊(全局,读=登录/写=超管)
 app.use(wikiRouter);      // Wiki 仓库(全局,clone/pull 只走 SSH 公钥)
 app.use(watchdogRouter);  // 看门狗(⚙ 安全 Tab):status/install/uninstall
+app.use(appearanceRouter); // 装修(⚙ 装修 Tab):favicon 预设读写
 
 // ── SPA fallback — all non-API routes serve index.html ───
 const indexHtml = path.join(DIST_DIR, 'index.html');
