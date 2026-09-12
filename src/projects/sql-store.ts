@@ -106,12 +106,3 @@ export function queueUpdate(
   writeRuntimeJson(project, 'sql-queue.json', queue);
   return job;
 }
-
-export function queueRemove(project: ProjectRow, id: string): boolean {
-  const queue = readRuntimeJson<SqlJob[]>(project, 'sql-queue.json', []);
-  const idx = queue.findIndex(j => j.id === id);
-  if (idx < 0) return false;
-  queue.splice(idx, 1);
-  writeRuntimeJson(project, 'sql-queue.json', queue);
-  return true;
-}

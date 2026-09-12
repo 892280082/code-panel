@@ -45,14 +45,10 @@ router.post('/api/log/clear', requireProject, route((req: Request, res: Response
   if (!isProjectLogFile(project, fp)) {
     return res.status(403).json({ ok: false, error: 'file 不属于该项目的日志清单' });
   }
-  try {
-    fs.writeFileSync(fp, '', 'utf8');
-    // 重置文件状态缓存，下次 poll 会重新从头读取
-    clearFileState(fp);
-    res.json({ ok: true });
-  } catch (e: unknown) {
-    res.status(500).json({ ok: false, error: (e as Error).message });
-  }
+  fs.writeFileSync(fp, '', 'utf8');
+  // 重置文件状态缓存，下次 poll 会重新从头读取
+  clearFileState(fp);
+  res.json({ ok: true });
 }));
 
 export default router;

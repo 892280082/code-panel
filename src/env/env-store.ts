@@ -16,6 +16,7 @@ import {
   clearProjectEnvSelection,
 } from '../db/global-store';
 import { projectCodePanelDir, globalDataFile, globalDataDir } from '../paths';
+import { esc, ensureRcMount, rcMounted, shellRcPath } from '../utils/shell-rc';
 
 export interface EnvGroup {
   id: string;
@@ -118,8 +119,9 @@ function defaultGroup(groups: EnvGroup[]): EnvGroup | undefined {
   return groups.find((g) => g.default);
 }
 
-function esc(v: string): string {
-  return '"' + v.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+/** 确保 shell rc 有 source 挂载(幂等;兼容旧名,转调共享工具) */
+export function ensureShellRcMount(): { rc: string; added: boolean } {
+  return ensureRcMount(RC_TOP, RC_BOT, globalDataFile('active-env.sh'));
 }
 
 /** 生成物化脚本(注释头 + 按前缀分组 export,排版对齐) */
@@ -178,40 +180,7 @@ export function readActiveEnvVars(): Record<string, string> {
   return out;
 }
 
-function shellRcPath(): string {
-  const env = (process.env.CODE_PANEL_RC || '').trim();
-  if (env) return env;
-  const home = os.homedir();
-  for (const c of ['.zshrc', '.bashrc', '.bash_profile', '.profile']) {
-    const cand = path.join(home, c);
-    if (fs.existsSync(cand)) return cand;
-  }
-  return path.join(home, '.zshrc');
-}
 
-/** 确保 shell rc 有 source 挂载(幂等:带起止标记,存在即跳过) */
-export function ensureShellRcMount(): { rc: string; added: boolean } {
-  const rc = shellRcPath();
-  const envFile = globalDataFile('active-env.sh');
-  let content = '';
-  try {
-    content = fs.readFileSync(rc, 'utf8');
-  } catch {
-    /* rc 缺失则新建 */
-  }
-  if (content.includes(RC_TOP)) return { rc, added: false };
-  const block = `\n${RC_TOP}\n[ -f "${envFile}" ] && source "${envFile}"\n${RC_BOT}\n`;
-  fs.writeFileSync(rc, content.replace(/\n?$/, '\n') + block, 'utf8');
-  return { rc, added: true };
-}
-
-function rcMounted(): boolean {
-  try {
-    return fs.readFileSync(shellRcPath(), 'utf8').includes(RC_TOP);
-  } catch {
-    return false;
-  }
-}
 
 function envFileVarsUsed(): number {
   try {
@@ -242,7 +211,7 @@ export function envSnapshot(project: ProjectRow): EnvSnapshot {
     hasYaml,
     envFile: globalDataFile('active-env.sh'),
     rc: shellRcPath(),
-    rcMounted: rcMounted(),
+    rcMounted: rcMounted(RC_TOP),
     varsUsed: envFileVarsUsed(),
   };
 }
@@ -250,7 +219,7 @@ export function envSnapshot(project: ProjectRow): EnvSnapshot {
 /** 把某组物化到全局文件并确保 rc 挂载 */
 function materialize(project: ProjectRow, group: EnvGroup): void {
   writeActiveEnv(project, group);
-  ensureShellRcMount();
+  ensureRcMount(RC_TOP, RC_BOT, globalDataFile('active-env.sh'));
 }
 
 /**

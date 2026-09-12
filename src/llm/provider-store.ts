@@ -19,6 +19,7 @@ import {
   type LlmProviderRow,
 } from '../db/global-store';
 import { globalDataFile, globalDataDir } from '../paths';
+import { esc, ensureRcMount, rcMounted, shellRcPath } from '../utils/shell-rc';
 
 const RC_TOP = '# >>> code-panel llm (managed) >>>';
 const RC_BOT = '# <<< code-panel llm <<<';
@@ -110,10 +111,6 @@ export function mergeMaskedVars(newText: string, oldText: string): string {
   }).join('\n');
 }
 
-function esc(v: string): string {
-  return '"' + v.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
-}
-
 // ── 物化脚本 ────────────────────────────────────────────
 
 /** 生成 active-llm.sh 内容;provider=null = 「不注入」空档(仅注释,不写 unset 防误伤) */
@@ -143,38 +140,7 @@ export function buildLlmScript(p: LlmProviderRow | null): string {
   return lines.join('\n');
 }
 
-function shellRcPath(): string {
-  const env = (process.env.CODE_PANEL_RC || '').trim();
-  if (env) return env;
-  const home = os.homedir();
-  for (const c of ['.zshrc', '.bashrc', '.bash_profile', '.profile']) {
-    const cand = path.join(home, c);
-    if (fs.existsSync(cand)) return cand;
-  }
-  return path.join(home, '.zshrc');
-}
 
-/** 确保 shell rc 挂载 source active-llm.sh(独立 managed 块,与环境组块共存;幂等) */
-export function ensureLlmRcMount(): { rc: string; added: boolean } {
-  const rc = shellRcPath();
-  const file = globalDataFile('active-llm.sh');
-  let content = '';
-  try {
-    content = fs.readFileSync(rc, 'utf8');
-  } catch { /* rc 缺失则新建 */ }
-  if (content.includes(RC_TOP)) return { rc, added: false };
-  const block = `\n${RC_TOP}\n[ -f "${file}" ] && source "${file}"\n${RC_BOT}\n`;
-  fs.writeFileSync(rc, content.replace(/\n?$/, '\n') + block, 'utf8');
-  return { rc, added: true };
-}
-
-function llmRcMounted(): boolean {
-  try {
-    return fs.readFileSync(shellRcPath(), 'utf8').includes(RC_TOP);
-  } catch {
-    return false;
-  }
-}
 
 /** 物化(原子全量重写)active-llm.sh + 确保 rc 挂载;文件 0600(含 Key) */
 export function materializeLlm(p: LlmProviderRow | null): string {
@@ -185,8 +151,13 @@ export function materializeLlm(p: LlmProviderRow | null): string {
   fs.writeFileSync(tmp, buildLlmScript(p), 'utf8');
   fs.renameSync(tmp, file);
   try { fs.chmodSync(file, 0o600); } catch { /* ignore */ }
-  ensureLlmRcMount();
+  ensureRcMount(RC_TOP, RC_BOT, globalDataFile('active-llm.sh'));
   return file;
+}
+
+/** 确保 shell rc 挂载 active-llm.sh(兼容旧名,转调共享工具) */
+export function ensureLlmRcMount(): { rc: string; added: boolean } {
+  return ensureRcMount(RC_TOP, RC_BOT, globalDataFile('active-llm.sh'));
 }
 
 // ── ~/.claude/settings.json 受管键同步 ──────────────────
@@ -348,7 +319,7 @@ export function llmSnapshot(): LlmSnapshot {
     active: { providerId: activeProvider?.id ?? null, name: activeProvider?.name ?? null },
     envFile: globalDataFile('active-llm.sh'),
     rc: shellRcPath(),
-    rcMounted: llmRcMounted(),
+    rcMounted: rcMounted(RC_TOP),
     settingsFile: claudeSettingsFile(),
     foreignKeys,
   };

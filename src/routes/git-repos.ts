@@ -10,6 +10,7 @@ import {
 import { getDiff, getSummary } from '../git/git-diff';
 import { pullRepo, getCommitLog } from '../git/git-pull';
 import { route, errorMessage } from '../utils/route-utils';
+import { safeResolve } from '../utils/safe-resolve';
 
 const router = Router();
 
@@ -63,8 +64,10 @@ router.get('/api/git/source/:id', requireProject, route((req: Request, res: Resp
   if (!repo) return res.status(404).json({ ok: false, error: `Repo ${req.params.id} not found` });
   const file = req.query.file as string;
   if (!file) return res.status(400).json({ ok: false, error: 'file query param required' });
-  const fullPath = path.join(repo.path, file);
-  if (!fullPath.startsWith(repo.path)) {
+  let fullPath: string;
+  try {
+    fullPath = safeResolve(repo.path, file); // 带分隔符边界,字符串前缀检查会被 ../repoX 绕过
+  } catch {
     return res.status(403).json({ ok: false, error: 'Path traversal denied' });
   }
   if (!fs.existsSync(fullPath)) {

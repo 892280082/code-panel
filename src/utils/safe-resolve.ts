@@ -4,20 +4,24 @@
 
 import path from 'path';
 
-/** 把 subPath 安全解析进 rootPath 内;含 .. / 绝对前缀 / \0 / git 引号清洗 */
+/** 把 subPath 安全解析进 rootPath 内;含 .. / 绝对前缀 / \0 / git 引号清洗
+ *  `..` 按弹栈语义处理(弹出上一段;栈空即越界 → 抛错),不是简单删除段 */
 export function safeResolve(rootPath: string, subPath: string): string {
-  // Strip leading slashes, null bytes, and dot-dot segments
-  const clean = subPath
-    .replace(/\0/g, '')
-    .replace(/^\/+/, '')
-    .replace(/^"|"$/g, '') // 防御: 去掉 git 引号转义路径的首尾 "
-    .split('/')
-    .filter(seg => seg !== '..' && seg !== '')
-    .join('/');
+  const segs: string[] = [];
+  for (const raw of subPath.replace(/\0/g, '').replace(/^\/+/, '').replace(/^"|"$/g, '').split('/')) {
+    if (!raw || raw === '.') continue;
+    if (raw === '..') {
+      if (!segs.length) throw new Error('Path traversal denied'); // 越出根,拒
+      segs.pop();
+      continue;
+    }
+    segs.push(raw);
+  }
 
+  const clean = segs.join('/');
   const full = path.resolve(rootPath, clean);
 
-  // Must be within rootPath
+  // Must be within rootPath(双保险:弹栈逻辑之上再做一次边界校验)
   const normalizedRoot = path.resolve(rootPath) + path.sep;
   const normalizedFull = path.resolve(full) + (full.endsWith(path.sep) ? path.sep : '');
 

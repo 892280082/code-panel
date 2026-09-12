@@ -23,13 +23,6 @@ export function listModuleItems<T>(project: ProjectRow, module: ArrayModule): T[
 }
 
 /** 按 keyField 找到顶层数组中一项(找不到返回 undefined) */
-export function findModuleItem<T extends { id: string }>(
-  project: ProjectRow, module: ArrayModule, keyField: string, id: string,
-): T | undefined {
-  return (listModuleItems<T>(project, module) as Array<T & Record<string, unknown>>)
-    .find(x => x?.[keyField] === id);
-}
-
 /**
  * upsert 顶层数组项:存在则合并更新,不存在则追加。
  * keyField 通常为 'id'。写后整文件落盘。
@@ -103,12 +96,6 @@ export function gitRepos(project: ProjectRow): { id: string; name: string; path:
 }
 
 /** git.yaml:按 string id 取仓库 */
-export function gitRepo(
-  project: ProjectRow, id: string,
-): { id: string; name: string; path: string; notes?: string } | undefined {
-  return gitRepos(project).find(r => r.id === id);
-}
-
 // ── logs.yaml 专属:把 sections 平铺成条目(section 名带上) ──
 
 export interface FlatLogEntry {

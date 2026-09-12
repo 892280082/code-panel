@@ -21,7 +21,6 @@ import type { ModuleName, ModuleYaml } from './yaml';
 // ── 注册表(薄封装) ─────────────────────────────────────
 
 export function allProjects(): ProjectRow[] { return listProjects(); }
-export function projectById(id: string): ProjectRow | undefined { return getProject(id); }
 export function removeProject(id: string): void { deleteProject(id); }
 
 export interface CreateProjectInput {
@@ -200,10 +199,6 @@ export function saveProjectModule(project: ProjectRow, module: ModuleName, value
 }
 
 // ── 项目运行时数据(.code-panel/data/,gitignore) ────────
-
-export function projectRuntimePath(project: ProjectRow, rel: string): string {
-  return projectDataFile(project.root, rel);
-}
 
 export function readRuntimeJson<T>(project: ProjectRow, rel: string, fallback: T): T {
   ensureScaffolded(project);
