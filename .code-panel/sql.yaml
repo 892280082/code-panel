@@ -1,0 +1,18 @@
+# ── sql.yaml —— 本项目「数据库连接」(面板 /sql 查询/审批用) ────────────────
+# 修改即生效。面板执行 SQL 时按本项目连接操作;写操作受全局 ReviewMode 管控。
+# ⚠️ sqlite 的 path 也写「相对项目根」的相对路径,面板自动补绝对;mysql 填 host/端口等。
+#
+# 字段:
+#   id        连接唯一标识(字符串,引用/历史记录用它)
+#   name      显示名
+#   type      mysql | sqlite
+#   mysql:    host / port / user / password / database
+#   sqlite:   path(库文件,相对项目根,如 code/data/app.db)
+#   notes     备注(可选)
+#
+# 示例:
+#   connections:
+#     - { id: main-db, name: 主库, type: mysql, host: 127.0.0.1,
+#         port: 3306, user: root, password: "xxxx", database: app, notes: 开发库 }
+#     - { id: local-sqlite, name: 本地库, type: sqlite, path: code/data/app.db }
+connections: []

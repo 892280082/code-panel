@@ -1,0 +1,28 @@
+# ── apps.yaml(旧名 logs.yaml)—— 本项目「应用服务」:实时日志 + 一键 启动/停止 ──
+# 按「平台」分组:每个平台一个块,组内含它自己的 后端 / 前端 应用(可只写其一)。
+# ⚠️ file 写「相对项目根」的相对路径(如 .logs/a.log),面板自动补绝对;start/stop 同理
+#    写相对脚本(如 .claude/skills/.../start.sh),面板以项目根为工作目录执行。
+#
+# 结构:
+#   platforms:                   平台列表(面板每平台一张卡片)
+#     - name: 平台名             (如 交易总部)
+#       backend:  [该平台后端应用]  每项字段:
+#         name   应用名(如 main)
+#         file   日志文件(相对项目根)
+#         port   服务端口(端口存活 → 面板判断 启动/停止)
+#         start  启动脚本(相对项目根;如 bash .claude/skills/fast-start/start.sh start main)
+#         stop   停止脚本(同上,stop main)
+#       frontend: [该平台前端应用](同上;名通常带 -vue)
+#
+# 示例(去掉 # 即生效):
+#   platforms:
+#     - name: 交易总部
+#       backend:  [ { name: trade-hall, file: .logs/trade-hall.log, port: 7148,
+#                      start: "bash .claude/skills/fast-start/start.sh start trade-hall",
+#                      stop:  "bash .claude/skills/fast-start/start.sh stop trade-hall" } ]
+#       frontend: [ { name: trade-hall-vue, file: .logs/trade-hall-front.log, port: 7149,
+#                      start: "bash .claude/skills/fast-start/start.sh start trade-hall-vue",
+#                      stop:  "bash .claude/skills/fast-start/start.sh stop trade-hall-vue" } ]
+#     - name: 门户
+#       frontend: [ { name: website-vue, file: .logs/website.log, port: 7165 } ]
+platforms: []

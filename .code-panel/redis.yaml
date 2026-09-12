@@ -1,0 +1,14 @@
+# ── redis.yaml —— 本项目「Redis 连接」(面板 /redis 查看缓存/清缓存) ──────────
+# 修改即生效。host/port/password 支持 ${VAR:默认值} 环境变量占位符(跨机器切换)。
+# 字段:
+#   id        连接唯一标识(如 hq / school,与 sql.yaml 平台 id 对齐)
+#   name      显示名
+#   host/port/password  连接参数(port 默认 6379)
+#   db        默认聚焦的 db 号(可选;方舟按实例分 db 50-58)
+#   notes     备注(可选)
+#
+# 示例(去掉注释即生效):
+#   connections:
+#     - { id: hq, name: 总部缓存(db50), host: "${CODE_PANEL_REDIS_HOST:127.0.0.1}",
+#         port: 6379, password: "${CODE_PANEL_REDIS_PASSWORD:改我}", db: 50, notes: 平台 hq }
+connections: []

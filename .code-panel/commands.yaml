@@ -1,0 +1,18 @@
+# ── commands.yaml —— 本项目「自定义命令」按钮(左下角命令抽屉)─────────────
+# 每条 = 一个可点按钮,点它在终端跑一条命令(可对当前项目做启动/停止/重启等)。
+# 注意:系统预设(磁盘/内存/CPU…)是面板内置的,不用写在这里;这里只放项目自己的命令。
+# ⚠️ cwd 写「相对项目根」的相对路径(如 '.' / code);面板自动补绝对。
+#
+# 字段:
+#   id         唯一标识(面板里添加会自动生成、不用手填;只有手写本文件时才给一个不重复值,如 c1、c2。编辑/删除用它定位)
+#   label      按钮文字(如 "🚀 全部启动")
+#   command    要执行的命令(用相对项目根的脚本最稳,如 bash start.sh start all)
+#   cwd        可选,命令执行的工作目录(相对项目根)
+#   subgroup   可选,抽屉里的分组名(如 "快速启动"/"停止"),同名的聚成一块
+#
+# 典型示例(把下面去掉注释、改成你的启动脚本即可):
+#   commands:
+#     - { id: c1, label: "🚀 全部启动", command: "bash start.sh start all", subgroup: "快速启动", cwd: . }
+#     - { id: c2, label: "🛑 全部停止", command: "bash start.sh stop all", subgroup: "快速启动", cwd: . }
+#     - { id: c3, label: "🚀 启动后端", command: "bash start.sh start main", subgroup: "单模块", cwd: . }
+commands: []
