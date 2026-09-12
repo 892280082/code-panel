@@ -114,6 +114,7 @@ function ensurePanelUnit(): 'created' | 'kept' {
     'After=network.target',
     '',
     '[Service]',
+    'KillMode=process  # 只杀主进程 —— 默认 control-group 会连 cgroup 里的 tmux server 一起杀(面板孵化的 tmux 会话随重启陪葬)',
     `WorkingDirectory=${repoRoot()}`,
     `ExecStart=${nodeBin} ${tsxBin} src/server.ts`,
     'Restart=on-failure',
