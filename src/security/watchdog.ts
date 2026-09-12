@@ -32,12 +32,13 @@ function runUserCtl(args: string, timeoutMs = 15000): string {
   return execSync(`systemctl --user ${args}`, { encoding: 'utf8', timeout: timeoutMs, env });
 }
 
-/** 环境是否支持(Linux + systemd user manager 可用) */
+/** 环境是否支持(Linux + systemd user manager 可用)
+ *  注:is-system-running 在 user 实例上 degraded 时退出码=1(execSync 会抛),故用 show-environment 探活 */
 export function isWatchdogSupported(): boolean {
   if (process.platform !== 'linux') return false;
   try {
-    const r = runUserCtl('is-system-running', 5000).trim();
-    return r === 'running' || r === 'degraded';
+    runUserCtl('show-environment', 5000);
+    return true;
   } catch { return false; }
 }
 
