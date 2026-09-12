@@ -4,11 +4,14 @@
 
 import { apiFetch } from '@/utils/api-fetch'
 import { ref, onMounted } from 'vue'
+import { fmtSize } from '@/utils/format'
 
 const pathInput = ref('')
 const pathError = ref('')
 const saving = ref(false)
-const backups = ref<any[]>([])
+/** 备份条目(镜像 src/backup/backup-manager.ts listBackups) */
+interface BackupEntry { name: string; size: number; date: string }
+const backups = ref<BackupEntry[]>([])
 const maxKeep = ref(20)
 const running = ref(false)
 const runMsg = ref('')
@@ -72,11 +75,6 @@ async function handleRun() {
   }
 }
 
-function fmtSize(bytes: number): string {
-  if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB'
-  if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return bytes + ' B'
-}
 
 onMounted(() => {
   loadConfig()

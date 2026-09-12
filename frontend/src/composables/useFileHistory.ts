@@ -2,7 +2,7 @@
 //   Extracted from stores/repo-browser.ts to keep concerns separated.
 
 import { ref } from 'vue'
-import { apiFetch } from '@/utils/api-fetch'
+import { apiFetch, errText } from '@/utils/api-fetch'
 import { projectQS } from '@/stores/projects'
 
 
@@ -133,8 +133,8 @@ export function useFileHistory() {
       } else {
         historyError.value = data.error || 'Failed to load history'
       }
-    } catch (e: any) {
-      historyError.value = e.message || 'Network error'
+    } catch (e) {
+      historyError.value = errText(e, 'Network error')
     } finally {
       historyLoading.value = false
     }
@@ -163,8 +163,8 @@ export function useFileHistory() {
       } else {
         commitFilesError.value = data.error || 'Failed to load commit files'
       }
-    } catch (e: any) {
-      commitFilesError.value = e.message || 'Network error'
+    } catch (e) {
+      commitFilesError.value = errText(e, 'Network error')
     } finally {
       commitFilesLoading.value = false
     }
@@ -204,8 +204,8 @@ export function useFileHistory() {
       } else {
         commitFileDiffError.value = data.error || 'Failed to load file diff'
       }
-    } catch (e: any) {
-      commitFileDiffError.value = e.message || 'Network error'
+    } catch (e) {
+      commitFileDiffError.value = errText(e, 'Network error')
     } finally {
       commitFileDiffLoading.value = false
     }

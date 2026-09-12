@@ -9,6 +9,7 @@
 //   底部「＋ 新建 Tmux」按钮的文案与高亮也依赖它;创建成功后 emit 收起表单。
 
 import { apiFetch } from '@/utils/api-fetch'
+import type { TmuxSessionInfo } from '@/types'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useProjectsStore } from '@/stores/projects'
 import { useTerminalStore } from '@/stores/terminal'
@@ -19,7 +20,7 @@ const emit = defineEmits<{ (e: 'update:showForm', v: boolean): void }>()
 const terminal = useTerminalStore()
 const projects = useProjectsStore()
 
-const tmuxSessions = ref<any[]>([])
+const tmuxSessions = ref<TmuxSessionInfo[]>([])
 const newTmuxName = ref('')
 const newTmuxDesc = ref('')
 const tmuxError = ref('')
@@ -39,8 +40,8 @@ async function loadTmuxSessions() {
     const res = await apiFetch('/api/terminal/tmux/list')
     const data = await res.json()
     if (data.ok) {
-      tmuxSessions.value = (data.data || [])
-        .sort((a: any, b: any) => b.createdAt - a.createdAt)
+      const list: TmuxSessionInfo[] = data.data || []
+      tmuxSessions.value = list.slice().sort((a, b) => b.createdAt - a.createdAt)
     }
   } catch { /* ignore */ }
 }
@@ -52,10 +53,11 @@ function projectName(id: string): string {
 
 /** 按项目分盒(全项目一屏可见,组序 = 各组最新会话时间倒序);样式对齐 Apps 页 platform-card */
 const groupedTmux = computed(() => {
-  const map = new Map<string, any[]>()
+  const map = new Map<string, TmuxSessionInfo[]>()
   for (const s of tmuxSessions.value) {
-    if (!map.has(s.project)) map.set(s.project, [])
-    map.get(s.project)!.push(s)
+    const key = s.project || ''   // null=未识别归属(后端已滤,防御兜底)
+    if (!map.has(key)) map.set(key, [])
+    map.get(key)!.push(s)
   }
   return [...map.entries()]
     .map(([project, sessions]) => ({ project, sessions }))
@@ -71,12 +73,12 @@ function attachedTmuxPort(fullName: string): number | null {
 }
 
 /** 展示名(后端已去前缀,name 为空时退化为物理名) */
-function prettyTmuxName(s: any): string { return s.name || s.fullName }
+function prettyTmuxName(s: TmuxSessionInfo): string { return s.name || s.fullName }
 
-async function onConnectTmux(s: any) {
+async function onConnectTmux(s: TmuxSessionInfo) {
   const port = attachedTmuxPort(s.fullName)
   if (port !== null) { terminal.restoreSession(port); return }
-  await terminal.attachTmux(s.fullName, prettyTmuxName(s), s.project, s.description || '')
+  await terminal.attachTmux(s.fullName, prettyTmuxName(s), s.project || '', s.description || '')
 }
 
 async function handleCreateTmux() {
@@ -108,21 +110,21 @@ async function handleCreateTmux() {
 }
 
 /** 断开:只 detach 本会话已开窗口(tmux 会话保留) */
-function onDetachTmux(s: any) {
+function onDetachTmux(s: TmuxSessionInfo) {
   const port = attachedTmuxPort(s.fullName)
   if (port !== null) terminal.closeSession(port)
 }
 
 /** 彻底删除:断开 + kill session + 清备注(按会话归属项目操作,与当前选中项目无关) */
-function onDeleteTmux(s: any) {
+function onDeleteTmux(s: TmuxSessionInfo) {
   if (!confirm(`确定删除 tmux 会话「${prettyTmuxName(s)}」?会话内的所有进程将被终止!`)) return
-  terminal.deleteTmuxSession(s.fullName, s.project).then(loadTmuxSessions)
+  terminal.deleteTmuxSession(s.fullName, s.project || '').then(loadTmuxSessions)
 }
 
 // ── 抓屏复制(mouse on 时网页拖选被 tmux 截获 → 后端 capture-pane 出纯文本)──
 //   弹窗是全局组件 TmuxCaptureModal(终端窗口标题栏 ⧉ 与此处共用),
 //   这里只负责把目标塞进 store。
-function openCapture(s: any) {
+function openCapture(s: TmuxSessionInfo) {
   if (!s.project) return
   terminal.openCapture({ fullName: s.fullName, label: prettyTmuxName(s), project: s.project })
 }
@@ -130,7 +132,7 @@ function openCapture(s: any) {
 /** 鼠标模式开关(会话级,不动全局 conf):
  *  关 → 网页里恢复原生拖选 + Cmd/Ctrl+C 复制(滚轮退化为方向键,滚动用 Ctrl+B [)
  *  开 → 恢复滚轮滚动(复制走「抓屏」弹窗) */
-async function onToggleMouse(s: any) {
+async function onToggleMouse(s: TmuxSessionInfo) {
   try {
     const res = await apiFetch('/api/terminal/tmux/mouse', {
       method: 'PUT',

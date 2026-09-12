@@ -6,7 +6,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { gitExec, type GitExecError } from '../git/git-exec';
 import { globalDataDir } from '../paths';
 import { getSetting, setSetting } from '../db/global-store';
 
@@ -49,7 +49,7 @@ export function isWikiCloned(): boolean {
 export function isWikiEmpty(): boolean {
   if (!isWikiCloned()) return false;
   try {
-    execSync('git rev-parse --verify -q HEAD', { encoding: 'utf8', cwd: wikiDir(), timeout: 10000, env: GIT_ENV });
+    gitExec('git rev-parse --verify -q HEAD', { cwd: wikiDir(), timeoutMs: 10000, env: GIT_ENV });
     return false;
   } catch {
     return true;
@@ -58,18 +58,13 @@ export function isWikiEmpty(): boolean {
 
 // 只走本机 ssh agent/公钥;首次连接自动接受新主机指纹(accept-new,
 // 比 =no 安全);BatchMode 禁交互式输密码(没配公钥直接失败,不挂死)
+// (进程 env 由 gitExec 底座带上,这里只声明增量)
 const GIT_ENV = {
-  ...process.env,
   GIT_SSH_COMMAND: 'ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes',
 };
 
 function runWikiGit(args: string, timeoutMs: number): string {
-  return execSync(`git ${args}`, {
-    encoding: 'utf8',
-    maxBuffer: 10 * 1024 * 1024,
-    timeout: timeoutMs,
-    env: GIT_ENV,
-  });
+  return gitExec(`git ${args}`, { timeoutMs, env: GIT_ENV });
 }
 
 function errText(err: unknown): string {

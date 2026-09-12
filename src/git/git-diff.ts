@@ -1,6 +1,6 @@
 // ── Git diff executor + parser ────────────────────────────
 
-import { execSync } from 'child_process';
+import { gitExec, type GitExecError } from './git-exec';
 import fs from 'fs';
 import { errorMessage } from '../utils/route-utils';
 
@@ -41,15 +41,10 @@ export interface RepoDiff {
 
 function runGit(repoPath: string, args: string): string {
   try {
-    return execSync(`git -C "${repoPath}" ${args}`, {
-      encoding: 'utf8',
-      maxBuffer: 10 * 1024 * 1024, // 10MB
-      timeout: 15000,
-      env: { ...process.env, LC_ALL: 'C.UTF-8' },
-    });
-  } catch (e: unknown) {
+    return gitExec(`git -C "${repoPath}" ${args}`, { timeoutMs: 15000 });
+  } catch (e) {
     // git diff exits with code 1 if there are no changes - that's fine
-    const err = e as { stdout?: string; stderr?: string };
+    const err = e as GitExecError;
     if (err.stdout) return err.stdout;
     if (err.stderr) throw new Error(err.stderr.trim());
     throw e;

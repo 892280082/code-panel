@@ -3,7 +3,7 @@
 //   开启后:未解锁访问(页面 + 全部 API)一律 404;只有秘密链接能种下
 //   解锁 cookie(90 天)并跳转登录页。链接可自定义/重新生成,可吊销全部解锁。
 
-import { apiFetch } from '@/utils/api-fetch'
+import { apiFetch, errText } from '@/utils/api-fetch'
 import { copyText } from '@/utils/clipboard'
 import { ref, computed, onMounted } from 'vue'
 
@@ -25,8 +25,8 @@ async function load() {
     const data = await res.json()
     enabled.value = !!data?.security?.enabled
     secretPath.value = data?.security?.secretPath || ''
-  } catch (e: any) {
-    errMsg.value = e.message || '读取失败'
+  } catch (e) {
+    errMsg.value = errText(e, '读取失败')
   } finally {
     loading.value = false
   }
@@ -48,8 +48,8 @@ async function save(payload: Record<string, unknown>, okMsg: string) {
     enabled.value = !!data.security?.enabled
     secretPath.value = data.security?.secretPath || ''
     msg.value = okMsg
-  } catch (e: any) {
-    errMsg.value = e.message || '保存失败'
+  } catch (e) {
+    errMsg.value = errText(e, '保存失败')
   } finally {
     busy.value = false
   }

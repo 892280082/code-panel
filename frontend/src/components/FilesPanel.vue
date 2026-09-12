@@ -5,7 +5,7 @@
 //   故挂载即读取等价;切项目重读同样等价(面板未挂载时不触发)。
 
 import { ref, watch, onMounted } from 'vue'
-import { apiFetch } from '@/utils/api-fetch'
+import { apiFetch, errText } from '@/utils/api-fetch'
 import { useProjectsStore } from '@/stores/projects'
 
 const projects = useProjectsStore()
@@ -26,8 +26,8 @@ async function loadFilesCfg() {
       upDir.value = data.data.upload
       downDir.value = data.data.download
     } else throw new Error(data?.error || '读取失败')
-  } catch (e: any) {
-    fileErr.value = e.message || '读取失败'
+  } catch (e) {
+    fileErr.value = errText(e, '读取失败')
   }
 }
 
@@ -45,8 +45,8 @@ async function saveFilesCfg() {
     if (!data?.ok) throw new Error(data?.error || '保存失败')
     fileMsg.value = '✓ 已保存'
     loadFilesCfg()
-  } catch (e: any) {
-    fileErr.value = e.message || '保存失败'
+  } catch (e) {
+    fileErr.value = errText(e, '保存失败')
   } finally {
     fileBusy.value = false
   }

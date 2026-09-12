@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, computed } from 'vue'
+import { errText } from '@/utils/api-fetch'
 import { useSqlStore } from '@/stores/sql'
 import { useProjectsStore } from '@/stores/projects'
 import Sidebar from '@/components/Sidebar.vue'
@@ -41,7 +42,7 @@ function resultSummary(r: { rows?: unknown[]; affectedRows?: number; changes?: n
 
 async function handleToggleReview() {
   try { await store.toggleReviewMode() }
-  catch (e: any) { alert('切换失败: ' + e.message) }
+  catch (e) { alert('切换失败: ' + errText(e)) }
 }
 
 async function handleApprove(id: string) {

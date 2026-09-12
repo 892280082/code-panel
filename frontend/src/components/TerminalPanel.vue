@@ -7,6 +7,7 @@
 //   窗口生命周期/持久化 → stores/terminal.ts。
 
 import { useTerminalStore } from '@/stores/terminal'
+import type { TerminalSession } from '@/stores/terminal'
 import { useAuthStore } from '@/stores/auth'
 import { useTerminalDrag } from '@/composables/useTerminalDrag'
 import { useTerminalViewport } from '@/composables/useTerminalViewport'
@@ -22,7 +23,7 @@ useTerminalViewport()
 
 // 点击/触碰窗口 = 置顶;一次性(启停)会话在 2s 展示期内点中 = 用户想保留看它 → 激活
 // (取消自动收起/20s 自动关),窗口一直留着可看、手动 ✕ 才关。没点中 → 2s 自动收起成 chip。
-function onWindowPointerDown(port: number, session: any) {
+function onWindowPointerDown(port: number, session: TerminalSession) {
   store.bringToFront(port)
   if (session?.oneshot && !session.activated) store.markActivated(port)
 }
@@ -48,7 +49,7 @@ function onFrameLoad(e: Event): void {
 
 /** 抓屏要用的归属项目:新窗口直接取字段;旧窗口(本次升级前开的)没存 →
  *  从物理名 p_<projectId>_<name> 第二段解析兜底(projectId 为数字串,无下划线) */
-function tmuxProjectOf(s: any): string | null {
+function tmuxProjectOf(s: TerminalSession): string | null {
   if (s.tmuxProject) return s.tmuxProject
   const m = /^p_([A-Za-z0-9-]+)_/.exec(s.tmuxSession || '')
   return m ? m[1] : null

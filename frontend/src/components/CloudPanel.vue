@@ -11,6 +11,7 @@ import { useCloudStore } from '@/stores/cloud'
 import { useProjectsStore } from '@/stores/projects'
 import { useAuthStore } from '@/stores/auth'
 import { copyText } from '@/utils/clipboard'
+import { fmtSize } from '@/utils/format'
 
 interface CloudFile {
   name: string; size: number; mtime: number; ext: string; image: boolean; abs: string
@@ -42,11 +43,6 @@ function rawUrl(name: string, side: Tab): string {
   return `/api/files/raw?project=${encodeURIComponent(id)}&side=${side}&name=${encodeURIComponent(name)}&token=${auth.token}`
 }
 
-function fmtSize(n: number): string {
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`
-  return `${(n / 1024 / 1024).toFixed(1)} MB`
-}
 function fmtTime(ms: number): string {
   if (!ms) return ''
   const d = new Date(ms)

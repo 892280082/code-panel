@@ -19,8 +19,9 @@ export const useLogStore = defineStore('logs', () => {
   const autoScroll = ref<Record<string, boolean>>({})
   const portStatusMap = ref<Record<number, boolean>>({})
   const newContentMap = ref<Record<string, boolean>>({})   // per-file new content flag
+  const savedAnsi = localStorage.getItem('log-ansi')
   const ansiMode = ref<'strip' | 'raw' | 'color'>(
-    (localStorage.getItem('log-ansi') as any) || 'strip'
+    savedAnsi === 'raw' || savedAnsi === 'color' ? savedAnsi : 'strip'
   )
   const showConfig = ref(false)
   /** per-file 新日志闪烁定时器:亮 T 后 3 秒自动灭 */

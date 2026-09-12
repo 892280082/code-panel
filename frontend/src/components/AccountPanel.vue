@@ -6,7 +6,7 @@
 
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { apiFetch } from '@/utils/api-fetch'
+import { apiFetch, errText } from '@/utils/api-fetch'
 import { useAuthStore } from '@/stores/auth'
 import UsersPanel from '@/components/UsersPanel.vue'
 
@@ -46,8 +46,8 @@ async function changePassword() {
     pwdMsg.value = '✓ 密码已修改'
     pwdOpen.value = false
     resetPwd()
-  } catch (e: any) {
-    pwdErr.value = e.message || '修改失败'
+  } catch (e) {
+    pwdErr.value = errText(e, '修改失败')
   } finally {
     pwdBusy.value = false
   }

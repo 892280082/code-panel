@@ -12,14 +12,20 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
  */
 export async function apiJson<T = any>(url: string, options: RequestInit = {}): Promise<T> {
   const res = await apiFetch(url, options)
-  let data: any
+  let data: unknown
   try {
     data = await res.json()
   } catch {
     throw new Error(`响应解析失败 (HTTP ${res.status})`)
   }
   if (data && typeof data === 'object' && 'ok' in data && data.ok === false) {
-    throw new Error(data.error || `请求失败 (HTTP ${res.status})`)
+    const error = 'error' in data ? String(data.error) : ''
+    throw new Error(error || `请求失败 (HTTP ${res.status})`)
   }
   return data as T
+}
+
+/** 未知异常 → 展示文案(Error 取 message;其余/空 message 用 fallback) */
+export function errText(e: unknown, fallback = '请求失败'): string {
+  return e instanceof Error && e.message ? e.message : fallback
 }

@@ -29,7 +29,8 @@ const panelStyle = ref<{ top: string; left: string }>({ top: '0px', left: '0px' 
 const viewGroup = computed<EnvGroup | null>(() => groups.value.find(g => g.id === viewId.value) || groups.value[0] || null)
 const viewVars = computed<[string, string][]>(() => Object.entries(viewGroup.value?.vars || {}))
 
-function applySnapshot(s: any) {
+/** /api/env 快照(字段全可选,缺省保底) */
+function applySnapshot(s: Partial<{ groups: EnvGroup[]; current: EnvCurrent | null; varsUsed: number; rcMounted: boolean; envFile: string }>) {
   groups.value = Array.isArray(s?.groups) ? s.groups : []
   current.value = s?.current || null
   varsUsed.value = s?.varsUsed || 0

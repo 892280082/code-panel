@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { errText } from '@/utils/api-fetch'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -24,8 +25,8 @@ async function handleLogin() {
     await auth.login(username.value.trim(), password.value, remember.value)
     const redirect = (route.query.redirect as string) || '/log'
     router.push(redirect)
-  } catch (e: any) {
-    error.value = e.message || '登录失败'
+  } catch (e) {
+    error.value = errText(e, '登录失败')
   } finally {
     loading.value = false
   }

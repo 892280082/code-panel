@@ -19,3 +19,10 @@ export function fmtRelTime(ms: number): string {
   const d = new Date(ms)
   return `${d.getMonth() + 1}/${d.getDate()}`
 }
+
+/** 字节数:B / KB(一位小数) / MB(一位小数);CloudPanel 与 BackupPanel 统一此版 */
+export function fmtSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB'
+  if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return bytes + ' B'
+}

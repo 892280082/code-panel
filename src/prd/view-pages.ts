@@ -10,6 +10,19 @@ import { markdownToHtml, esc } from './md-render';
 /** 可浏览的代码文件扩展名（伪代码目录等） */
 export const CODE_EXTS = ['.ts', '.js', '.jsx', '.tsx', '.java', '.sql', '.py', '.json', '.yaml', '.yml', '.sh', '.go', '.vue'];
 
+/** 目录下可渲染文件的平铺列表(相对路径 + name/size/mtime;stat 失败跳过)
+ *  capsule 与 wiki 路由共用 —— 统一采用容错语义:扫描期间消失的文件直接跳过 */
+export function listRenderableFiles(dir: string): { path: string; name: string; size: number; mtime: number }[] {
+  const out: { path: string; name: string; size: number; mtime: number }[] = [];
+  for (const f of listViewFiles(dir)) {
+    try {
+      const st = fs.statSync(f);
+      out.push({ path: path.relative(dir, f), name: path.basename(f), size: st.size, mtime: st.mtimeMs });
+    } catch { /* 消失即跳过 */ }
+  }
+  return out;
+}
+
 /** 代码文件判定(伪代码/脚本走 <pre> 原样视图而非 md 渲染);胶囊/wiki 路由共用 */
 export function isCodeFile(name: string): boolean {
   const ext = path.extname(name).toLowerCase();

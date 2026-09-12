@@ -151,3 +151,48 @@ export interface RedisHistoryEntry {
   action: string; target?: string; count?: number
   result: string; executedAt: number; via?: 'direct' | 'review'
 }
+
+// ── 后端镜像类型(API 返回结构;与后端 interface 同步维护)─────
+
+/** tmux 会话信息(镜像 src/terminal/tmux-manager.ts TmuxSessionInfo) */
+export interface TmuxSessionInfo {
+  name: string
+  fullName: string
+  project: string | null
+  description: string
+  windows: number
+  createdAt: number
+  attached: boolean
+  mouse: boolean
+}
+
+/** 命令按钮(镜像 src/terminal/command-store.ts CommandButton) */
+export interface CommandButton {
+  id: string
+  label: string
+  command: string
+  cwd?: string
+  subgroup?: string
+  type: 'system' | 'custom'
+}
+
+/** wiki 同步状态(镜像 src/capsule/wiki-manager.ts wikiStatus) */
+export interface WikiStatus {
+  url: string
+  clonePath: string
+  cloned: boolean
+  lastPullAt: number
+  empty?: boolean
+  branch?: string
+  commit?: string
+  dirty?: number
+}
+
+/** 终端会话信息(镜像 src/terminal/ttyd-manager.ts SessionInfo) */
+export interface TerminalServerSession {
+  port: number
+  label: string
+  command: string
+  cwd: string
+  createdAt: number
+}

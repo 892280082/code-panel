@@ -5,6 +5,7 @@
 //   CommandEditModal.vue(0e4bade 起命令改 commands.yaml 纯展示,未挂载)。
 
 import { apiFetch } from '@/utils/api-fetch'
+import type { CommandButton } from '@/types'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useProjectsStore } from '@/stores/projects'
 import { useTerminalStore } from '@/stores/terminal'
@@ -18,7 +19,7 @@ const terminal = useTerminalStore()
 const projects = useProjectsStore()
 const browser = useRepoBrowserStore()
 const cloud = useCloudStore()
-const commands = ref<any[]>([])
+const commands = ref<CommandButton[]>([])
 const activeTab = ref<'custom' | 'system' | 'tmux'>('custom')
 const showNewTmux = ref(false)
 let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -48,12 +49,12 @@ function onReset(): void {
   pinTimer = setTimeout(() => { pinMsg.value = '' }, 2000)
 }
 
-const systemCmds = computed(() => commands.value.filter((c: any) => c.type === 'system'))
-const customCmds = computed(() => commands.value.filter((c: any) => c.type === 'custom'))
+const systemCmds = computed(() => commands.value.filter(c => c.type === 'system'))
+const customCmds = computed(() => commands.value.filter(c => c.type === 'custom'))
 
 // ── 子分组聚合：按 subgroup 分块展示（未设置 subgroup 的命令归入默认块）──
 const groupedCustomCmds = computed(() => {
-  const map = new Map<string, any[]>()
+  const map = new Map<string, CommandButton[]>()
   for (const c of customCmds.value) {
     const g = c.subgroup || ''
     if (!map.has(g)) map.set(g, [])
@@ -114,7 +115,7 @@ function onNewTmux() {
   showNewTmux.value = !showNewTmux.value
 }
 
-function onClickCommand(cmd: any) {
+function onClickCommand(cmd: CommandButton) {
   terminal.createSession(cmd.label, cmd.command, cmd.cwd || '')
 }
 </script>

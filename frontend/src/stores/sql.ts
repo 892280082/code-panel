@@ -147,7 +147,7 @@ export const useSqlStore = defineStore('sql', () => {
     const data = await res.json()
     if (data?.ok) {
       const job = jobs.value.find(j => j.id === id)
-      if (job) { (job as any).result = data.result; job.status = 'executed' }
+      if (job) { job.result = data.result; job.status = 'executed' }
       if (selectedJob.value?.id === id) selectedJob.value = job ?? null
     }
     return data

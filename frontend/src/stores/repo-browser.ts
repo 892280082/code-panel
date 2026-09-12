@@ -3,7 +3,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import { apiFetch } from '@/utils/api-fetch'
+import { apiFetch, errText } from '@/utils/api-fetch'
 import { raise } from '@/utils/z-layer'
 import { useFileHistory } from '@/composables/useFileHistory'
 import { useProjectsStore } from './projects'
@@ -24,6 +24,7 @@ export interface DirEntry {
 
 export interface TreeResult {
   ok: boolean
+  error?: string
   repoId: string
   repoName: string
   path: string
@@ -32,6 +33,7 @@ export interface TreeResult {
 
 export interface FileChunk {
   ok: boolean
+  error?: string
   path: string
   content: string
   lang: string
@@ -285,12 +287,12 @@ export const useRepoBrowserStore = defineStore('repoBrowser', () => {
         treeCache.value = { ...treeCache.value, [key]: data.entries.length ? data.entries : [] }
         clearDirError(key)
       } else {
-        const msg = (data as any).error || 'Failed to load directory'
+        const msg = data.error || 'Failed to load directory'
         setDirError(key, msg)
         delete treeCache.value[key] // allow retry on error
       }
-    } catch (e: any) {
-      setDirError(key, e.message || 'Network error')
+    } catch (e) {
+      setDirError(key, errText(e, 'Network error'))
       delete treeCache.value[key]
     } finally {
       const next = new Set(loadingDirs.value)
@@ -374,7 +376,7 @@ export const useRepoBrowserStore = defineStore('repoBrowser', () => {
       const data: FileChunk = await res.json()
 
       if (!data.ok) {
-        fileError.value = (data as any).error || 'Failed to load file'
+        fileError.value = data.error || 'Failed to load file'
         return
       }
 
@@ -389,8 +391,8 @@ export const useRepoBrowserStore = defineStore('repoBrowser', () => {
       } else {
         fileContent.value = fileContent.value + data.content
       }
-    } catch (e: any) {
-      fileError.value = e.message || 'Network error'
+    } catch (e) {
+      fileError.value = errText(e, 'Network error')
     } finally {
       fileLoading.value = false
     }

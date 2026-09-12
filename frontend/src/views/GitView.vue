@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { useGitStore, gitPullStatusIcon, gitFormatLogTime } from '@/stores/git'
+import { errText } from '@/utils/api-fetch'
+import { type RepoSummary,useGitStore, gitPullStatusIcon, gitFormatLogTime  } from '@/stores/git'
 import { useProjectsStore } from '@/stores/projects'
 import { useRepoBrowserStore } from '@/stores/repo-browser'
 import TopRightTools from '@/components/TopRightTools.vue'
@@ -92,10 +93,10 @@ async function handleAdd() {
     await store.addRepo(newRepoName.value, newRepoPath.value)
     newRepoName.value = ''
     newRepoPath.value = ''
-  } catch (e: any) { alert('添加失败: ' + e.message) }
+  } catch (e) { alert('添加失败: ' + errText(e)) }
 }
 
-function dotStatus(s: any) {
+function dotStatus(s?: RepoSummary) {
   if (!s || s.error) return 'dead'
   if (s.clean) return 'alive'
   return 'missing'  // yellow = has changes

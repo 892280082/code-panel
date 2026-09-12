@@ -25,7 +25,14 @@ const dir = ref('')
 const selected = ref('')
 const content = ref('')
 const busy = ref(false)
-const checkResult = ref<any>(null)
+/** 检测结果(镜像 src/nginx/nginx-manager.ts NginxCheckResult,取用到的字段) */
+interface NginxCheckInfo {
+  serverName: string | null
+  syntax: { ok: boolean; output: string }
+  loaded: 'loaded' | 'missing' | 'nginx-down' | 'no-server-name'
+  localFiles: { path: string; md5Match: boolean }[]
+}
+const checkResult = ref<NginxCheckInfo | null>(null)
 const checkErr = ref('')
 
 const qs = projectQS

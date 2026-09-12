@@ -5,6 +5,7 @@
 //   写操作后端限超管,普通用户输入禁用只读展示。
 
 import { ref, onMounted } from 'vue'
+import type { WikiStatus } from '@/types'
 import { apiJson } from '@/utils/api-fetch'
 import { useAuthStore } from '@/stores/auth'
 
@@ -15,7 +16,7 @@ const capInfo = ref<{ dir?: string; exists?: boolean; entryCount?: number }>({})
 const capMsg = ref('')
 
 const wikiUrl = ref('')
-const wikiInfo = ref<Record<string, any>>({}) // eslint-disable-line @typescript-eslint/no-explicit-any
+const wikiInfo = ref<Partial<WikiStatus>>({})
 const wikiMsg = ref('')
 const wikiBusy = ref(false)
 

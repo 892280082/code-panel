@@ -11,7 +11,7 @@ import { Router, Request, Response } from 'express';
 import { route, errorMessage, startSSE } from '../utils/route-utils';
 import { requireSuperadmin } from '../auth/jwt';
 import { safeResolve } from '../utils/safe-resolve';
-import { buildViewPage, renderContentOnly, listViewFiles, isCodeFile, type LinkTarget } from '../prd/view-pages';
+import { buildViewPage, renderContentOnly, listRenderableFiles, isCodeFile, type LinkTarget } from '../prd/view-pages';
 import {
   capsuleDir, setCapsuleDir, scanCapsules, resolveEntry,
   moveToTrash, listTrash, restoreFromTrash, clearCapsules,
@@ -87,7 +87,7 @@ router.get('/api/capsule/files', route((req: Request, res: Response) => {
   if (!id.trim()) { res.status(400).json({ ok: false, error: '缺少 id' }); return; }
   try {
     const { renderDir } = resolveEntry(id);
-    const files = listFilesUnder(renderDir);
+    const files = listRenderableFiles(renderDir);
     res.json({ ok: true, data: { id, files } });
   } catch (err: unknown) {
     respondEntryError(res, err);
@@ -127,7 +127,7 @@ router.get('/api/capsule/view', route((req: Request, res: Response) => {
       targetFile = safeResolve(root, file);
     } else {
       // 默认入口:index.md 优先,否则第一个可渲染文件
-      const files = listFilesUnder(root);
+      const files = listRenderableFiles(root);
       if (!files.length) {
         res.type('html').send(renderContentOnly('# 空胶囊\n\n该胶囊没有可渲染文件。', root, [], '空胶囊'));
         return;
@@ -193,15 +193,6 @@ router.post('/api/capsule/restore', requireSuperadmin, route((req: Request, res:
 }));
 
 // ── 局部工具 ─────────────────────────────────────────────
-
-/** 目录下可渲染文件平铺(listViewFiles 的相对路径版) */
-function listFilesUnder(dir: string): { path: string; name: string; size: number; mtime: number }[] {
-  // 复用 PRD 管线的递归列表(深度≤4、跳软链、md+代码)
-  return listViewFiles(dir).map(f => {
-    const st = fs.statSync(f);
-    return { path: path.relative(dir, f), name: path.basename(f), size: st.size, mtime: st.mtimeMs };
-  });
-}
 
 /** 条目类错误的统一出口:路径越狱 403 / 不存在 404 / 其余 500 */
 function respondEntryError(res: Response, err: unknown): void {

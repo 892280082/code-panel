@@ -4,6 +4,7 @@
 //   项目卡片网格(使用/编辑/移除)+ 底部添加表单(默认折叠,仅超管)。
 
 import { ref } from 'vue'
+import { errText } from '@/utils/api-fetch'
 import { useProjectsStore } from '@/stores/projects'
 import { useAuthStore } from '@/stores/auth'
 
@@ -30,8 +31,8 @@ async function handleAddProject() {
     addRoot.value = ''
     addNote.value = ''
     showAdd.value = false
-  } catch (e: any) {
-    addErr.value = e.message || '添加失败'
+  } catch (e) {
+    addErr.value = errText(e, '添加失败')
   } finally {
     adding.value = false
   }
@@ -41,8 +42,8 @@ async function handleRemoveProject(id: string) {
   if (!window.confirm(`移除项目 #${id} 的注册?(不会删除其磁盘 .code-panel)继续?`)) return
   try {
     await projects.removeProject(id)
-  } catch (e: any) {
-    alert(e.message || '移除失败')
+  } catch (e) {
+    alert(errText(e, '移除失败'))
   }
 }
 
@@ -69,8 +70,8 @@ async function saveEdit() {
       note: editNote.value.trim(),
     })
     editingId.value = null
-  } catch (e: any) {
-    editErr.value = e.message || '保存失败'
+  } catch (e) {
+    editErr.value = errText(e, '保存失败')
   }
 }
 </script>

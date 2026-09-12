@@ -8,6 +8,7 @@
 //   页面刷新后自动恢复 —— tmux 重连,cmd 若服务端会话仍在则重新接回。
 
 import { apiFetch } from '@/utils/api-fetch'
+import type { TerminalServerSession } from '@/types'
 import { raise } from '@/utils/z-layer'
 import { slotPos } from '@/utils/viewport-layout'
 import { useProjectsStore } from './projects'
@@ -107,7 +108,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     const saved = readSavedWindows()
     if (!saved.length) return
     // 服务端当前还活着的 cmd 会话(刷新前若没清理,它们还在)
-    let serverSessions: any[] = []
+    let serverSessions: TerminalServerSession[] = []
     try {
       const res = await apiFetch('/api/terminal/sessions')
       const data = await res.json()
@@ -129,7 +130,7 @@ export const useTerminalStore = defineStore('terminal', () => {
         }
       } else if (w.kind === 'cmd' && w.command) {
         // 复用服务端还活着的会话(不重启进程),找不到则跳过
-        const hit = serverSessions.find((ss: any) => ss.label === w.label && ss.command === w.command)
+        const hit = serverSessions.find(ss => ss.label === w.label && ss.command === w.command)
         if (!hit || !hit.port) continue
         if (sessions.has(hit.port)) continue
         sessions.set(hit.port, {
@@ -239,8 +240,8 @@ export const useTerminalStore = defineStore('terminal', () => {
       try {
         const r = await apiFetch('/api/terminal/sessions')
         const d = await r.json()
-        const list = (d && d.data) ? d.data : []
-        const alive = list.some((s: any) => s.port === port)
+        const list: TerminalServerSession[] = (d && d.data) ? d.data : []
+        const alive = list.some(s => s.port === port)
         if (!alive) {
           sessions.delete(port)
           persistWindows()

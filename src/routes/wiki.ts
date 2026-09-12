@@ -9,7 +9,7 @@ import { Router, Request, Response } from 'express';
 import { route, errorMessage } from '../utils/route-utils';
 import { requireSuperadmin } from '../auth/jwt';
 import { safeResolve } from '../utils/safe-resolve';
-import { listViewFiles, buildViewPage, isCodeFile, type LinkTarget } from '../prd/view-pages';
+import { listViewFiles, buildViewPage, isCodeFile, listRenderableFiles, type LinkTarget } from '../prd/view-pages';
 import {
   wikiDir, wikiStatus, getWikiConfig, setWikiUrl,
   isValidWikiUrl, cloneWiki, pullWiki, isWikiCloned,
@@ -48,15 +48,7 @@ router.post('/api/wiki/pull', requireSuperadmin, route((_req: Request, res: Resp
 // GET /api/wiki/files — 平铺文件列表(WikiView 侧栏树用)
 router.get('/api/wiki/files', route((_req: Request, res: Response) => {
   const root = wikiDir();
-  const files: { path: string; name: string; size: number; mtime: number }[] = [];
-  try {
-    for (const f of listViewFiles(root)) {
-      try {
-        const st = fs.statSync(f);
-        files.push({ path: path.relative(root, f), name: path.basename(f), size: st.size, mtime: st.mtimeMs });
-      } catch { /* 消失即跳过 */ }
-    }
-  } catch { /* 未克隆 → 空列表 */ }
+  const files = fs.existsSync(root) ? listRenderableFiles(root) : [];
   res.json({ ok: true, data: { clonePath: root, cloned: getWikiConfig().url !== '' && fs.existsSync(path.join(root, '.git')), files } });
 }));
 

@@ -1,6 +1,6 @@
 // ── Git pull + log operations ─────────────────────────────
 
-import { execSync } from 'child_process';
+import { gitExec, type GitExecError } from './git-exec';
 import fs from 'fs';
 import { errorMessage } from '../utils/route-utils';
 import { LOG_FORMAT, parseLogOutput, groupByDay, type DayGroup } from './git-log';
@@ -9,14 +9,9 @@ import { LOG_FORMAT, parseLogOutput, groupByDay, type DayGroup } from './git-log
 
 function runGit(repoPath: string, args: string): string {
   try {
-    return execSync(`git -C "${repoPath}" ${args}`, {
-      encoding: 'utf8',
-      maxBuffer: 10 * 1024 * 1024, // 10MB
-      timeout: 30000,
-      env: { ...process.env, LC_ALL: 'C.UTF-8' },
-    });
-  } catch (e: unknown) {
-    const err = e as { stdout?: string; stderr?: string; status?: number };
+    return gitExec(`git -C "${repoPath}" ${args}`);
+  } catch (e) {
+    const err = e as GitExecError;
     if (err.stderr) throw new Error(err.stderr.trim());
     throw e;
   }

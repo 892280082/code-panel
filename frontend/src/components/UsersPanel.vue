@@ -4,7 +4,7 @@
 //   信任模型:只隔离项目可见性 —— 普通用户仅看到被分配的项目,其余功能照常。
 
 import { ref, computed, onMounted } from 'vue'
-import { apiFetch } from '@/utils/api-fetch'
+import { apiFetch, errText } from '@/utils/api-fetch'
 import { useAuthStore } from '@/stores/auth'
 import { useProjectsStore } from '@/stores/projects'
 
@@ -49,8 +49,8 @@ async function loadUsers() {
         ? auth.username
         : (users.value[0]?.username ?? null)
     }
-  } catch (e: any) {
-    errMsg.value = e.message || '读取失败'
+  } catch (e) {
+    errMsg.value = errText(e, '读取失败')
   } finally {
     loading.value = false
   }
@@ -88,8 +88,8 @@ async function submit(payload: Record<string, unknown>, method: 'POST' | 'PUT' |
     if (keepSelect) selected.value = keepSelect
     msg.value = okMsg
     return true
-  } catch (e: any) {
-    errMsg.value = e.message || '操作失败'
+  } catch (e) {
+    errMsg.value = errText(e, '操作失败')
     // 目标用户已不存在(列表过期,如他处被删)→ 自动刷新列表,清掉幽灵条目
     if ((errMsg.value || '').includes('不存在')) await loadUsers()
     return false
