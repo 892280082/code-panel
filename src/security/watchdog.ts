@@ -119,6 +119,9 @@ function ensurePanelUnit(): 'created' | 'kept' {
     'Restart=on-failure',
     'RestartSec=5',
     `Environment=HOME=${os.homedir()}`,
+    // 面板终端(ttyd)继承本服务环境:带上 node 所在 bin(nvm 目录),
+    // 否则终端里找不到 claude/node 等 nvm 安装的命令(systemd 默认 PATH 只有 /usr/bin:/bin)
+    `Environment=PATH=${path.dirname(nodeBin)}:/usr/local/bin:/usr/bin:/bin`,
     '',
     '[Install]',
     'WantedBy=default.target',
