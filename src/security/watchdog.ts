@@ -114,7 +114,10 @@ function ensurePanelUnit(): 'created' | 'kept' {
     'After=network.target',
     '',
     '[Service]',
-    'KillMode=process  # 只杀主进程 —— 默认 control-group 会连 cgroup 里的 tmux server 一起杀(面板孵化的 tmux 会话随重启陪葬)',
+    // ⚠ systemd 单元不支持行内注释 —— 注释必须独占一行,否则整个赋值被静默忽略(实测踩坑)
+    '# 只杀主进程:默认 control-group 会连 cgroup 里的 tmux server 一起杀(面板孵化的 tmux 会话随重启陪葬);',
+    '# ExecStart 必须直连 node+tsx(勿用 npx —— wrapper 层杀不干净会占住 3008,新进程起不来)',
+    'KillMode=process',
     `WorkingDirectory=${repoRoot()}`,
     `ExecStart=${nodeBin} ${tsxBin} src/server.ts`,
     'Restart=on-failure',
