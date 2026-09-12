@@ -12,6 +12,7 @@ import { execSync } from 'child_process';
 import { globalDataDir } from '../paths';
 import { getSetting, setSetting } from '../db/global-store';
 import { allProjects } from '../projects/project-store';
+import { errorMessage } from '../utils/route-utils';
 
 export const MAX_KEEP = 20;
 const DEFAULT_BACKUP_DIR = '/Users/owner/upload/code-panel-db-backup';
@@ -67,7 +68,7 @@ export function runBackup(): { ok: boolean; file?: string; error?: string } {
     pruneOldBackups(dir);
     return { ok: true, file: dest };
   } catch (e: unknown) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    return { ok: false, error: errorMessage(e) };
   }
 }
 

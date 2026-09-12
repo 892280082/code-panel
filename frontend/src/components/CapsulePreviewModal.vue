@@ -6,7 +6,7 @@
 import { ref, computed, watch } from 'vue'
 import { useCapsuleStore } from '@/stores/capsule'
 import { useOverlayLayer } from '@/utils/z-layer'
-import { copyText } from '@/utils/clipboard'
+import { useCopyFeedback } from '@/composables/useCopyFeedback'
 
 const capsule = useCapsuleStore()
 const { zIndex, onRaise } = useOverlayLayer(() => capsule.previewId !== null)
@@ -14,15 +14,11 @@ const { zIndex, onRaise } = useOverlayLayer(() => capsule.previewId !== null)
 const reloadKey = ref(0)
 
 /** 复制「胶囊:文件名」(粘给 AI 一眼知道去 ~/.code-panel-capsules/ 找) */
-const copied = ref(false)
-let copyTimer: ReturnType<typeof setTimeout> | null = null
+const { copied, copy: doCopy } = useCopyFeedback(1500)
 
 async function onCopyName(): Promise<void> {
   if (!capsule.previewId) return
-  if (!await copyText(`胶囊:${capsule.previewId}`)) return
-  copied.value = true
-  if (copyTimer) clearTimeout(copyTimer)
-  copyTimer = setTimeout(() => { copied.value = false }, 1500)
+  await doCopy(`胶囊:${capsule.previewId}`)
 }
 
 const entry = computed(() => capsule.entries.find(e => e.id === capsule.previewId) || null)

@@ -11,7 +11,7 @@ import Sidebar from '@/components/Sidebar.vue'
 import TopRightTools from '@/components/TopRightTools.vue'
 import { useFileTree, type FileTreeNode } from '@/composables/useFileTree'
 import { useUiStore } from '@/stores/ui'
-import { copyText } from '@/utils/clipboard'
+import { useCopyFeedback } from '@/composables/useCopyFeedback'
 
 interface WikiFile { path: string; name: string; size: number; mtime: number }
 
@@ -56,15 +56,11 @@ function onRow(r: { type: 'dir' | 'file'; node: FileTreeNode<WikiFile> }): void 
 }
 
 /** 复制当前打开文档的相对路径(带 wiki: 前缀,粘给 AI 一眼知道出处) */
-const copied = ref(false)
-let copyTimer: ReturnType<typeof setTimeout> | null = null
+const { copied, copy: doCopy } = useCopyFeedback(1500)
 
 async function onCopyPath(): Promise<void> {
   if (!currentFile.value) return
-  if (!await copyText(`wiki:${currentFile.value}`)) return
-  copied.value = true
-  if (copyTimer) clearTimeout(copyTimer)
-  copyTimer = setTimeout(() => { copied.value = false }, 1500)
+  await doCopy(`wiki:${currentFile.value}`)
 }
 
 onMounted(load)

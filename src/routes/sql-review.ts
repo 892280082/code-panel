@@ -12,7 +12,7 @@ import { collectKeysByMatch } from '../redis/redis-ops';
 import { getReviewMode, setReviewMode } from '../config-manager';
 import { REVIEW_TOKEN, checkToken } from '../auth-token';
 import type { SqlJobStatus } from '../types';
-import { route } from '../utils/route-utils';
+import { route, errorMessage } from '../utils/route-utils';
 
 const router = Router();
 
@@ -98,7 +98,7 @@ router.post('/api/sql/approve/:id', requireProject, denyAi, route(async (req: Re
     });
     res.json({ ok: true, id: job.id, status: 'executed', result });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = errorMessage(e);
     queueUpdate(project, job.id, { status: 'failed', reviewedAt: Date.now(), error: msg });
     res.json({ ok: false, id: job.id, status: 'failed', error: msg });
   }

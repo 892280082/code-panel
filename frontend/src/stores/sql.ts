@@ -5,7 +5,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { apiFetch } from '@/utils/api-fetch'
-import { useProjectsStore } from './projects'
+import { useProjectsStore, projectQS } from './projects'
 import { useSoundNotification } from '@/composables/useSoundNotification'
 import type { DbConnection, SqlJob, SqlHistoryEntry } from '@/types'
 
@@ -65,10 +65,8 @@ export const useSqlStore = defineStore('sql', () => {
     jobs.value.filter(j => j.status === 'executed' || j.status === 'rejected' || j.status === 'failed')
   )
 
-  // ── URL 辅助 ──────────────────────────────────────────
-  function qs(): string {
-    return projects.currentId ? `project=${encodeURIComponent(projects.currentId)}` : ''
-  }
+  // qs() = projectQS()(stores/projects 共享,见顶部 import)
+  const qs = projectQS
 
   // ── Data fetching ──────────────────────────────────────
   async function loadInfo() {

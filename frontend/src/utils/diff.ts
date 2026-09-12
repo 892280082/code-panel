@@ -17,7 +17,7 @@ export interface DiffHunkInput {
 }
 
 /** 解析 hunk header 的起始行号 */
-export function parseHunkHeader(header: string): { oldStart: number; newStart: number; newCount: number } {
+function parseHunkHeader(header: string): { oldStart: number; newStart: number; newCount: number } {
   const m = header.match(/@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/)
   return {
     oldStart: m ? parseInt(m[1]) : 1,

@@ -411,22 +411,6 @@ function switchToLog() {
 
 /* ── Sidebar repo list ──────────────────────────────── */
 /* 分组选择（复用日志分组下拉样式） */
-.git-group-wrap {
-  padding: 12px 12px 8px;
-  border-bottom: 1px solid var(--border);
-}
-.group-select {
-  width: 100%; padding: 8px 12px;
-  font-family: var(--font); font-size: 12px;
-  background: var(--bg); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--radius);
-  outline: none; cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6b78' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-}
-
 .repo-scroll { flex: 1; overflow-y: auto; min-height: 0; }
 .repo-scroll::-webkit-scrollbar { width: 4px; }
 .repo-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -552,14 +536,7 @@ function switchToLog() {
 /* diff 内容区 + 右侧概览条(横排;概览条占满视口高) */
 .diff-body { flex: 1; display: flex; min-height: 0; }
 .diff-scroll { flex: 1; overflow-y: auto; }
-.diff-ruler {
-  width: 18px; flex: none; position: relative; cursor: pointer;
-  background: rgba(255,255,255,0.03); border-left: 1px solid rgba(255,255,255,0.06);
-}
-.diff-ruler:hover { background: rgba(255,255,255,0.06); }
-.ruler-block { position: absolute; left: 2px; right: 2px; border-radius: 1px; min-height: 2px; }
-.ruler-block.addition { background: var(--glow, #22ee66); }
-.ruler-block.deletion { background: var(--danger, #f44747); }
+
 .diff-scroll::-webkit-scrollbar { width: 6px; }
 .diff-scroll::-webkit-scrollbar-track { background: transparent; }
 .diff-scroll::-webkit-scrollbar-thumb { background: #1a1a22; border-radius: 3px; }
@@ -609,26 +586,9 @@ function switchToLog() {
 .source-scroll::-webkit-scrollbar { width: 6px; }
 .source-scroll::-webkit-scrollbar-track { background: transparent; }
 .source-scroll::-webkit-scrollbar-thumb { background: #1a1a22; border-radius: 3px; }
-.source-pre {
-  font-family: var(--font); font-size: 12px; line-height: 1.55;
-  color: var(--text); padding: 16px 20px; margin: 0;
-  white-space: pre-wrap; word-break: break-all;
-  counter-reset: line;
-}
-.source-pre code { display: block; }
 .loading-text {
   padding: 20px; font-size: 12px; color: var(--text-dim); text-align: center;
 }
-
-.diff-hunk { }
-.hunk-header {
-  padding: 6px 20px; font-size: 10px; color: var(--text-dim);
-  background: rgba(35,35,42,0.3);
-  border-bottom: 1px solid rgba(35,35,42,0.5);
-  font-family: var(--font);
-}
-.hunk-lines { font-family: var(--font); font-size: 12px; line-height: 1.5; }
-
 .diff-line { display: flex; min-height: 21px; border-bottom: 1px solid rgba(35,35,42,0.2); }
 .line-num {
   width: 48px; flex-shrink: 0; text-align: right;
@@ -638,14 +598,6 @@ function switchToLog() {
 .line-sign { width: 20px; flex-shrink: 0; text-align: center; font-weight: 700; user-select: none; }
 .line-content { flex: 1; padding: 1px 12px; white-space: pre; overflow-x: auto; font-variant-ligatures: none; }
 
-.line-context { background: var(--bg); }
-.line-context .line-sign { color: var(--text-dim); }
-
-.line-addition { background: rgba(34,238,102,0.06); }
-.line-addition .line-num { background: rgba(34,238,102,0.10); }
-.line-addition .line-sign { color: var(--glow); }
-.line-addition .line-content { color: #9aefb8; }
-
 /* 源码模式:无行号/符号,仅变动行着色 */
 .source-file { font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.5; }
 .source-line { padding: 0 10px; white-space: pre-wrap; word-break: break-all; }
@@ -653,11 +605,6 @@ function switchToLog() {
 .source-line.src-add .line-content { color: #9aefb8; }
 .source-line.src-del { background: rgba(244,71,71,0.10); }
 .source-line.src-del .line-content { color: #f09999; text-decoration: line-through; opacity: .75; }
-
-.line-deletion { background: rgba(244,71,71,0.08); }
-.line-deletion .line-num { background: rgba(244,71,71,0.12); }
-.line-deletion .line-sign { color: var(--danger); }
-.line-deletion .line-content { color: #f09999; }
 
 /* ── Sync section ──────────────────────────────────────── */
 .sync-section {

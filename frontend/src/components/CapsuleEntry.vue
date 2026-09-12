@@ -10,31 +10,30 @@ import { useRouter } from 'vue-router'
 import { apiJson } from '@/utils/api-fetch'
 import { useAuthStore } from '@/stores/auth'
 import { useCapsuleStore } from '@/stores/capsule'
-import { copyText, brainstormPrompt, wikiPrompt } from '@/utils/clipboard'
+import { brainstormPrompt, wikiPrompt } from '@/utils/clipboard'
+import { useCopyFeedback } from '@/composables/useCopyFeedback'
+import { fmtRelTime } from '@/utils/format'
 
 const router = useRouter()
 const capsule = useCapsuleStore()
 const auth = useAuthStore()
 
 // ── 复制(时空胶囊命令前缀 / 行内并入 wiki 提示词)──────
-const copiedCmd = ref(false)
-let cmdTimer: ReturnType<typeof setTimeout> | null = null
+const { copied: copiedCmd, copy: copyCmd } = useCopyFeedback(2000)
+const { copy: copyMerge } = useCopyFeedback(2000)
+/** 并入按钮的 ✓ 反馈按条目标识(复制哪条哪条亮) */
+const mergedId = ref('')
 
+/** 无参包装:直接绑 @click 防止把 MouseEvent 当文本传入 */
 async function copyBrainstorm(): Promise<void> {
-  if (!await copyText(brainstormPrompt())) return
-  copiedCmd.value = true
-  if (cmdTimer) clearTimeout(cmdTimer)
-  cmdTimer = setTimeout(() => { copiedCmd.value = false }, 2000)
+  await copyCmd(brainstormPrompt())
 }
 
-const mergedId = ref('')
-let mergeTimer: ReturnType<typeof setTimeout> | null = null
-
 async function onMerge(id: string): Promise<void> {
-  if (!await copyText(wikiPrompt(id))) return
-  mergedId.value = id
-  if (mergeTimer) clearTimeout(mergeTimer)
-  mergeTimer = setTimeout(() => { mergedId.value = '' }, 2000)
+  if (await copyMerge(wikiPrompt(id))) {
+    mergedId.value = id
+    setTimeout(() => { if (mergedId.value === id) mergedId.value = '' }, 2000)
+  }
 }
 
 // ── 删除(确认 → 挪临时目录;UI 不再有回收站,找回问 AI)──
@@ -100,12 +99,7 @@ onMounted(() => document.addEventListener('mousedown', onDocMouseDown))
 onBeforeUnmount(() => document.removeEventListener('mousedown', onDocMouseDown))
 
 function fmtTime(ms: number): string {
-  const diff = Date.now() - ms
-  if (diff < 60_000) return '刚刚'
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}分前`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}时前`
-  const d = new Date(ms)
-  return `${d.getMonth() + 1}/${d.getDate()}`
+  return fmtRelTime(ms)
 }
 </script>
 

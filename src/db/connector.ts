@@ -7,6 +7,7 @@ import initSqlJs, { Database as SqlJsDb, type SqlJsStatic } from 'sql.js';
 import fs from 'fs';
 import path from 'path';
 import type { DbConnection, DbConnectionParams, SqlResult } from '../types';
+import { errorMessage } from '../utils/route-utils';
 
 /** 判断是否为 SELECT 类只读查询 */
 export function isReadOnly(sql: string): boolean {
@@ -163,13 +164,13 @@ export async function testConnection(dbConfig: DbConnection, projectId?: string)
       const ver = (rows as Array<{ version: string }>)[0]?.version || 'unknown';
       return { ok: true, serverVersion: ver };
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = errorMessage(e);
       return { ok: false, error: msg };
     } finally {
       conn.release();
     }
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = errorMessage(e);
     return { ok: false, error: msg };
   }
 }

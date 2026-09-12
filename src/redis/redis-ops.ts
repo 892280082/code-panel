@@ -3,6 +3,7 @@
 
 import type Redis from 'ioredis';
 import { ensureRedisClient } from '../db/redis-client';
+import { errorMessage } from '../utils/route-utils';
 
 // ── INFO 解析 ────────────────────────────────────────────
 
@@ -237,6 +238,6 @@ export async function pingVersion(target: { host?: string; port?: number; passwo
     const info = parseInfo(await client.info('server'));
     return { ok: pong === 'PONG', version: info.redis_version };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    return { ok: false, error: errorMessage(e) };
   }
 }

@@ -7,7 +7,7 @@ import { sqlConnections, sqlConnection, sqlConnectionRaw, upsertProjectList, del
 import { testConnection, invalidateConnection } from '../db/connector';
 import { getHealthStatus, checkProjectDatabases } from '../db/health-check';
 import type { DbConnection } from '../types';
-import { route } from '../utils/route-utils';
+import { route, errorMessage } from '../utils/route-utils';
 
 const router = Router();
 
@@ -51,7 +51,7 @@ router.post('/api/db', requireProject, route((req: Request, res: Response) => {
     invalidateConnection(project.id, db.id);
     res.json({ ok: true, data: safeList(project) });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = errorMessage(e);
     res.status(400).json({ ok: false, error: msg });
   }
 }));
@@ -67,7 +67,7 @@ router.put('/api/db/:id', requireProject, route((req: Request, res: Response) =>
     invalidateConnection(project.id, id);
     res.json({ ok: true, data: safeList(project) });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = errorMessage(e);
     res.status(400).json({ ok: false, error: msg });
   }
 }));
@@ -82,7 +82,7 @@ router.delete('/api/db/:id', requireProject, route((req: Request, res: Response)
     invalidateConnection(project.id, id);
     res.json({ ok: true, data: safeList(project) });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = errorMessage(e);
     res.status(400).json({ ok: false, error: msg });
   }
 }));

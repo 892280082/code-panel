@@ -10,6 +10,7 @@ import { apiFetch } from '@/utils/api-fetch'
 import { useCloudStore } from '@/stores/cloud'
 import { useProjectsStore } from '@/stores/projects'
 import { useAuthStore } from '@/stores/auth'
+import { copyText } from '@/utils/clipboard'
 
 interface CloudFile {
   name: string; size: number; mtime: number; ext: string; image: boolean; abs: string
@@ -138,16 +139,6 @@ function sendPasteImage(f: File) {
 }
 
 // ── 复制绝对路径 ────────────────────────────────────────
-async function copyText(t: string): Promise<boolean> {
-  try { await navigator.clipboard.writeText(t); return true } catch { /* fallback */ }
-  try {
-    const ta = document.createElement('textarea')
-    ta.value = t; document.body.appendChild(ta); ta.select()
-    const ok = document.execCommand('copy')
-    document.body.removeChild(ta)
-    return ok
-  } catch { return false }
-}
 async function copyPath(f: CloudFile) {
   if (await copyText(f.abs)) {
     copied.value = f.name

@@ -29,16 +29,6 @@ export function getConfig(): GlobalSettings {
   return getGlobalSettings();
 }
 
-/** 兼容别名 */
-export function getRawConfig(): GlobalSettings {
-  return getGlobalSettings();
-}
-
-/** 完整配置(仅含全局设置;groups/databases 已下沉项目,不再返回) */
-export function loadConfig(): GlobalSettings {
-  return getGlobalSettings();
-}
-
 /** 保存配置:仅收 reviewMode(全局);其它字段改走 /api/projects/:id/yaml 或 settings */
 export function saveConfig(cfg: { reviewMode?: boolean }): GlobalSettings {
   if (typeof cfg?.reviewMode === 'boolean') setReviewMode(cfg.reviewMode);

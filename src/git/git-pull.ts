@@ -3,6 +3,7 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
 import { errorMessage } from '../utils/route-utils';
+import { LOG_FORMAT, parseLogOutput, groupByDay, type DayGroup } from './git-log';
 
 // ── Shared helpers ────────────────────────────────────────
 
@@ -91,20 +92,6 @@ export function pullRepo(repoId: string, repoName: string, repoPath: string): Pu
 
 // ── Commit Log ────────────────────────────────────────────
 
-export interface CommitEntry {
-  hash: string;
-  author: string;
-  email: string;
-  date: string;        // ISO 8601
-  subject: string;
-  body: string;
-}
-
-export interface DayGroup {
-  date: string;        // "2026-07-10"
-  commits: CommitEntry[];
-}
-
 export interface RepoLog {
   repoId: string;
   repoName: string;
@@ -129,65 +116,12 @@ export function getCommitLog(
   const branch = getBranch(repoPath);
 
   try {
-    // Use | as delimiter (very unlikely in commit messages)
-    const format = '%H|%an|%ae|%aI|%s|%b';
-    const raw = runGit(repoPath, `log --format="${format}" --max-count=${limit} --skip=${offset}`);
-
+    const raw = runGit(repoPath, `log --format="${LOG_FORMAT}" --max-count=${limit} --skip=${offset}`);
     if (!raw.trim()) {
       return { repoId, repoName, branch, totalCommits: 0, dayGroups: [] };
     }
-
-    // Parse commits
-    const commits: CommitEntry[] = [];
-    // Split by commit delimiter: a line that starts with a 40-char hex hash
-    const entries = raw.split('\n').reduce<string[]>((acc, line) => {
-      // New commit starts with 40-char hex hash followed by |
-      if (/^[0-9a-f]{40}\|/.test(line)) {
-        acc.push(line);
-      } else if (acc.length > 0) {
-        // Append body lines to the last commit
-        acc[acc.length - 1] += '\n' + line;
-      }
-      return acc;
-    }, []);
-
-    for (const entry of entries) {
-      // Find the first | to split hash from rest
-      const firstPipe = entry.indexOf('|');
-      if (firstPipe < 0) continue;
-
-      const hash = entry.slice(0, firstPipe);
-      const rest = entry.slice(firstPipe + 1);
-
-      // Split the rest: author|email|date|subject|body
-      // The first 4 | delimiters are fixed, the rest belongs to body
-      const parts = rest.split('|');
-      const author = parts[0] || '';
-      const email = parts[1] || '';
-      const date = parts[2] || '';
-      // Subject and body: parts[3..].join('|') but body may contain newlines
-      const subjectAndBody = parts.slice(3).join('|');
-      const firstNewline = subjectAndBody.indexOf('\n');
-      const subject = firstNewline >= 0 ? subjectAndBody.slice(0, firstNewline) : subjectAndBody;
-      const body = firstNewline >= 0 ? subjectAndBody.slice(firstNewline + 1).trim() : '';
-
-      commits.push({ hash, author, email, date, subject, body });
-    }
-
-    // Group by date (YYYY-MM-DD)
-    const groupMap = new Map<string, CommitEntry[]>();
-    for (const c of commits) {
-      const day = c.date.slice(0, 10); // Extract YYYY-MM-DD from ISO date
-      if (!groupMap.has(day)) groupMap.set(day, []);
-      groupMap.get(day)!.push(c);
-    }
-
-    // Sort groups newest first
-    const dayGroups: DayGroup[] = Array.from(groupMap.entries())
-      .sort((a, b) => b[0].localeCompare(a[0]))
-      .map(([date, commits]) => ({ date, commits }));
-
-    return { repoId, repoName, branch, totalCommits: commits.length, dayGroups };
+    const commits = parseLogOutput(raw);
+    return { repoId, repoName, branch, totalCommits: commits.length, dayGroups: groupByDay(commits) };
   } catch (e: unknown) {
     return {
       repoId, repoName, branch,

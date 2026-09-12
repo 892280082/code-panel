@@ -10,7 +10,7 @@ import { Router, Request, Response } from 'express';
 import { requireProject, reqProject, canAccessProject } from '../projects/context';
 import { reqUser } from '../auth/jwt';
 import { listUserProjectIds } from '../db/global-store';
-import { route } from '../utils/route-utils';
+import { route, errorMessage } from '../utils/route-utils';
 import {
   listTmuxSessions, createTmuxSession, startTmuxAttach,
   stopTmuxAttach, killTmuxSession, resolveTmuxName,
@@ -64,7 +64,7 @@ router.post('/api/terminal/tmux/create', requireProject, route(async (req: Reque
     // 返回物理名 + 展示名,前端创建后直接用它 attach
     res.status(201).json({ ok: true, data: { name: name.trim(), fullName } });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
     res.status(400).json({ ok: false, error: msg });
   }
 }));
@@ -83,7 +83,7 @@ router.get('/api/terminal/tmux/capture', requireProject, route(async (req: Reque
     const text = await captureTmuxPane(project, name, lines);
     res.json({ ok: true, data: { text } });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
     res.status(msg.includes('不属于该项目') ? 403 : 500).json({ ok: false, error: msg });
   }
 }));
@@ -104,7 +104,7 @@ router.put('/api/terminal/tmux/mouse', requireProject, route(async (req: Request
     await setTmuxMouse(project, name, enabled);
     res.json({ ok: true, data: { enabled } });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
     res.status(msg.includes('不属于该项目') ? 403 : 500).json({ ok: false, error: msg });
   }
 }));
@@ -124,7 +124,7 @@ router.post('/api/terminal/tmux/attach', requireProject, route(async (req: Reque
     const fullName = resolveTmuxName(project, name.trim());
     res.status(201).json({ ok: true, data: { port, sessionName: fullName } });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
     res.status(500).json({ ok: false, error: msg });
   }
 }));
@@ -149,7 +149,7 @@ router.delete('/api/terminal/tmux/:name', requireProject, route(async (req: Requ
     await killTmuxSession(project, name);
     res.json({ ok: true });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
     res.status(500).json({ ok: false, error: msg });
   }
 }));

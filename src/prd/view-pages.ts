@@ -10,6 +10,12 @@ import { markdownToHtml, esc } from './md-render';
 /** 可浏览的代码文件扩展名（伪代码目录等） */
 export const CODE_EXTS = ['.ts', '.js', '.jsx', '.tsx', '.java', '.sql', '.py', '.json', '.yaml', '.yml', '.sh', '.go', '.vue'];
 
+/** 代码文件判定(伪代码/脚本走 <pre> 原样视图而非 md 渲染);胶囊/wiki 路由共用 */
+export function isCodeFile(name: string): boolean {
+  const ext = path.extname(name).toLowerCase();
+  return CODE_EXTS.includes(ext) && !name.endsWith('.md');
+}
+
 /** 视图导航文件列表：md + 代码文件（伪代码目录能看到所有步骤文件） */
 export function listViewFiles(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];

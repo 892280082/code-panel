@@ -8,13 +8,13 @@
 import fs from 'fs';
 import path from 'path';
 import { Router, Request, Response } from 'express';
-import { route } from '../utils/route-utils';
+import { route, errorMessage, startSSE } from '../utils/route-utils';
 import { requireSuperadmin } from '../auth/jwt';
 import { safeResolve } from '../utils/safe-resolve';
-import { buildViewPage, renderContentOnly, listViewFiles, type LinkTarget } from '../prd/view-pages';
+import { buildViewPage, renderContentOnly, listViewFiles, isCodeFile, type LinkTarget } from '../prd/view-pages';
 import {
-  capsuleDir, setCapsuleDir, scanCapsules, resolveEntry, isCodeFile,
-  moveToTrash, listTrash, restoreFromTrash, clearCapsules, type CapsuleEntry,
+  capsuleDir, setCapsuleDir, scanCapsules, resolveEntry,
+  moveToTrash, listTrash, restoreFromTrash, clearCapsules,
 } from '../capsule/capsule-store';
 import { resetCapsuleMonitor, addCapsuleClient, removeCapsuleClient } from '../capsule/capsule-monitor';
 
@@ -60,7 +60,7 @@ router.put('/api/capsule/config', requireSuperadmin, route((req: Request, res: R
     resetCapsuleMonitor();
     res.json({ ok: true, data: { dir: capsuleDir() } });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
     res.status(400).json({ ok: false, error: `目录不可用: ${msg}` });
   }
 }));
@@ -74,11 +74,7 @@ router.get('/api/capsule/list', route((_req: Request, res: Response) => {
 
 // GET /api/capsule/stream — SSE(全局,?token= 鉴权由 authMiddleware 处理)
 router.get('/api/capsule/stream', route((req: Request, res: Response) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders();
+  startSSE(res);
   addCapsuleClient(res);
   req.on('close', () => removeCapsuleClient(res));
 }));
@@ -209,10 +205,9 @@ function listFilesUnder(dir: string): { path: string; name: string; size: number
 
 /** 条目类错误的统一出口:路径越狱 403 / 不存在 404 / 其余 500 */
 function respondEntryError(res: Response, err: unknown): void {
-  const msg = err instanceof Error ? err.message : String(err);
+  const msg = errorMessage(err);
   const status = msg.includes('traversal') ? 403 : msg.includes('不存在') ? 404 : 500;
   res.status(status).json({ ok: false, error: msg });
 }
 
 export default router;
-export type { CapsuleEntry };

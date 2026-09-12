@@ -17,7 +17,7 @@ export interface TermLayout {
 }
 
 /** 当前视口尺寸 key(可视宽x高) */
-export function layoutKey(): string {
+function layoutKey(): string {
   return `${window.innerWidth}x${window.innerHeight}`
 }
 

@@ -8,7 +8,7 @@ import { historyAdd, queueAdd, queueGet, queueUpdate } from '../projects/sql-sto
 import { executeQuery, executeQueryDirect, isReadOnly } from '../db/connector';
 import { getReviewMode } from '../config-manager';
 import type { SubmitSqlBody, QuerySqlBody } from '../types';
-import { route } from '../utils/route-utils';
+import { route, errorMessage } from '../utils/route-utils';
 
 const router = Router();
 
@@ -54,7 +54,7 @@ router.post('/api/sql/query', requireProject, route(async (req: Request, res: Re
 
     res.json({ ok: true, ...result });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = errorMessage(e);
     res.status(500).json({ ok: false, error: msg });
   }
 }));
@@ -114,7 +114,7 @@ router.post('/api/sql/submit', requireProject, route(async (req: Request, res: R
     const job = queueAdd(project, { sql, reason, dbId: dbId!, title });
     res.json({ ok: true, id: job.id, status: 'pending', mode: 'review' });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = errorMessage(e);
     res.status(500).json({ ok: false, error: msg });
   }
 }));

@@ -5,7 +5,7 @@ import fs from 'fs';
 import { addClient, removeClient, getLogs, readFileContent, clearFileState } from '../log-monitor';
 import { requireProject, reqProject } from '../projects/context';
 import { isProjectLogFile } from '../projects/adapters';
-import { route } from '../utils/route-utils';
+import { route, startSSE } from '../utils/route-utils';
 
 const router = Router();
 
@@ -13,11 +13,7 @@ const router = Router();
 // SSE 实时推送(?project=<id> 必填;按项目过滤)
 router.get('/api/stream', requireProject, route((req: Request, res: Response) => {
   const project = reqProject(req);
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders();
+  startSSE(res);
 
   addClient(res, project.id);
   req.on('close', () => removeClient(res));

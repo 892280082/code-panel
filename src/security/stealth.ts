@@ -70,14 +70,6 @@ function safeEqual(a: string, b: string): boolean {
   return crypto.timingSafeEqual(ba, bb);
 }
 
-/** 在 Express 请求上判断是否已解锁 */
-export function isGateUnlocked(req: Request): boolean {
-  const cfg = getSecurityConfig();
-  if (!cfg.enabled) return true;
-  const v = readCookie(req, GATE_COOKIE);
-  return !!v && safeEqual(v, cfg.cookieSecret);
-}
-
 /** 原始 HTTP 请求(WS 升级不走 Express)上判断是否已解锁 */
 export function isGateUnlockedRaw(headers: { cookie?: string | string[] | undefined }): boolean {
   const cfg = getSecurityConfig();

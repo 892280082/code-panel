@@ -85,6 +85,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useProjectsStore } from '@/stores/projects'
 import Sidebar from '@/components/Sidebar.vue'
 import TopRightTools from '@/components/TopRightTools.vue'
+import { copyText } from '@/utils/clipboard'
 
 interface PrdFolder { name: string; dir: string; fileCount: number; date: string; done: boolean }
 interface PrdFile { name: string; path: string }
@@ -220,25 +221,13 @@ function openInTab() {
   window.open(viewUrl.value, '_blank')
 }
 
-/** 复制当前文件相对路径到剪贴板(execCommand 主,clipboard API 备用) */
-function copyPath() {
+/** 复制当前文件相对路径到剪贴板(utils 带 http 内网兜底) */
+async function copyPath() {
   const p = currentFileRel.value
   if (!p) return
-  const flash = () => { copied.value = true; setTimeout(() => { copied.value = false }, 2500) }
-  let ok = false
-  try {
-    const ta = document.createElement('textarea')
-    ta.value = p
-    ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0'
-    document.body.appendChild(ta)
-    ta.focus(); ta.select()
-    ok = document.execCommand('copy')
-    document.body.removeChild(ta)
-  } catch { ok = false }
-  if (ok) { flash(); return }
-  // execCommand 不可用(现代浏览器)或失败 → 走 clipboard API
-  if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(p).then(flash).catch(() => {})
+  if (await copyText(p)) {
+    copied.value = true
+    setTimeout(() => { copied.value = false }, 2500)
   }
 }
 

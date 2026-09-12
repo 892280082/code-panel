@@ -4,7 +4,7 @@
 //   (nginx -t 语法 / server_name 是否被本机加载 / 项目副本 vs 本机实际加载 md5)
 import { apiFetch } from '@/utils/api-fetch'
 import { ref, watch, onMounted } from 'vue'
-import { useProjectsStore } from '@/stores/projects'
+import { useProjectsStore, projectQS } from '@/stores/projects'
 
 const projects = useProjectsStore()
 
@@ -28,7 +28,7 @@ const busy = ref(false)
 const checkResult = ref<any>(null)
 const checkErr = ref('')
 
-function qs() { return `project=${encodeURIComponent(projects.currentId || '')}` }
+const qs = projectQS
 
 async function loadStatus() {
   statusMsg.value = ''

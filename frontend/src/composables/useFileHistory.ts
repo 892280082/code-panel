@@ -3,13 +3,9 @@
 
 import { ref } from 'vue'
 import { apiFetch } from '@/utils/api-fetch'
-import { useProjectsStore } from '@/stores/projects'
+import { projectQS } from '@/stores/projects'
 
-/** 当前项目 query 后缀(?project=<id>);无项目返回 '' */
-function qs(): string {
-  const pid = useProjectsStore().currentId
-  return pid ? `project=${encodeURIComponent(pid)}` : ''
-}
+
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -122,7 +118,7 @@ export function useFileHistory() {
     fileHistoryDayGroups.value = []
 
     try {
-      const url = `/api/repo-browser/${encodeURIComponent(repoId)}/file-log?path=${encodeURIComponent(filePath)}&limit=50&${qs()}`
+      const url = `/api/repo-browser/${encodeURIComponent(repoId)}/file-log?path=${encodeURIComponent(filePath)}&limit=50&${projectQS()}`
       const res = await apiFetch(url)
       const data = await res.json()
       if (data.ok) {
@@ -154,7 +150,7 @@ export function useFileHistory() {
     commitFileDiffLines.value = []
 
     try {
-      const url = `/api/repo-browser/${encodeURIComponent(repoId)}/commit-files?commit=${encodeURIComponent(commitHash)}&${qs()}`
+      const url = `/api/repo-browser/${encodeURIComponent(repoId)}/commit-files?commit=${encodeURIComponent(commitHash)}&${projectQS()}`
       const res = await apiFetch(url)
       const data = await res.json()
       if (data.ok) {
@@ -198,7 +194,7 @@ export function useFileHistory() {
     commitFileDiffDeletions.value = 0
 
     try {
-      const url = `/api/repo-browser/${encodeURIComponent(repoId)}/file-commit-diff?path=${encodeURIComponent(filePath)}&commit=${encodeURIComponent(commitHash)}&${qs()}`
+      const url = `/api/repo-browser/${encodeURIComponent(repoId)}/file-commit-diff?path=${encodeURIComponent(filePath)}&commit=${encodeURIComponent(commitHash)}&${projectQS()}`
       const res = await apiFetch(url)
       const data = await res.json()
       if (data.ok) {

@@ -22,7 +22,7 @@ const extToLang: Record<string, string> = {
   '.proto': 'protobuf', '.php': 'php', '.swift': 'swift', '.r': 'r',
 }
 
-export function highlightCode(code: string, path: string): string {
+function highlightCode(code: string, path: string): string {
   const ext = '.' + (path.split('.').pop() || '')
   const lang = extToLang[ext] || 'plaintext'
   try {

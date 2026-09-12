@@ -3,7 +3,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { apiFetch } from '@/utils/api-fetch'
-import { useProjectsStore } from './projects'
+import { useProjectsStore, projectQS } from './projects'
 
 export interface GitRepo {
   id: string
@@ -126,10 +126,8 @@ export const useGitStore = defineStore('git', () => {
   const logRepoId = ref<string | null>(null)
   const repoViewMode = ref<'diff' | 'log'>('diff')
 
-  // ── URL 辅助 ──────────────────────────────────────────
-  function qs(): string {
-    return projects.currentId ? `project=${encodeURIComponent(projects.currentId)}` : ''
-  }
+  // qs() = projectQS()(stores/projects 共享,见顶部 import)
+  const qs = projectQS
 
   // ── 项目切换:清空本地状态再重载 ────────────────────────
   function resetState() {

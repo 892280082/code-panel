@@ -21,7 +21,7 @@ const WALK_DEPTH = 4;
 const SKIP_DIRS = new Set(['.git', 'node_modules']);
 
 /** 回收站条目最长保留(过期自动清) */
-export const TRASH_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
+const TRASH_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
 
 // ── 目录与配置(settings 键 'capsule' = {dir})─────────────
 //   默认放 ~/.code-panel-capsules(⭐ 用户定:独立于 ~/.code-panel ——
@@ -110,15 +110,9 @@ export function resolveEntry(id: string): ResolvedEntry {
   throw new Error(`非胶囊条目: ${id}`);
 }
 
-/** 代码文件判定(伪代码/脚本走 <pre> 原样视图而非 md 渲染) */
-export function isCodeFile(name: string): boolean {
-  const ext = path.extname(name).toLowerCase();
-  return CODE_EXTS.includes(ext) && !name.endsWith('.md');
-}
-
 // ── 回收站(删除=挪进来,7 天内可恢复;点开头天然不被监听/列表)──
 
-export function trashDir(): string {
+function trashDir(): string {
   return path.join(capsuleDir(), '.trash');
 }
 

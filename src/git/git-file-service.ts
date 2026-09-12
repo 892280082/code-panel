@@ -3,22 +3,9 @@
 //   All functions exec git commands against repoPath.
 
 import { execSync } from 'child_process';
+import { LOG_FORMAT, parseLogOutput, groupByDay, type CommitEntry, type DayGroup } from './git-log';
 
 // ── Types ──────────────────────────────────────────────────
-
-export interface CommitEntry {
-  hash: string;
-  author: string;
-  email: string;
-  date: string;
-  subject: string;
-  body: string;
-}
-
-export interface DayGroup {
-  date: string;
-  commits: CommitEntry[];
-}
 
 export interface DiffLine {
   type: 'add' | 'del' | 'ctx';
@@ -59,55 +46,7 @@ export interface CommitMeta {
   date: string;
 }
 
-// ── Log format used by all git log calls ───────────────────
-
-const LOG_FORMAT = '%H|%an|%ae|%aI|%s|%b';
-
 // ── Helpers ────────────────────────────────────────────────
-
-/** Parse git log output into entries — handles multi-line body */
-function parseLogOutput(raw: string): CommitEntry[] {
-  const entries: CommitEntry[] = [];
-  const lines = raw.split('\n').reduce<string[]>((acc, line) => {
-    if (/^[0-9a-f]{40}\|/.test(line)) acc.push(line);
-    else if (acc.length > 0) acc[acc.length - 1] += '\n' + line;
-    return acc;
-  }, []);
-
-  for (const entry of lines) {
-    const firstPipe = entry.indexOf('|');
-    if (firstPipe < 0) continue;
-    const hash = entry.slice(0, firstPipe);
-    const rest = entry.slice(firstPipe + 1);
-    const parts = rest.split('|');
-    const subjectAndBody = parts.slice(3).join('|');
-    const firstNewline = subjectAndBody.indexOf('\n');
-    const subject = firstNewline >= 0 ? subjectAndBody.slice(0, firstNewline) : subjectAndBody;
-    const body = firstNewline >= 0 ? subjectAndBody.slice(firstNewline + 1).trim() : '';
-    entries.push({
-      hash,
-      author: parts[0] || '',
-      email: parts[1] || '',
-      date: parts[2] || '',
-      subject,
-      body,
-    });
-  }
-  return entries;
-}
-
-/** Group commit entries by date (first 10 chars of ISO date) */
-function groupByDay(commits: CommitEntry[]): DayGroup[] {
-  const map = new Map<string, CommitEntry[]>();
-  for (const c of commits) {
-    const day = c.date.slice(0, 10);
-    if (!map.has(day)) map.set(day, []);
-    map.get(day)!.push(c);
-  }
-  return Array.from(map.entries())
-    .sort((a, b) => b[0].localeCompare(a[0]))
-    .map(([date, cmts]) => ({ date, commits: cmts }));
-}
 
 /** Parse diff output into typed lines */
 function parseDiff(output: string): DiffLine[] {

@@ -4,6 +4,7 @@
 //   解锁 cookie(90 天)并跳转登录页。链接可自定义/重新生成,可吊销全部解锁。
 
 import { apiFetch } from '@/utils/api-fetch'
+import { copyText } from '@/utils/clipboard'
 import { ref, computed, onMounted } from 'vue'
 
 const enabled = ref(false)
@@ -93,18 +94,10 @@ function revokeAll() {
 
 async function copyLink() {
   if (!secretPath.value) return
-  try {
-    await navigator.clipboard.writeText(secretPath.value)
-  } catch {
-    const el = document.createElement('textarea')
-    el.value = secretPath.value
-    document.body.appendChild(el)
-    el.select()
-    document.execCommand('copy')
-    document.body.removeChild(el)
+  if (await copyText(secretPath.value)) {
+    copied.value = true
+    setTimeout(() => (copied.value = false), 1500)
   }
-  copied.value = true
-  setTimeout(() => (copied.value = false), 1500)
 }
 
 onMounted(load)

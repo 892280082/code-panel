@@ -12,6 +12,7 @@ import {
   getFileCommitDiff,
   getCommitFiles,
 } from '../git/git-file-service';
+import { execSync } from 'child_process';
 
 const router = Router();
 
@@ -104,7 +105,6 @@ function isTextFile(filePath: string): boolean {
 // ── GET /api/repo-browser/:repoId/git-changes ─────────────
 
 router.get('/api/repo-browser/:repoId/git-changes', withRepo((repo, _repoId, req, res) => {
-  const { execSync } = require('child_process');
   const changedDirs = new Set<string>();
   const changedFiles = new Set<string>();
 
@@ -262,7 +262,6 @@ router.get('/api/repo-browser/:repoId/diff', withRepo((repo, _repoId, req, res) 
     return res.status(403).json({ ok: false, error: 'Invalid path' });
   }
 
-  const { execSync } = require('child_process');
   let diffOutput = '';
   try {
     diffOutput = execSync(`git diff HEAD -- "${targetPath}"`, {

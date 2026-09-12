@@ -6,21 +6,16 @@
 import fs from 'fs';
 import path from 'path';
 import { Router, Request, Response } from 'express';
-import { route } from '../utils/route-utils';
+import { route, errorMessage } from '../utils/route-utils';
 import { requireSuperadmin } from '../auth/jwt';
 import { safeResolve } from '../utils/safe-resolve';
-import { CODE_EXTS, listViewFiles, buildViewPage, type LinkTarget } from '../prd/view-pages';
+import { listViewFiles, buildViewPage, isCodeFile, type LinkTarget } from '../prd/view-pages';
 import {
   wikiDir, wikiStatus, getWikiConfig, setWikiUrl,
   isValidWikiUrl, cloneWiki, pullWiki, isWikiCloned,
 } from '../capsule/wiki-manager';
 
 const router = Router();
-
-function isCodeFile(name: string): boolean {
-  const ext = path.extname(name).toLowerCase();
-  return CODE_EXTS.includes(ext) && !name.endsWith('.md');
-}
 
 // GET /api/wiki/config — 状态卡(url/克隆/分支/commit/dirty/上次同步)
 router.get('/api/wiki/config', route((_req: Request, res: Response) => {
@@ -88,7 +83,7 @@ router.get('/api/wiki/view', route((req: Request, res: Response) => {
     const rel = path.relative(root, abs);
     res.type('html').send(buildViewPage(md, rel, root, [], `Wiki · ${rel}`, isCodeFile(abs), undefined, undefined, target));
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
     res.status(msg.includes('traversal') ? 403 : 404).json({ ok: false, error: msg });
   }
 }));

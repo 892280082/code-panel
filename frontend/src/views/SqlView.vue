@@ -239,19 +239,6 @@ async function handleApprove(id: string) {
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
 /* DB group select — 跟日志页一模一样 */
-.group-select {
-  width: 100%; padding: 8px 12px;
-  font-family: var(--font); font-size: 12px;
-  background: var(--bg); color: var(--text);
-  border: none; border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  outline: none; cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6b78' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-}
-
 /* Section tabs */
 .section-tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 4px; }
 .section-tab {

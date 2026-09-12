@@ -2,7 +2,7 @@
 
 import { Router, Request, Response } from 'express';
 import { getGlobalSettings, setReviewMode } from '../config-manager';
-import { route } from '../utils/route-utils';
+import { route, errorMessage } from '../utils/route-utils';
 import {
   getSecurityConfig, saveSecurityConfig, getSecurityStatus,
   generateSecretPath, generateCookieSecret, validateSecretPath, setGateCookie,
@@ -55,7 +55,7 @@ router.put('/api/config', route((req: Request, res: Response) => {
       security: getSecurityStatus(),
     });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = errorMessage(e);
     res.status(400).json({ ok: false, error: msg });
   }
 }));

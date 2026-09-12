@@ -4,7 +4,7 @@
 //   直连 /api/capsule/stream,断线靠原生重连 + onopen 拉列表对账)。
 
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { apiJson } from '@/utils/api-fetch'
 import { useAuthStore } from '@/stores/auth'
 
@@ -33,8 +33,6 @@ export const useCapsuleStore = defineStore('capsule', () => {
   const previewId = ref<string | null>(null)
 
   let es: EventSource | null = null
-
-  const unreadIds = computed(() => entries.value.filter(e => !readSet.value.has(e.id)).map(e => e.id))
 
   function saveRead(): void {
     try { localStorage.setItem(READ_KEY, JSON.stringify([...readSet.value])) } catch { /* ignore */ }
@@ -112,7 +110,7 @@ export const useCapsuleStore = defineStore('capsule', () => {
   }
 
   return {
-    entries, dir, connected, toasts, unreadIds, previewId, readSet,
+    entries, dir, connected, toasts, previewId,
     refresh, init, openPreview, closePreview, dismissToast, clearUnread,
   }
 })
