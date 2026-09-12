@@ -7,28 +7,10 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { execSync } from 'child_process';
 import type { ProjectRow } from '../db/global-store';
 import { projectCodePanelDir } from '../paths';
 import { getSetting, setSetting } from '../db/global-store';
-
-// ════════════════════════════════════════════════════════════
-// 基础工具:execSync 统一捕获 stdout+stderr、不抛崩接口
-// ════════════════════════════════════════════════════════════
-
-function run(cmd: string): { ok: boolean; out: string; err: string } {
-  try {
-    const out = execSync(cmd, { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] });
-    return { ok: true, out: String(out), err: '' };
-  } catch (e: unknown) {
-    const err = e as { stdout?: unknown; stderr?: unknown; message?: string };
-    return {
-      ok: false,
-      out: String(err.stdout ?? ''),
-      err: String(err.stderr ?? err.message ?? ''),
-    };
-  }
-}
+import { execCapture } from '../utils/exec';
 
 function md5File(p: string): string | null {
   try {
@@ -71,10 +53,8 @@ interface NginxInfo {
 
 /** which/命令在 PATH 里的可执行路径 */
 function whichBin(name: string): string | null {
-  try {
-    const out = execSync(`command -v ${name}`, { encoding: 'utf8', timeout: 3000 }).trim();
-    return out || null;
-  } catch { return null; }
+  const r = execCapture(`command -v ${name}`, { timeoutMs: 3000 });
+  return r.out.trim() || null;
 }
 
 /** 从主 conf 文本解析 include "目录/*.conf" 的目录列表 */
@@ -97,7 +77,7 @@ export function resolveNginx(): NginxInfo {
   const bin = override.bin || whichBin('nginx') || 'nginx';
 
   // nginx -V(大写):版本在第一行,configure args 里含 --conf-path= / --prefix=
-  const vres = run(`${bin} -V 2>&1`);
+  const vres = execCapture(`${bin} -V 2>&1`, { timeoutMs: 5000 });
   const vText = vres.out + vres.err;
   const versionM = /nginx version:\s*([^\s]+)/.exec(vText);
   const version = versionM ? versionM[1] : '';
@@ -118,7 +98,7 @@ export function resolveNginx(): NginxInfo {
 
   // 进程:pgrep nginx master(无则回退 ps)
   let masterPid: number | null = null;
-  const pg = run('pgrep -x nginx 2>/dev/null || pgrep -f "nginx: master" 2>/dev/null');
+  const pg = execCapture('pgrep -x nginx 2>/dev/null || pgrep -f "nginx: master" 2>/dev/null', { timeoutMs: 5000 });
   const pids = (pg.out.trim().match(/\d+/g) || []).map(Number).filter(Boolean);
   if (pids.length) masterPid = pids[0];
 
@@ -193,7 +173,7 @@ export function checkProjectConf(project: ProjectRow, name: string): NginxCheckR
   const projectMd5 = md5File(path.join(projectNginxDir(project.root), read.name));
 
   // nginx -t 语法(输出在 stderr;ok=退出码 0)
-  const t = run(`${info.bin} -t 2>&1`);
+  const t = execCapture(`${info.bin} -t 2>&1`, { timeoutMs: 5000 });
 
   let loaded: NginxCheckResult['loaded'] = 'nginx-down';
   let localFiles: { path: string; md5Match: boolean }[] = [];
@@ -201,7 +181,7 @@ export function checkProjectConf(project: ProjectRow, name: string): NginxCheckR
     if (!serverName) {
       loaded = 'no-server-name';
     } else {
-      const eff = run(`${info.bin} -T 2>&1`);
+      const eff = execCapture(`${info.bin} -T 2>&1`, { timeoutMs: 5000 });
       loaded = serverNameLoaded(eff.out + eff.err, serverName) ? 'loaded' : 'missing';
     }
     // 本机 include 目录里是否有同名 conf,md5 是否与项目副本一致

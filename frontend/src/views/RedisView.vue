@@ -41,22 +41,31 @@ async function applyTtl(): Promise<void> {
   ttlInput.value = ''
 }
 
+// ── 操作通知(替代 alert:4s 自动消失的顶部消息条)──
+const notice = ref('')
+let noticeTimer: number | undefined
+function notify(text: string): void {
+  notice.value = text
+  clearTimeout(noticeTimer)
+  noticeTimer = window.setTimeout(() => { notice.value = '' }, 4000)
+}
+
 async function doFlush(): Promise<void> {
   if (!showFlush.value) return
   const want = showFlush.value === 'db' ? 'FLUSHDB' : 'FLUSHALL'
   if (flushConfirmText.value !== want) return
   const r = showFlush.value === 'db' ? await store.flushdb() : await store.flushall()
   showFlush.value = null; flushConfirmText.value = ''
-  alert(r.queued ? `已提交审批(任务 ${r.jobId}),去 SQL 页审批后执行` : '已执行')
+  notify(r.queued ? `已提交审批(任务 ${r.jobId}),去 SQL 页审批后执行` : '已执行')
 }
 
 async function doMatchDelete(): Promise<void> {
   const m = matchDeleteInput.value.trim()
-  if (!m || m === '*') { alert('模式不能为空或 *(全删请用 FLUSHDB)'); return }
+  if (!m || m === '*') { notify('模式不能为空或 *(全删请用 FLUSHDB)'); return }
   if (!confirm(`按模式删除「${m}」?危险操作${' — '}reviewMode 开启时会进审批队列`)) return
   const r = await store.deleteByMatch(m)
   matchDeleteInput.value = ''
-  alert(r.queued ? `已提交审批(任务 ${r.jobId})` : `已删除 ${r.matched ?? 0} 个 key`)
+  notify(r.queued ? `已提交审批(任务 ${r.jobId})` : `已删除 ${r.matched ?? 0} 个 key`)
 }
 
 async function doCheckedDelete(): Promise<void> {
@@ -64,7 +73,7 @@ async function doCheckedDelete(): Promise<void> {
   if (!n) return
   if (!confirm(`删除勾选的 ${n} 个 key?`)) return
   const r = await store.deleteChecked()
-  alert(r.queued ? `已提交审批(任务 ${r.jobId})` : `已删除 ${r.affected ?? 0} 个 key`)
+  notify(r.queued ? `已提交审批(任务 ${r.jobId})` : `已删除 ${r.affected ?? 0} 个 key`)
 }
 
 function toggleCheck(key: string): void {
@@ -88,6 +97,10 @@ const histActionLabel: Record<string, string> = {
 </script>
 
 <template>
+  <!-- 操作通知条(flush/批量删除等结果,4s 自动消失) -->
+  <Teleport to="body">
+    <div v-if="notice" class="redis-notice">{{ notice }}</div>
+  </Teleport>
   <div class="app">
   <Sidebar>
     <!-- 侧栏:Redis 连接列表(存活点 + 版本) -->
@@ -315,4 +328,11 @@ const histActionLabel: Record<string, string> = {
 .hist-list { max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
 .hist-item { display: flex; align-items: center; gap: 8px; font-size: 11px; }
 .hist-target { flex: 1; font-family: ui-monospace, monospace; word-break: break-all; }
+.redis-notice {
+  position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+  z-index: 1000; padding: 8px 18px; font-size: 12px;
+  color: var(--glow); background: var(--surface, #101014);
+  border: 1px solid var(--glow-dim); border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+}
 </style>

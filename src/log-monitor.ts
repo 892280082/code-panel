@@ -9,6 +9,7 @@ import type { FileState, SseMessage, LogEntry } from './types';
 import type { ProjectRow } from './db/global-store';
 import { allProjects } from './projects/project-store';
 import { logsFlatEntries } from './projects/adapters';
+import { createSseClients } from './utils/sse-clients';
 
 const POLL_MS = 500;
 const PORT_CHECK_MS = 5000;     // ★ 5 秒后台轮询端口
@@ -18,9 +19,8 @@ const ACTIVE_THRESHOLD = 5000;   // 5 秒内有写入 = 活跃
 /** 文件状态缓存 */
 const fileState: Record<string, FileState> = {};
 
-/** SSE 客户端列表(每个绑定所属 project;全局 port-status 推送仍广播全部) */
-interface SseClient { res: Response; project?: string }
-let clients: SseClient[] = [];
+/** SSE 客户端集合(每个绑定所属 project;全局 port-status 推送仍广播全部) */
+const sse = createSseClients();
 
 /** 端口存活缓存: port → { alive, ts } */
 const portStatusCache: Map<number, { alive: boolean; ts: number }> = new Map();
@@ -129,15 +129,9 @@ interface PortStatusMessage {
   ports: Record<number, boolean>;  // port → alive
 }
 
-function writeRaw(client: SseClient, msg: string): boolean {
-  try { client.res.write(msg); return true; }
-  catch { return false; }
-}
-
 /** 发送单条 SSE 消息（端口状态 — 全局,推给所有客户端） */
 function broadcast(data: SseMessage | PortStatusMessage): void {
-  const msg = `data: ${JSON.stringify(data)}\n\n`;
-  clients = clients.filter(c => writeRaw(c, msg));
+  sse.broadcast(`data: ${JSON.stringify(data)}\n\n`);
 }
 
 /** 批量发送日志变更 — 按客户端所属 project 过滤,防止跨项目串扰 */
@@ -150,11 +144,9 @@ function broadcastBatch(messages: SseMessage[]): void {
     if (!byProject.has(key)) byProject.set(key, []);
     byProject.get(key)!.push(m);
   }
-  clients = clients.filter(c => {
-    const list = byProject.get(c.project) || [];
-    if (!list.length) return true;           // 没有属于该客户端的日志,保留连接
-    return writeRaw(c, `data: ${JSON.stringify(list)}\n\n`);
-  });
+  for (const [project, list] of byProject) {
+    sse.broadcast(`data: ${JSON.stringify(list)}\n\n`, c => c.project === project);
+  }
 }
 
 // ── 端口存活检测（5 秒后台轮询）───────────────────────────
@@ -240,11 +232,11 @@ export function getLogs(project: ProjectRow): Array<{
 // ── SSE 连接管理 ─────────────────────────────────────────
 
 export function addClient(res: Response, project?: string): void {
-  clients.push({ res, project });
+  sse.add(res, project);
 }
 
 export function removeClient(res: Response): void {
-  clients = clients.filter(c => c.res !== res);
+  sse.remove(res);
 }
 
 // ── 读取指定文件内容（供 API 使用） ───────────────────────

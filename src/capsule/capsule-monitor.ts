@@ -13,6 +13,7 @@ import fs from 'fs';
 import path from 'path';
 import type { Response } from 'express';
 import { capsuleDir, statCapsuleEntry, cleanTrash, type CapsuleEntry } from './capsule-store';
+import { createSseClients } from '../utils/sse-clients';
 
 interface CapsuleState {
   entry: CapsuleEntry;
@@ -30,24 +31,20 @@ const TRASH_CLEAN_EVERY = 60;
 /** 基线轮标志:该轮新看到的条目直接视为已通知(启动/重置时不轰炸旧胶囊) */
 let baselineFlag = false;
 
-// ── SSE 客户端管理(照 log-monitor 模式)──────────────────
+// ── SSE 客户端管理(集合实现见 utils/sse-clients,与 log-monitor 同源)──
 
-interface SseClient { res: Response }
-let sseClients: SseClient[] = [];
+const sse = createSseClients();
 
 export function addCapsuleClient(res: Response): void {
-  sseClients.push({ res });
+  sse.add(res);
 }
 
 export function removeCapsuleClient(res: Response): void {
-  sseClients = sseClients.filter(c => c.res !== res);
+  sse.remove(res);
 }
 
 function broadcastCapsule(event: 'new' | 'update', capsule: CapsuleEntry): void {
-  const msg = `data: ${JSON.stringify({ type: 'capsule', event, capsule })}\n\n`;
-  sseClients = sseClients.filter(c => {
-    try { c.res.write(msg); return true; } catch { return false; }
-  });
+  sse.broadcast(`data: ${JSON.stringify({ type: 'capsule', event, capsule })}\n\n`);
 }
 
 // ── 轮询主体 ─────────────────────────────────────────────

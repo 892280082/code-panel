@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { errText } from '@/utils/api-fetch'
 import { useSqlStore } from '@/stores/sql'
 import { useProjectsStore } from '@/stores/projects'
@@ -40,16 +40,20 @@ function resultSummary(r: { rows?: unknown[]; affectedRows?: number; changes?: n
   return `${r.affectedRows ?? r.changes ?? 0} affected · ${r.executionTime}ms`
 }
 
+const reviewErr = ref('')   // review 切换/审批失败的内联错误(替代 alert)
+
 async function handleToggleReview() {
+  reviewErr.value = ''
   try { await store.toggleReviewMode() }
-  catch (e) { alert('切换失败: ' + errText(e)) }
+  catch (e) { reviewErr.value = '切换失败: ' + errText(e) }
 }
 
 async function handleApprove(id: string) {
+  reviewErr.value = ''
   try {
     await store.approveJob(id)
   } catch (e) {
-    alert('Execute failed: ' + errText(e))
+    reviewErr.value = 'Execute failed: ' + errText(e)
     await store.loadJobs()
   }
 }
@@ -104,7 +108,8 @@ async function handleApprove(id: string) {
         <button
           :class="{ on: store.reviewMode, danger: !store.reviewMode }"
           @click="handleToggleReview"
-        >{{ store.reviewMode ? '🛡 Review Mode: ON' : '⚡ Review Mode: OFF (silent)' }}</button>
+>{{ store.reviewMode ? '🛡 Review Mode: ON' : '⚡ Review Mode: OFF (silent)' }}</button>
+        <span v-if="reviewErr" class="review-err">{{ reviewErr }}</span>
         <button @click="store.loadJobs()">↻ Refresh</button>
         <span class="token-display">Token: {{ store.reviewToken || '???' }}</span>
         <span class="toolbar-right">
@@ -459,4 +464,5 @@ async function handleApprove(id: string) {
   color: var(--text-dim); margin: 0;
   max-height: 200px; overflow-y: auto;
 }
+.review-err { font-size: 11px; color: var(--danger, #f44747); }
 </style>

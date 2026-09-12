@@ -141,15 +141,41 @@ function relOf(root: string, p: unknown): string | undefined {
   if (r.startsWith('..')) return v;            // 根外特殊路径:保留绝对(不随仓库迁移)
   return r === '' ? '.' : r;                   // 根本身存 '.',其余相对
 }
-function walkAbs(root: string, v: any): any {
-  if (!v) return v;
-  for (const f of ['file', 'path', 'dir', 'cwd']) if (typeof v[f] === 'string') v[f] = absOf(root, v[f]);
-  return v;
+/** 顶层数组字段 → 模块 的映射(读/写两侧共用;logs 嵌套结构单独走,不进本表) */
+const ARRAY_FIELDS: Partial<Record<ModuleName, string[]>> = {
+  sql: ['connections'],
+  prd: ['folders'],
+  git: ['repos'],
+  commands: ['commands'],
+};
+
+type PathConv = (root: string, p: unknown) => string | undefined;
+
+/** 对单个条目对象做 file/path/dir/cwd 字段转换(原地) */
+function walkFields(root: string, v: Record<string, unknown>, conv: PathConv): void {
+  if (!v) return;
+  for (const f of ['file', 'path', 'dir', 'cwd']) {
+    if (typeof v[f] === 'string') v[f] = conv(root, v[f]) as string;
+  }
 }
-function walkRel(root: string, v: any): any {
-  if (!v) return v;
-  for (const f of ['file', 'path', 'dir', 'cwd']) if (typeof v[f] === 'string') v[f] = relOf(root, v[f]);
-  return v;
+
+/** 模块级路径转换(abs/rel 由 conv 决定):logs 嵌套 + 表驱动数组 + prd.dir 特例 */
+function transformModule(root: string, module: ModuleName, yaml: Record<string, unknown>, conv: PathConv): void {
+  if (module === 'logs') {
+    for (const s of (yaml.sections as Record<string, unknown>[] | undefined) ?? []) {
+      for (const l of (s.logs as Record<string, unknown>[] | undefined) ?? []) walkFields(root, l, conv);
+    }
+    for (const pf of (yaml.platforms as Record<string, unknown>[] | undefined) ?? []) {
+      for (const l of (pf.backend as Record<string, unknown>[] | undefined) ?? []) walkFields(root, l, conv);
+      for (const l of (pf.frontend as Record<string, unknown>[] | undefined) ?? []) walkFields(root, l, conv);
+    }
+    return;
+  }
+  if (module === 'prd' && typeof yaml.dir === 'string') yaml.dir = conv(root, yaml.dir) || '';
+  for (const key of ARRAY_FIELDS[module] ?? []) {
+    const arr = yaml[key];
+    if (Array.isArray(arr)) for (const item of arr as Record<string, unknown>[]) walkFields(root, item, conv);
+  }
 }
 
 /** apps.yaml 优先;缺失但有旧 logs.yaml 时读旧文件(向后兼容) */
@@ -171,30 +197,15 @@ export function loadProjectModule(project: ProjectRow, module: ModuleName, opts?
   if (!opts?.raw) {
     yaml = interpolateEnvVars(yaml, projectEnvVars(project));
   }
-  if (module === 'logs') {
-    // platforms(新格式)+ sections(旧格式)里每个服务项的 file/start 等一律补绝对
-    for (const s of yaml.sections ?? []) for (const l of s.logs ?? []) walkAbs(root, l);
-    for (const p of yaml.platforms ?? []) { for (const l of p.backend ?? []) walkAbs(root, l); for (const l of p.frontend ?? []) walkAbs(root, l); }
-  }
-  else if (module === 'sql') (yaml.connections || []).forEach((c: any) => walkAbs(root, c));
-  else if (module === 'prd') { if (typeof yaml.dir === 'string') yaml.dir = absOf(root, yaml.dir) || ''; (yaml.folders || []).forEach((f: any) => walkAbs(root, f)); }
-  else if (module === 'git') (yaml.repos || []).forEach((r: any) => walkAbs(root, r));
-  else if (module === 'commands') (yaml.commands || []).forEach((c: any) => walkAbs(root, c));
+  transformModule(root, module, yaml, absOf);
   return yaml as ModuleYaml;
 }
 
 export function saveProjectModule(project: ProjectRow, module: ModuleName, value: ModuleYaml): void {
   ensureScaffolded(project);
   const root = project.root;
-  const v = value as any;
-  if (module === 'logs') {
-    for (const s of v.sections ?? []) for (const l of s.logs ?? []) walkRel(root, l);
-    for (const p of v.platforms ?? []) { for (const l of p.backend ?? []) walkRel(root, l); for (const l of p.frontend ?? []) walkRel(root, l); }
-  }
-  else if (module === 'sql') (v.connections || []).forEach((c: any) => walkRel(root, c));
-  else if (module === 'prd') { if (typeof v.dir === 'string') v.dir = relOf(root, v.dir) || ''; (v.folders || []).forEach((f: any) => walkRel(root, f)); }
-  else if (module === 'git') (v.repos || []).forEach((r: any) => walkRel(root, r));
-  else if (module === 'commands') (v.commands || []).forEach((c: any) => walkRel(root, c));
+  const v = value as Record<string, unknown>;
+  transformModule(root, module, v, relOf);
   writeModuleYaml(projectModuleYamlFile(project.root, module), v);
 }
 

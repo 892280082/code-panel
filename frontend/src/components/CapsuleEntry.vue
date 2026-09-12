@@ -37,8 +37,11 @@ async function onMerge(id: string): Promise<void> {
 }
 
 // ── 删除(确认 → 挪临时目录;UI 不再有回收站,找回问 AI)──
+const opErr = ref('')   // 删除/清空失败的内联错误(替代 alert)
+
 async function onRemove(id: string): Promise<void> {
   if (!confirm(`确定删除「${id}」?`)) return
+  opErr.value = ''
   try {
     await apiJson('/api/capsule/remove', {
       method: 'POST',
@@ -47,7 +50,7 @@ async function onRemove(id: string): Promise<void> {
     })
     capsule.refresh()
   } catch (e: unknown) {
-    alert(`删除失败:${(e as Error).message}`)
+    opErr.value = `删除失败:${(e as Error).message}`
   }
 }
 
@@ -56,11 +59,12 @@ async function onClearAll(): Promise<void> {
   const n = capsule.entries.length
   if (!n) return
   if (!confirm(`确定清空全部 ${n} 个胶囊?`)) return
+  opErr.value = ''
   try {
     await apiJson('/api/capsule/clear', { method: 'POST' })
     capsule.refresh()
   } catch (e: unknown) {
-    alert(`清空失败:${(e as Error).message}`)
+    opErr.value = `清空失败:${(e as Error).message}`
   }
 }
 
@@ -127,6 +131,7 @@ function fmtTime(ms: number): string {
             @click="copyBrainstorm"
           >{{ copiedCmd ? '✓ 已复制' : '⧉ 提示词' }}</button>
         </div>
+        <div v-if="opErr" class="cp-err">{{ opErr }}</div>
 
         <div class="cp-body">
           <div v-if="!capsule.entries.length" class="cp-hint">
@@ -244,4 +249,5 @@ function fmtTime(ms: number): string {
   color: var(--text-dim); opacity: 0.7;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.cp-err { padding: 6px 12px; font-size: 11px; color: var(--danger, #f44747); border-bottom: 1px solid var(--border, #23232a); }
 </style>

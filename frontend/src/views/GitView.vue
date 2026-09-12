@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { errText } from '@/utils/api-fetch'
-import { type RepoSummary,useGitStore, gitPullStatusIcon, gitFormatLogTime  } from '@/stores/git'
+import { type RepoSummary, useGitStore, gitPullStatusIcon } from '@/stores/git'
 import { useProjectsStore } from '@/stores/projects'
 import { useRepoBrowserStore } from '@/stores/repo-browser'
 import TopRightTools from '@/components/TopRightTools.vue'
 import { useCopySelection } from '@/composables/useCopySelection'
-import { copyToClipboard } from '@/utils/clipboard'
 import { highlightLines } from '@/utils/highlight'
 import { mergeToUnified, buildDiffBlocks, type UnifiedLine } from '@/utils/diff'
 import { useFileTree } from '@/composables/useFileTree'
 import Sidebar from '@/components/Sidebar.vue'
 import StatusDot from '@/components/StatusDot.vue'
 import DiffOverviewRuler from '@/components/DiffOverviewRuler.vue'
+import GitLogPanel from '@/components/GitLogPanel.vue'
 
 const store = useGitStore()
 const projects = useProjectsStore()
@@ -87,13 +87,15 @@ onMounted(() => store.init())
 
 const newRepoName = ref('')
 const newRepoPath = ref('')
+const addErr = ref('')
 
 async function handleAdd() {
+  addErr.value = ''
   try {
     await store.addRepo(newRepoName.value, newRepoPath.value)
     newRepoName.value = ''
     newRepoPath.value = ''
-  } catch (e) { alert('添加失败: ' + errText(e)) }
+  } catch (e) { addErr.value = '添加失败: ' + errText(e) }
 }
 
 function dotStatus(s?: RepoSummary) {
@@ -131,8 +133,6 @@ function onFileClick(path: string) {
 }
 
 // ── Pull / Log helpers ──────────────────────────────────
-
-function copyHash(hash: string) { copyToClipboard(hash) }
 
 function switchToLog() {
   store.repoViewMode = 'log'
@@ -250,6 +250,7 @@ function switchToLog() {
           <input v-model="newRepoName" placeholder="名称" class="input-sm" @keyup.enter="handleAdd" />
           <input v-model="newRepoPath" placeholder="路径" class="input-sm" @keyup.enter="handleAdd" />
           <button class="btn-sm btn-primary" @click="handleAdd">Add</button>
+          <div v-if="addErr" class="error-text">{{ addErr }}</div>
         </div>
       </div>
     </Sidebar>
@@ -284,36 +285,8 @@ function switchToLog() {
 
       <!-- Content -->
       <div class="diff-area">
-        <!-- Log View -->
-        <div v-if="store.repoViewMode === 'log' && store.diffResult" class="log-scroll">
-          <div v-if="store.logLoading" class="loading-text">加载中...</div>
-          <template v-else-if="store.logResult && !store.logResult.error">
-            <div class="log-header">
-              <span class="log-branch">⎇ {{ store.logResult.branch }}</span>
-              <span class="log-count">{{ store.logResult.totalCommits }} commits</span>
-            </div>
-            <div v-for="group in store.logResult.dayGroups" :key="group.date" class="log-day-group">
-              <div class="log-day-header">{{ group.date }}</div>
-              <div
-                v-for="commit in group.commits" :key="commit.hash"
-                class="log-commit"
-                @click="copyHash(commit.hash)"
-                :title="'点击复制: ' + commit.hash"
-              >
-                <span class="log-commit-hash">{{ commit.hash.slice(0, 7) }}</span>
-                <span class="log-commit-subject">{{ commit.subject }}</span>
-                <span class="log-commit-meta">
-                  <span class="log-commit-author">{{ commit.author }}</span>
-                  <span class="log-commit-time">{{ gitFormatLogTime(commit.date) }}</span>
-                </span>
-              </div>
-            </div>
-            <div v-if="!store.logResult.dayGroups.length" class="empty-state hint-state">
-              <span>No commits found</span>
-            </div>
-          </template>
-          <div v-else-if="store.logResult?.error" class="error-text pad">{{ store.logResult.error }}</div>
-        </div>
+        <!-- Log View(组件:按天分组 commit 列表) -->
+        <GitLogPanel v-if="store.repoViewMode === 'log' && store.diffResult" />
 
         <!-- Diff View -->
         <template v-if="store.repoViewMode === 'diff'">
@@ -649,53 +622,6 @@ function switchToLog() {
   color: var(--glow); border-color: var(--glow-dim);
   background: rgba(34,238,102,0.08);
 }
-
-/* ── Log view ──────────────────────────────────────────── */
-.log-scroll {
-  flex: 1; overflow-y: auto;
-}
-.log-scroll::-webkit-scrollbar { width: 6px; }
-.log-scroll::-webkit-scrollbar-track { background: transparent; }
-.log-scroll::-webkit-scrollbar-thumb { background: #1a1a22; border-radius: 3px; }
-.log-header {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 20px;
-  background: var(--surface); border-bottom: 1px solid var(--border);
-}
-.log-branch { font-size: 12px; color: var(--text-dim); }
-.log-count { font-size: 10px; color: var(--text-dim); }
-.log-day-group { }
-.log-day-header {
-  padding: 8px 20px; font-size: 10px; color: var(--text-dim);
-  background: rgba(35,35,42,0.3);
-  border-bottom: 1px solid rgba(35,35,42,0.5);
-  font-family: var(--font); text-transform: uppercase; letter-spacing: 0.05em;
-  position: sticky; top: 0; z-index: 2;
-}
-.log-commit {
-  display: flex; align-items: baseline; gap: 12px;
-  padding: 8px 20px; font-size: 12px;
-  border-bottom: 1px solid rgba(35,35,42,0.2);
-  cursor: pointer; transition: background 0.1s;
-}
-.log-commit:hover { background: rgba(34,238,102,0.04); }
-.log-commit-hash {
-  font-family: var(--font); font-size: 10px;
-  color: var(--glow-dim); flex-shrink: 0; width: 56px;
-  user-select: all;
-}
-.log-commit-subject {
-  flex: 1; color: var(--text);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.log-commit-meta {
-  display: flex; gap: 12px; flex-shrink: 0;
-  font-size: 10px; color: var(--text-dim);
-}
-.log-commit-author { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.log-commit-time { font-variant-numeric: tabular-nums; }
-.error-text.pad { padding: 20px; }
-.loading-text { padding: 20px; font-size: 12px; color: var(--text-dim); text-align: center; }
 
 /* Floating copy button */
 .copy-float {

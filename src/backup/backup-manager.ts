@@ -8,11 +8,11 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { execSync } from 'child_process';
 import { globalDataDir } from '../paths';
 import { getSetting, setSetting } from '../db/global-store';
 import { allProjects } from '../projects/project-store';
 import { errorMessage } from '../utils/route-utils';
+import { execText } from '../utils/exec';
 
 export const MAX_KEEP = 20;
 const DEFAULT_BACKUP_DIR = '/Users/owner/upload/code-panel-db-backup';
@@ -62,7 +62,7 @@ export function runBackup(): { ok: boolean; file?: string; error?: string } {
     }
 
     const dest = path.join(dir, todayName());
-    execSync(`tar -czf "${dest}" -C "${stage}" .`, { stdio: 'pipe' });
+    execText(`tar -czf "${dest}" -C "${stage}" .`);
     fs.rmSync(stage, { recursive: true, force: true });
 
     pruneOldBackups(dir);

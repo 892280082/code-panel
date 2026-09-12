@@ -48,8 +48,8 @@ export interface CommitMeta {
 
 // ── Helpers ────────────────────────────────────────────────
 
-/** Parse diff output into typed lines */
-function parseDiff(output: string): DiffLine[] {
+/** Parse unified diff output into typed lines(repo-browser / 本文件共用) */
+export function parseDiff(output: string): DiffLine[] {
   return output.split('\n').map(line => {
     if (line.startsWith('+') && !line.startsWith('+++')) return { type: 'add' as const, text: line };
     if (line.startsWith('-') && !line.startsWith('---')) return { type: 'del' as const, text: line };

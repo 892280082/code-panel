@@ -5,45 +5,41 @@ import path from 'path';
 import { Router, Request, Response } from 'express';
 import { requireProject, reqProject } from '../projects/context';
 import { getRepo, type GitRepo } from '../git/git-repo-store';
-import { errorMessage } from '../utils/route-utils';
+import { route, errorMessage } from '../utils/route-utils';
 import { safeResolve } from '../utils/safe-resolve';
 import {
   getFileLog,
   getFileCommitDiff,
   getCommitFiles,
+  parseDiff,
 } from '../git/git-file-service';
-import { execSync } from 'child_process';
+import { gitExec } from '../git/git-exec';
 
 const router = Router();
 
 // 该项目作用域:repo 一律从该项目的 git.yaml 按 string id 解析
 router.use('/api/repo-browser', requireProject);
 
-// ── Route wrapper — resolves project + repoId + repo, wraps error handling ──
+// ── Route wrapper — 解析 project + repoId + repo;异常统一走 route() 信封 ──
 
 function withRepo(
   handler: (repo: GitRepo, repoId: string, req: Request, res: Response) => void,
-  errorLabel: string,
+  _errorLabel: string,
 ) {
-  return (req: Request, res: Response) => {
-    try {
-      const project = reqProject(req);
-      const repoId = String(req.params.repoId ?? '');
-      if (!repoId) {
-        res.status(400).json({ ok: false, error: 'invalid repoId' });
-        return;
-      }
-      const repo = getRepo(project, repoId);
-      if (!repo) {
-        res.status(404).json({ ok: false, error: `Repo ${repoId} not found` });
-        return;
-      }
-      handler(repo, repoId, req, res);
-    } catch (e: unknown) {
-      console.error(`[repo-browser] ${errorLabel} error:`, e);
-      res.status(500).json({ ok: false, error: errorMessage(e) });
+  return route((req: Request, res: Response) => {
+    const project = reqProject(req);
+    const repoId = String(req.params.repoId ?? '');
+    if (!repoId) {
+      res.status(400).json({ ok: false, error: 'invalid repoId' });
+      return;
     }
-  };
+    const repo = getRepo(project, repoId);
+    if (!repo) {
+      res.status(404).json({ ok: false, error: `Repo ${repoId} not found` });
+      return;
+    }
+    handler(repo, repoId, req, res);
+  });
 }
 
 // ── Constants ────────────────────────────────────────────
@@ -111,9 +107,9 @@ router.get('/api/repo-browser/:repoId/git-changes', withRepo((repo, _repoId, req
   try {
     // Tracked changes (staged + unstaged)
     // -c core.quotePath=false + -z: 禁用 git 路径引号转义(含非 ASCII 的文件名会被包一层 "")，NUL 分隔防换行文件名
-    const diffOutput = execSync('git -c core.quotePath=false diff --name-only -z HEAD', { cwd: repo.path, encoding: 'utf8', timeout: 5000 });
+    const diffOutput = gitExec('git -c core.quotePath=false diff --name-only -z HEAD', { cwd: repo.path, timeoutMs: 5000 });
     // Untracked files
-    const untrackedOutput = execSync('git -c core.quotePath=false ls-files --others --exclude-standard -z', { cwd: repo.path, encoding: 'utf8', timeout: 5000 });
+    const untrackedOutput = gitExec('git -c core.quotePath=false ls-files --others --exclude-standard -z', { cwd: repo.path, timeoutMs: 5000 });
 
     const allChanged = (diffOutput + '\0' + untrackedOutput).split('\0').filter(Boolean);
 
@@ -264,18 +260,10 @@ router.get('/api/repo-browser/:repoId/diff', withRepo((repo, _repoId, req, res) 
 
   let diffOutput = '';
   try {
-    diffOutput = execSync(`git diff HEAD -- "${targetPath}"`, {
-      cwd: repo.path, encoding: 'utf8', timeout: 5000, maxBuffer: 2 * 1024 * 1024,
-    });
+    diffOutput = gitExec(`git diff HEAD -- "${targetPath}"`, { cwd: repo.path, timeoutMs: 5000 });
   } catch { /* no changes */ }
 
-  const lines = diffOutput.split('\n').map(line => {
-    if (line.startsWith('+') && !line.startsWith('+++')) return { type: 'add', text: line };
-    if (line.startsWith('-') && !line.startsWith('---')) return { type: 'del', text: line };
-    return { type: 'ctx', text: line };
-  });
-
-  res.json({ ok: true, path: filePath, lines, rawDiff: diffOutput });
+  res.json({ ok: true, path: filePath, lines: parseDiff(diffOutput), rawDiff: diffOutput });
 }, 'diff'));
 
 // ── GET /api/repo-browser/:repoId/file-log ─────────────────

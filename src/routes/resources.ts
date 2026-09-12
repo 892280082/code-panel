@@ -5,9 +5,9 @@
 //   磁盘/进程列表 BSD ps/df 选项适配 —— 返回结构与 Linux 完全同构。
 import { Router } from 'express';
 import os from 'os';
-import { execSync } from 'child_process';
 import { getMacMemory } from '../utils/memory-mac';
 import { route } from '../utils/route-utils';
+import { execText } from '../utils/exec';
 
 const router = Router();
 
@@ -43,7 +43,7 @@ function getDiskUsage(): { usedPercent: number; totalGB: string; usedGB: string;
   try {
     // Linux: df -BM(GNU);macOS: df -m(BSD,列位相同可直接复用解析)
     const cmd = process.platform === 'darwin' ? 'df -m / | tail -1' : 'df -BM / | tail -1';
-    const raw = execSync(cmd, { encoding: 'utf8', timeout: 3000 }).trim();
+    const raw = execText(cmd, { timeoutMs: 3000 }).trim();
     const parts = raw.split(/\s+/);
     const totalMB = parseInt(parts[1], 10);
     const usedMB = parseInt(parts[2], 10);
@@ -60,7 +60,6 @@ function getDiskUsage(): { usedPercent: number; totalGB: string; usedGB: string;
 }
 
 router.get('/api/resources', route((_req, res) => {
-  try {
     // macOS:vm_stat 真实口径(活动监视器同款);失败/其他平台回落 os 口径,结构同构
     const mac = process.platform === 'darwin' ? getMacMemory() : undefined;
     const totalMem = os.totalmem();
@@ -95,19 +94,14 @@ router.get('/api/resources', route((_req, res) => {
         mount: disk.mount,
       },
     });
-  } catch (err) {
-    console.error({ err }, 'Failed to get system resources');
-    res.status(500).json({ error: 'Failed to read system resources' });
-  }
 }));
 
 // ── Process list top by memory ──
 router.get('/api/resources/processes', route((_req, res) => {
-  try {
     // Linux: ps aux --sort=-%mem(GNU);macOS: ps -axm 按内存排序,列序 PID %CPU %MEM RSS COMM
     const isMac = process.platform === 'darwin';
     const cmd = isMac ? 'ps -axm -o pid,pcpu,pmem,rss,comm | head -31' : 'ps aux --sort=-%mem | head -31';
-    const raw = execSync(cmd, { encoding: 'utf8', timeout: 5000 });
+    const raw = execText(cmd, { timeoutMs: 5000 });
     const lines = raw.trim().split('\n');
     // Skip header line, parse remaining
     const processes = lines.slice(1).map(line => {
@@ -132,10 +126,6 @@ router.get('/api/resources/processes', route((_req, res) => {
       return { pid, name, memPercent: Math.round(memPercent * 10) / 10, rssMB, cpuPercent: Math.round(cpuPercent * 10) / 10 };
     }).filter(p => p.pid > 0);
     res.json({ processes });
-  } catch (err) {
-    console.warn({ err }, 'Failed to read process list');
-    res.status(500).json({ error: 'Failed to read process list' });
-  }
 }));
 
 export default router;

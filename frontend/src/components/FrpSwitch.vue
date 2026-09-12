@@ -1,46 +1,23 @@
 <script setup lang="ts">
-// ── FRP 公网暴露开关(右上工具条;⚙ 安全 Tab 首卡同效,走同一 API)──────
-import { ref, onMounted } from 'vue'
-import { apiFetch, errText } from '@/utils/api-fetch'
+// ── FRP 公网暴露开关(嵌 🔗 快捷方式弹窗头部)────────────
+//   状态源 = composables/useFrp 模块级单例,与 ⚙ 安全 Tab 首卡同源即时同步。
+import { computed, onMounted } from 'vue'
+import { useFrp } from '@/composables/useFrp'
 
-const on = ref(false)
-const busy = ref(false)
+const { info, busy, load, toggle } = useFrp()
+const on = computed(() => !!info.value?.on)
 
-async function load(): Promise<void> {
-  try {
-    const res = await apiFetch('/api/security/frp')
-    const data = await res.json()
-    if (data?.ok) on.value = !!data.data?.on
-  } catch { /* 接口不可用 → 保持现状 */ }
+async function doToggle(): Promise<void> {
+  const r = await toggle(!on.value)
+  if (!r.ok && r.error) alert(`公网开关操作失败:${r.error}`)
 }
-
-async function toggle(): Promise<void> {
-  if (busy.value) return
-  const next = !on.value
-  if (next && !window.confirm(
-    '开启 FRP 公网暴露?\n\n公网 203.0.113.10 的 60101/60111/60112/60113 将对所有人开放,\n存在暴露风险 —— 仅在需要外网访问/演示时开启。')) return
-  if (!next && !window.confirm('关闭 FRP 公网暴露?\n\n公网口全部下线;管理隧道(SSH/code-server/code-panel)不受影响。')) return
-  busy.value = true
-  const prev = on.value
-  on.value = next
-  try {
-    const res = await apiFetch(`/api/security/frp/${next ? 'on' : 'off'}`)
-    const data = await res.json()
-    if (!data?.ok) throw new Error(data?.error || '操作失败')
-  } catch (e) {
-    on.value = prev
-    alert(`公网开关操作失败:${errText(e)}`)
-  } finally {
-    busy.value = false
-  }
-}
-onMounted(load)
+onMounted(load) // 每次挂载刷新一次(弹窗重开 → 状态新鲜)
 </script>
 
 <template>
   <div class="frp-wrap" :title="on ? 'FRP 公网暴露:开启中(点击关闭)' : 'FRP 公网暴露:已关闭(点击开启)'">
     <span class="frp-label">公网</span>
-    <button class="frp-switch" :class="{ on }" :disabled="busy" @click="toggle" />
+    <button class="frp-switch" :class="{ on }" :disabled="busy" @click="doToggle" />
   </div>
 </template>
 

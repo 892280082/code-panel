@@ -8,11 +8,11 @@
 //     (systemd 自身 Restart 正在重试,防两边打架),≥30s 才 reset-failed + start
 //   ⚠ systemctl 时间戳带 CST 缩写会被 date 误解析成美国中部时间 → 强制 TZ=Asia/Shanghai
 
-import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
+import { execText } from '../utils/exec';
 export const WATCHDOG_GRACE_SEC = 30;   // 停机多久才算「真起不来」
 export const WATCHDOG_INTERVAL_MIN = 1; // 检查周期(分钟)
 
@@ -29,7 +29,7 @@ function repoRoot(): string { return path.resolve(__dirname, '..', '..'); }
 function runUserCtl(args: string, timeoutMs = 15000): string {
   const env = { ...process.env } as NodeJS.ProcessEnv;
   if (!env.XDG_RUNTIME_DIR) env.XDG_RUNTIME_DIR = `/run/user/${process.getuid?.() ?? 1000}`;
-  return execSync(`systemctl --user ${args}`, { encoding: 'utf8', timeout: timeoutMs, env });
+  return execText(`systemctl --user ${args}`, { timeoutMs, env });
 }
 
 /** 环境是否支持(Linux + systemd user manager 可用)

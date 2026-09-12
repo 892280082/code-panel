@@ -38,12 +38,15 @@ async function handleAddProject() {
   }
 }
 
+const removeErr = ref('')   // 移除失败的内联错误(替代 alert)
+
 async function handleRemoveProject(id: string) {
   if (!window.confirm(`移除项目 #${id} 的注册?(不会删除其磁盘 .code-panel)继续?`)) return
+  removeErr.value = ''
   try {
     await projects.removeProject(id)
   } catch (e) {
-    alert(errText(e, '移除失败'))
+    removeErr.value = errText(e, '移除失败')
   }
 }
 
@@ -77,6 +80,7 @@ async function saveEdit() {
 </script>
 
 <template>
+  <div v-if="removeErr" class="err">{{ removeErr }}</div>
   <div v-if="!projects.projects.length" class="hint">还没有项目,在下面添加一个。</div>
   <div v-else class="proj-grid">
     <div

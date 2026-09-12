@@ -121,7 +121,7 @@ router.post('/api/sql/reject/:id', requireProject, denyAi, route((req: Request, 
 
 // 查看评审模式(全局,含令牌,供页面读取)
 router.get('/api/sql/review-mode', denyAi, route((_req: Request, res: Response) => {
-  res.json({ reviewMode: getReviewMode(), token: REVIEW_TOKEN });
+  res.json({ ok: true, reviewMode: getReviewMode(), token: REVIEW_TOKEN });
 }));
 
 // 切换评审模式(全局,需令牌)
