@@ -221,6 +221,15 @@ document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ document.
 
 // ── 整页组装 ─────────────────────────────────────────────
 
+/** PRD 左栏导航可见性(2026-09-12):仅顶层文件。
+ *  此前 listViewFiles 全量递归(为让 plan/ 文档可见)把 drafts/ 等数百文件
+ *  灌进左栏;实际总看板 index.md 本身就是导航枢纽(链接全部 plan 文档),
+ *  子目录页面又以自身目录为根重建导航 —— 左栏递归没有必要,回到仅顶层。
+ *  (胶囊/wiki 的 target 模式不套此规则,它们要的就是全量文件树) */
+function navVisible(rel: string): boolean {
+  return !rel.includes('/');
+}
+
 /** 双栏查看页：左 = 该目录 MD 文件列表，右 = 渲染当前 MD + 原型 iframe
  *  target(LinkTarget)传入时 = 胶囊/wiki 渲染:左栏导航与 .md 内链都改写到各自路由 */
 export function buildViewPage(md: string, mdName: string, dir: string, extraBases: string[], title: string, isCode = false, prdCtx?: PrdModuleYaml, projectId?: string, target?: LinkTarget): string {
@@ -236,9 +245,9 @@ export function buildViewPage(md: string, mdName: string, dir: string, extraBase
   const bodyHtml = isCode
     ? `<pre class="code-pre"><code>${esc(md)}</code></pre>`
     : rewriteLinks(inlineTabWidgets(inlineProtoSections(markdownToHtml(md), refs), md, dir), dir, projQ, target);
-  const files = listViewFiles(dir);
-  // 2026-09-11 递归列表:导航名/链接用相对路径(plan/doing/plan-02-xx.md),子目录文件可达且不撞名
-  // 2026-09-12 target 模式:导航链接走胶囊/wiki 自己的 view 路由(不暴露 prd 裸 dir)
+  // 2026-09-11 递归列表 → 2026-09-12 收敛:PRD 模式过 navVisible(顶层 + plan 三桶),
+  //   防全量递归把 drafts/ 等灌爆左栏;胶囊/wiki(target)保持全量树不变
+  const files = target ? listViewFiles(dir) : listViewFiles(dir).filter(f => navVisible(path.relative(dir, f)));
   const nav = files.map(f => {
     const rel = path.relative(dir, f);
     const active = f === path.resolve(dir, mdName) ? ' class="on"' : '';
