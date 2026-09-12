@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import fs from 'fs';
+import path from 'path';
 import net from 'net';
 import yaml from 'js-yaml';
 import type { ProjectRow } from '../db/global-store';
@@ -118,7 +119,9 @@ router.get('/api/inspect', requireProject, route(async (req, res) => {
     if (!c.host) errors.push(`redis.yaml: 连接 "${c.id}" 缺 host`);
   }
   for (const f of prdRaw?.folders ?? []) {
-    if (f.dir && !fs.existsSync(f.dir)) errors.push(`prd.yaml: 目录 "${f.name}" 不存在: ${f.dir}`);
+    // ⚠ folders.dir 是「相对项目根」的相对路径(yaml.ts 规范)——必须 resolve 到项目根再校验,
+    //   否则相对面板进程 cwd(技能目录)永远误报「不存在」(2026-09-12 实证 proj-ark 三目录全误报)
+    if (f.dir && !fs.existsSync(path.resolve(project.root, f.dir))) errors.push(`prd.yaml: 目录 "${f.name}" 不存在: ${f.dir}`);
   }
 
   res.json({
