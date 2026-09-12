@@ -4,7 +4,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import { apiFetch } from '@/utils/api-fetch'
+import { apiJson } from '@/utils/api-fetch'
 import { useProjectsStore, projectQS } from './projects'
 import { useSoundNotification } from '@/composables/useSoundNotification'
 import type { DbConnection, SqlJob, SqlHistoryEntry } from '@/types'
@@ -71,8 +71,7 @@ export const useSqlStore = defineStore('sql', () => {
   // ── Data fetching ──────────────────────────────────────
   async function loadInfo() {
     try {
-      const res = await apiFetch('/api/sql/review-mode')
-      const data = await res.json()
+      const data = await apiJson<{ reviewMode: boolean; token?: string }>('/api/sql/review-mode')
       if (data) {
         reviewMode.value = data.reviewMode
         reviewToken.value = data.token || ''
@@ -83,8 +82,7 @@ export const useSqlStore = defineStore('sql', () => {
   async function loadDatabases() {
     if (!projects.currentId) { databases.value = []; return }
     try {
-      const res = await apiFetch(`/api/db?${qs()}`)
-      const data = await res.json()
+      const data = await apiJson<{ data: DbConnection[] }>(`/api/db?${qs()}`)
       databases.value = data?.data ?? []
     } catch { databases.value = [] }
   }
@@ -92,17 +90,15 @@ export const useSqlStore = defineStore('sql', () => {
   async function refreshDatabases() {
     if (!projects.currentId) return
     try {
-      const res = await apiFetch(`/api/db/refresh?${qs()}`, { method: 'POST' })
-      const data = await res.json()
-      if (data?.ok) databases.value = data?.data ?? []
+      const data = await apiJson<{ data: DbConnection[] }>(`/api/db/refresh?${qs()}`, { method: 'POST' })
+      databases.value = data?.data ?? []
     } catch { /* ignore */ }
   }
 
   async function loadJobs() {
     if (!projects.currentId) { jobs.value = []; return }
     try {
-      const res = await apiFetch(`/api/sql/queue?${qs()}`)
-      const data = await res.json()
+      const data = await apiJson<{ jobs?: SqlJob[]; reviewMode?: boolean }>(`/api/sql/queue?${qs()}`)
       if (!data) { jobs.value = []; return }
       const newJobs = (data.jobs || []) as SqlJob[]
       const newPending = newJobs.filter(j => j.status === 'pending').length
@@ -112,44 +108,38 @@ export const useSqlStore = defineStore('sql', () => {
       else sound.stopBeeping()
 
       jobs.value = newJobs
-      reviewMode.value = data.reviewMode
+      reviewMode.value = !!data.reviewMode
     } catch { /* ignore */ }
   }
 
   async function loadHistory() {
     if (!projects.currentId) { historyList.value = []; return }
     try {
-      const res = await apiFetch(`/api/sql/history?${qs()}`)
-      const data = await res.json()
-      if (data?.ok) historyList.value = data.list || []
+      const data = await apiJson<{ list: SqlHistoryEntry[] }>(`/api/sql/history?${qs()}`)
+      historyList.value = data.list || []
     } catch { historyList.value = [] }
   }
 
   // ── Actions ────────────────────────────────────────────
   async function toggleReviewMode() {
-    const res = await apiFetch('/api/sql/review-mode', {
+    const data = await apiJson<{ reviewMode: boolean }>('/api/sql/review-mode', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: !reviewMode.value, token: reviewToken.value }),
     })
-    const data = await res.json()
-    if (data?.ok) reviewMode.value = data.reviewMode
-    else throw new Error(data?.error || 'Failed to toggle review mode')
+    reviewMode.value = !!data.reviewMode
   }
 
   async function approveJob(id: string) {
     if (!projects.currentId) return null
-    const res = await apiFetch(`/api/sql/approve/${id}?${qs()}`, {
+    const data = await apiJson<{ result: SqlJob['result'] }>(`/api/sql/approve/${id}?${qs()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: reviewToken.value }),
     })
-    const data = await res.json()
-    if (data?.ok) {
-      const job = jobs.value.find(j => j.id === id)
-      if (job) { job.result = data.result; job.status = 'executed' }
-      if (selectedJob.value?.id === id) selectedJob.value = job ?? null
-    }
+    const job = jobs.value.find(j => j.id === id)
+    if (job) { job.result = data.result; job.status = 'executed' }
+    if (selectedJob.value?.id === id) selectedJob.value = job ?? null
     return data
   }
 
@@ -159,7 +149,7 @@ export const useSqlStore = defineStore('sql', () => {
     rejectTargetId.value = null
     rejectReason.value = ''
     try {
-      await apiFetch(`/api/sql/reject/${id}?${qs()}`, {
+      await apiJson(`/api/sql/reject/${id}?${qs()}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason, token: reviewToken.value }),

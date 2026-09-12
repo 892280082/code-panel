@@ -3,7 +3,7 @@
 //   侧栏 = 平台分组卡片网格(LogPlatformCard,启停/右键菜单在卡片内);
 //   主区 = 工具条(启停会话 chip + 右上工具组)+ 日志页签查看器(LogTabsPane)。
 
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, computed } from 'vue'
 import { useLogStore } from '@/stores/logs'
 import { useProjectsStore } from '@/stores/projects'
 import { useTerminalStore } from '@/stores/terminal'

@@ -4,7 +4,7 @@ import { marked } from 'marked'
 import { highlightLines } from '@/utils/highlight'
 import { parseRawDiffHunks, mergeToUnified } from '@/utils/diff'
 import { useRepoBrowserStore } from '@/stores/repo-browser'
-import { copyToClipboard } from '@/utils/clipboard'
+import { useCopyFeedback } from '@/composables/useCopyFeedback'
 import HistoryPanel from './HistoryPanel.vue'
 
 const store = useRepoBrowserStore()
@@ -69,8 +69,7 @@ const renderedMarkdown = computed(() =>
 )
 
 // ── 复制：文件路径 + 内容（有选区复制选区，无选区复制全文）──
-const copied = ref(false)
-let copyResetTimer: ReturnType<typeof setTimeout> | null = null
+const { copied, copy } = useCopyFeedback(1600)
 let lastCopyAt = 0
 
 function copyFormatted() {
@@ -82,13 +81,7 @@ function copyFormatted() {
   const path = store.selectedFilePath || ''
   const selection = window.getSelection()?.toString().trim() || ''
   const body = selection || store.fileContent
-  const text = `文件：${path}\n内容：\n${body}`
-  const ok = copyToClipboard(text)
-  if (ok) {
-    copied.value = true
-    if (copyResetTimer) clearTimeout(copyResetTimer)
-    copyResetTimer = setTimeout(() => { copied.value = false }, 1600)
-  }
+  copy(`文件：${path}\n内容：\n${body}`)
 }
 
 // ── Scroll-to-top on file switch ────────────────────────

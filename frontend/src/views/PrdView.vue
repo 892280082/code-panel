@@ -85,7 +85,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useProjectsStore } from '@/stores/projects'
 import Sidebar from '@/components/Sidebar.vue'
 import TopRightTools from '@/components/TopRightTools.vue'
-import { copyText } from '@/utils/clipboard'
+import { useCopyFeedback } from '@/composables/useCopyFeedback'
 
 interface PrdFolder { name: string; dir: string; fileCount: number; date: string; done: boolean }
 interface PrdFile { name: string; path: string }
@@ -97,7 +97,7 @@ const folders = ref<PrdFolder[]>([])
 const currentDir = ref('')
 const entryFile = ref('')        // 选中 folder 的默认打开文件(index.md 优先,否则第一篇)
 const currentFile = ref('')      // iframe 当前实际显示文件(点左栏文件导航后更新)
-const copied = ref(false)        // 复制路径按钮反馈
+const { copied, copy } = useCopyFeedback(2500)   // 复制路径按钮反馈
 const frameKey = ref(0)          // 强制 iframe 重新加载
 const frameEl = ref<HTMLIFrameElement | null>(null)
 
@@ -221,14 +221,11 @@ function openInTab() {
   window.open(viewUrl.value, '_blank')
 }
 
-/** 复制当前文件相对路径到剪贴板(utils 带 http 内网兜底) */
+/** 复制当前文件相对路径到剪贴板(utils 带 http 内网兜底;成功后 copied 亮 2.5s 自动灭) */
 async function copyPath() {
   const p = currentFileRel.value
   if (!p) return
-  if (await copyText(p)) {
-    copied.value = true
-    setTimeout(() => { copied.value = false }, 2500)
-  }
+  await copy(p)
 }
 
 // 项目切换:清空重载

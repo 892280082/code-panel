@@ -7,7 +7,7 @@
 //   持久化(对齐 code-server):窗口「位置 + 打开/最小化状态」存 localStorage,
 //   页面刷新后自动恢复 —— tmux 重连,cmd 若服务端会话仍在则重新接回。
 
-import { apiFetch } from '@/utils/api-fetch'
+import { apiFetch, apiJson } from '@/utils/api-fetch'
 import type { TerminalServerSession } from '@/types'
 import { raise } from '@/utils/z-layer'
 import { slotPos } from '@/utils/viewport-layout'
@@ -110,9 +110,8 @@ export const useTerminalStore = defineStore('terminal', () => {
     // 服务端当前还活着的 cmd 会话(刷新前若没清理,它们还在)
     let serverSessions: TerminalServerSession[] = []
     try {
-      const res = await apiFetch('/api/terminal/sessions')
-      const data = await res.json()
-      serverSessions = (data?.ok ? data.data : []) || []
+      const data = await apiJson<{ data: TerminalServerSession[] }>('/api/terminal/sessions')
+      serverSessions = data?.data || []
     } catch { /* ignore */ }
 
     for (const w of saved) {
@@ -152,33 +151,28 @@ export const useTerminalStore = defineStore('terminal', () => {
 
   async function createSession(label: string, command: string, cwd: string, keepShell = true) {
     try {
-      const res = await apiFetch('/api/terminal/sessions', {
+      const data = await apiJson<{ data: { port: number } }>('/api/terminal/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ label, command, cwd, keepShell }),
       })
-      const data = await res.json()
-      if (data.ok) {
-        const { port } = data.data
-        const pos = readSavedPos(port)
-        const oneshot = !keepShell
-        sessions.set(port, {
-          port, label, command, cwd,
-          minimized: false, maximized: false,
-          x: pos.x, y: pos.y,
-          zIndex: raise(),
-          kind: 'cmd',
-          oneshot,
-          activated: false,
-        })
-        persistWindows()
-        if (!keepShell) {
-          // keepShell=false 一次性(Apps 启停):大窗展示 2s → 自动最小化到左上角 chip → 20s 未放大自动关闭
-          watchAutoClose(port)
-          scheduleOneshotCollapse(port)
-        }
-      } else {
-        console.error('Failed to create session:', data.error)
+      const { port } = data.data
+      const pos = readSavedPos(port)
+      const oneshot = !keepShell
+      sessions.set(port, {
+        port, label, command, cwd,
+        minimized: false, maximized: false,
+        x: pos.x, y: pos.y,
+        zIndex: raise(),
+        kind: 'cmd',
+        oneshot,
+        activated: false,
+      })
+      persistWindows()
+      if (!keepShell) {
+        // keepShell=false 一次性(Apps 启停):大窗展示 2s → 自动最小化到左上角 chip → 20s 未放大自动关闭
+        watchAutoClose(port)
+        scheduleOneshotCollapse(port)
       }
     } catch (err) {
       console.error('Session creation error:', err)
@@ -238,8 +232,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     const timer = setInterval(async () => {
       if (!sessions.has(port)) { clearInterval(timer); return }
       try {
-        const r = await apiFetch('/api/terminal/sessions')
-        const d = await r.json()
+        const d = await apiJson<{ data: TerminalServerSession[] }>('/api/terminal/sessions')
         const list: TerminalServerSession[] = (d && d.data) ? d.data : []
         const alive = list.some(s => s.port === port)
         if (!alive) {
@@ -267,16 +260,11 @@ export const useTerminalStore = defineStore('terminal', () => {
     }
 
     try {
-      const res = await apiFetch('/api/terminal/tmux/attach', {
+      const data = await apiJson<{ data: { port: number; sessionName?: string } }>('/api/terminal/tmux/attach', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ project: projectId, name: fullName }),
       })
-      const data = await res.json()
-      if (!data.ok) {
-        console.error('Tmux attach failed:', data.error)
-        return null
-      }
       const { port } = data.data
       const sessionName: string = data.data.sessionName || fullName
       const pos = readSavedPos(port)

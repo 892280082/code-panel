@@ -120,11 +120,6 @@ async function logout() {
 .acct-grid { display: flex; gap: 8px; }
 .acct-grid .f-input { flex: 1; }
 
-.f-input { padding: 7px 10px; font-size: 12px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 4px; outline: none; }
-.f-input:focus { border-color: var(--glow-dim); }
-button.primary { padding: 7px 16px; font-size: 12px; border-radius: 4px; cursor: pointer; background: var(--glow-dim); color: var(--text); border: 1px solid var(--glow); }
-button.primary:disabled { opacity: .5; cursor: default; }
-button.ghost { padding: 7px 16px; font-size: 12px; border-radius: 4px; cursor: pointer; background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
 .danger-btn { align-self: flex-start; padding: 8px 20px; font-size: 12px; border-radius: 4px; cursor: pointer; background: transparent; color: #f44747; border: 1px solid #f44747; }
 .danger-btn:hover { background: rgba(244,71,71,0.1); }
 </style>

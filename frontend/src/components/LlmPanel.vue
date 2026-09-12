@@ -5,6 +5,7 @@
 //   模板占位符 <你的Key>:未填时显示为空框 + 提示,导出时跳过(不会把字面量写进配置)。
 
 import { ref, computed, onMounted } from 'vue'
+import { errText } from '@/utils/api-fetch'
 import { useLlmStore, type LlmProvider } from '@/stores/llm'
 import { useAuthStore } from '@/stores/auth'
 
@@ -212,7 +213,7 @@ async function toggleEye(i: number) {
     }
     e.shown = true
   } catch (ex: unknown) {
-    err.value = (ex as Error).message || '读取明文失败'
+    err.value = errText(ex, '读取明文失败')
   } finally {
     busy.value = false
   }
@@ -242,7 +243,7 @@ async function save(): Promise<boolean> {
     msg.value = '✓ 已保存'
     return true
   } catch (e: unknown) {
-    err.value = (e as Error).message || '保存失败'
+    err.value = errText(e, '保存失败')
     return false
   } finally {
     busy.value = false
@@ -264,7 +265,7 @@ async function setActive() {
     if (p) loadProvider(p)
     msg.value = '✅ 已设为生效 → 新开终端 claude 即用'
   } catch (e: unknown) {
-    err.value = (e as Error).message || '切换失败'
+    err.value = errText(e, '切换失败')
   } finally {
     busy.value = false
   }
@@ -277,7 +278,7 @@ async function deactivate() {
     await llm.activate(null)
     msg.value = '↩ 已停用注入 → claude 走官方登录态'
   } catch (e: unknown) {
-    err.value = (e as Error).message || '操作失败'
+    err.value = errText(e, '操作失败')
   } finally {
     busy.value = false
   }
@@ -298,7 +299,7 @@ async function removeCard() {
     editEntries.value = []
     savedSnap.value = ''
   } catch (e: unknown) {
-    err.value = (e as Error).message || '删除失败'
+    err.value = errText(e, '删除失败')
   } finally {
     busy.value = false
   }
@@ -313,7 +314,6 @@ function startAddReset() {
 }
 
 const editing = computed(() => isNew.value || !!editId.value)
-const activeName = computed(() => llm.providers.find(p => p.id === llm.activeId)?.name ?? null)
 
 onMounted(async () => {
   try {
@@ -321,7 +321,7 @@ onMounted(async () => {
     const first = llm.providers.find(p => p.id === llm.activeId) ?? llm.providers[0]
     if (first) loadProvider(first)
   } catch (e: unknown) {
-    err.value = (e as Error).message
+    err.value = errText(e)
   }
 })
 </script>
@@ -397,7 +397,7 @@ onMounted(async () => {
     <!-- ── 底部:全局状态 ── -->
     <div class="stat">
       <span>
-        当前生效:<b>{{ activeName || '不注入(官方登录态)' }}</b>
+        当前生效:<b>{{ llm.activeName || '不注入(官方登录态)' }}</b>
         <button v-if="llm.activeId && auth.isSuper" class="link" :disabled="busy" @click="deactivate">↩ 停用注入</button>
       </span>
       <span class="stat-right" :class="{ ok: llm.rcMounted }">rc {{ llm.rcMounted ? '✓ 已挂载' : '✗ 未挂载' }}</span>
@@ -505,9 +505,6 @@ button.ghost.sm { padding: 4px 12px; font-size: 11px; border-style: dashed; }
 .path { font-family: var(--font, monospace); font-size: 9px; color: var(--text-dim); opacity: .7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .warn { font-size: 11px; color: #e5c07b; background: rgba(229,192,123,0.08); border: 1px solid rgba(229,192,123,0.3); border-radius: 6px; padding: 6px 10px; line-height: 1.7; }
 
-button.primary { padding: 7px 16px; font-size: 12px; border-radius: 4px; cursor: pointer; background: var(--glow-dim); color: var(--text); border: 1px solid var(--glow); }
-button.primary:disabled { opacity: .5; cursor: default; }
-button.ghost { padding: 7px 16px; font-size: 12px; border-radius: 4px; cursor: pointer; background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
 button.ghost:hover { color: var(--text); }
 button.ghost.danger:hover { color: #f44747; border-color: #f44747; }
 button.ghost:disabled { opacity: .5; cursor: default; }

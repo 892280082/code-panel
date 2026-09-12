@@ -7,6 +7,7 @@
 import { ref, onMounted } from 'vue'
 import type { WikiStatus } from '@/types'
 import { apiJson } from '@/utils/api-fetch'
+import { fmtTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
@@ -84,12 +85,6 @@ async function pullWiki(): Promise<void> {
   }
 }
 
-function fmtTime(ms?: number): string {
-  if (!ms) return '—'
-  const d = new Date(ms)
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
 onMounted(loadAll)
 </script>
 
@@ -126,7 +121,7 @@ onMounted(loadAll)
         <template v-else-if="wikiInfo.cloned">
           ✅ 已克隆 · {{ wikiInfo.branch || '?' }} · {{ wikiInfo.commit || '' }}
           <template v-if="wikiInfo.dirty"> · ⚠ {{ wikiInfo.dirty }} 个未提交改动</template>
-          · 上次拉取 {{ fmtTime(wikiInfo.lastPullAt) }}
+          · 上次拉取 {{ fmtTime(wikiInfo.lastPullAt) || '—' }}
         </template>
         <template v-else-if="wikiInfo.url">⚠ 地址已配置但未克隆(点「保存并克隆」)</template>
         <template v-else>未配置</template>

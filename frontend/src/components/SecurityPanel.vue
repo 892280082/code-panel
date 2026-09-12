@@ -332,22 +332,12 @@ onMounted(() => { load(); loadWatchdog() })
 }
 .badge.on { color: var(--glow, #22ee66); border-color: var(--glow-dim, rgba(34,238,102,0.3)); background: rgba(34,238,102,0.08); }
 .badge.off { color: var(--text-dim, #6b6b78); }
-.cfg-label { font-size: 12px; color: var(--text, #c8c8d0); font-weight: 500; }
 .cfg-row { display: flex; gap: 6px; align-items: center; }
-.cfg-row .form-input { flex: 1; min-width: 0; }
-.cfg-hint { font-size: 11px; color: var(--text-dim, #6b6b78); line-height: 1.7; }
 .cfg-hint.inline { flex: 1; }
 .form-input.path { font-size: 13px; font-weight: 600; }
 .mono-ex { font-family: var(--font, monospace); color: var(--text, #c8c8d0); }
 .cfg-divider { border-top: 1px dashed var(--border, #23232a); margin: 2px 0; }
-.form-input {
-  padding: 8px 10px; border: 1px solid var(--border, #23232a); border-radius: 4px;
-  background: var(--surface, #131316); color: var(--text, #c8c8d0); font-size: 12px; outline: none;
-}
-.form-input:focus { border-color: var(--glow, #22ee66); }
 .form-input[readonly] { cursor: text; }
-.form-input.mono { font-family: var(--font, monospace); }
-.form-error { color: #f44747; font-size: 11px; }
 .ok { color: var(--glow, #22ee66); font-size: 11px; }
 .cfg-hint.warn { color: #e8b339; }
 .save-btn {

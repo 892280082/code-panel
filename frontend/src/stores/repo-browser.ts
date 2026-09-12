@@ -3,7 +3,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import { apiFetch, errText } from '@/utils/api-fetch'
+import { apiJson, errText } from '@/utils/api-fetch'
 import { raise } from '@/utils/z-layer'
 import { useFileHistory } from '@/composables/useFileHistory'
 import { useProjectsStore } from './projects'
@@ -104,12 +104,9 @@ export const useRepoBrowserStore = defineStore('repoBrowser', () => {
   async function loadGitChanges(id: string) {
     gitLoading.value = true
     try {
-      const res = await apiFetch(`/api/repo-browser/${encodeURIComponent(id)}/git-changes?${qs()}`)
-      const data = await res.json()
-      if (data.ok) {
-        changedDirs.value = new Set(data.changedDirs)
-        changedFiles.value = new Set(data.changedFiles)
-      }
+      const data = await apiJson<{ changedDirs: string[]; changedFiles: string[] }>(`/api/repo-browser/${encodeURIComponent(id)}/git-changes?${qs()}`)
+      changedDirs.value = new Set(data.changedDirs)
+      changedFiles.value = new Set(data.changedFiles)
     } catch { /* ignore */ }
     gitLoading.value = false
   }
@@ -281,19 +278,12 @@ export const useRepoBrowserStore = defineStore('repoBrowser', () => {
       const params = subPath ? `?path=${encodeURIComponent(subPath)}` : ''
       const q = qs()
       const url = `/api/repo-browser/${encodeURIComponent(repoId.value)}/tree${params}${q ? (params ? '&' : '?') + q : ''}`
-      const res = await apiFetch(url)
-      const data: TreeResult = await res.json()
-      if (data.ok) {
-        treeCache.value = { ...treeCache.value, [key]: data.entries.length ? data.entries : [] }
-        clearDirError(key)
-      } else {
-        const msg = data.error || 'Failed to load directory'
-        setDirError(key, msg)
-        delete treeCache.value[key] // allow retry on error
-      }
+      const data = await apiJson<TreeResult>(url)
+      treeCache.value = { ...treeCache.value, [key]: data.entries.length ? data.entries : [] }
+      clearDirError(key)
     } catch (e) {
       setDirError(key, errText(e, 'Network error'))
-      delete treeCache.value[key]
+      delete treeCache.value[key] // allow retry on error
     } finally {
       const next = new Set(loadingDirs.value)
       next.delete(key)
@@ -352,9 +342,8 @@ export const useRepoBrowserStore = defineStore('repoBrowser', () => {
     diffLoading.value = true
     try {
       const url = `/api/repo-browser/${encodeURIComponent(repoId.value)}/diff?path=${encodeURIComponent(subPath)}&${qs()}`
-      const res = await apiFetch(url)
-      const data = await res.json()
-      if (data.ok) diffLines.value = data.lines
+      const data = await apiJson<{ lines: { type: 'add' | 'del' | 'ctx'; text: string }[] }>(url)
+      diffLines.value = data.lines
     } catch { diffLines.value = [] }
     diffLoading.value = false
   }
@@ -372,13 +361,7 @@ export const useRepoBrowserStore = defineStore('repoBrowser', () => {
       const offset = fileOffset.value + (fileContent.value ? new Blob([fileContent.value]).size : 0)
       const params = `?path=${encodeURIComponent(selectedFilePath.value)}&offset=${offset}&limit=102400`
       const url = `/api/repo-browser/${encodeURIComponent(repoId.value)}/file${params}&${qs()}`
-      const res = await apiFetch(url)
-      const data: FileChunk = await res.json()
-
-      if (!data.ok) {
-        fileError.value = data.error || 'Failed to load file'
-        return
-      }
+      const data = await apiJson<FileChunk>(url)
 
       fileLang.value = data.lang || 'plaintext'
       fileTotalSize.value = data.totalSize

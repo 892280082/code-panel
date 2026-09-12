@@ -1,6 +1,7 @@
 // ── 选中文本时浮出复制按钮（含文件路径） ────────────────
 
 import { ref, onMounted, onUnmounted } from 'vue'
+import { copyText } from '@/utils/clipboard'
 
 export function useCopySelection(filePath: () => string) {
   const showCopy = ref(false)
@@ -29,20 +30,7 @@ export function useCopySelection(filePath: () => string) {
 
   async function doCopy() {
     const text = `${filePath()}\n\`\`\`\n${selectedText.value}\n\`\`\``
-    try {
-      await navigator.clipboard.writeText(text)
-    } catch {
-      const ta = document.createElement('textarea')
-      ta.value = text
-      ta.style.position = 'fixed'
-      ta.style.left = '-9999px'
-      ta.style.top = '-9999px'
-      document.body.appendChild(ta)
-      ta.focus()
-      ta.select()
-      document.execCommand('copy')
-      document.body.removeChild(ta)
-    }
+    await copyText(text)   // secure context 优先,http 内网 execCommand 兜底
     showCopy.value = false
   }
 

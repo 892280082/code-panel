@@ -4,7 +4,7 @@
 //   信任模型:只隔离项目可见性 —— 普通用户仅看到被分配的项目,其余功能照常。
 
 import { ref, computed, onMounted } from 'vue'
-import { apiFetch, errText } from '@/utils/api-fetch'
+import { apiJson, errText } from '@/utils/api-fetch'
 import { useAuthStore } from '@/stores/auth'
 import { useProjectsStore } from '@/stores/projects'
 
@@ -39,9 +39,7 @@ const showCreate = computed(() => selected.value === null)
 async function loadUsers() {
   loading.value = true
   try {
-    const res = await apiFetch('/api/users')
-    const data = await res.json()
-    if (!data?.ok) throw new Error(data?.error || '读取失败')
+    const data = await apiJson<{ data: { users: UserView[] } }>('/api/users')
     users.value = data.data.users
     // 选中者被删/首次进入 → 默认选中当前登录用户
     if (!users.value.some(u => u.username === selected.value)) {
@@ -77,13 +75,11 @@ async function submit(payload: Record<string, unknown>, method: 'POST' | 'PUT' |
   errMsg.value = ''
   msg.value = ''
   try {
-    const res = await apiFetch(path, {
+    const data = await apiJson<{ data: { users: UserView[] } }>(path, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: method === 'DELETE' ? undefined : JSON.stringify(payload),
     })
-    const data = await res.json()
-    if (!data?.ok) throw new Error(data?.error || '操作失败')
     users.value = data.data.users
     if (keepSelect) selected.value = keepSelect
     msg.value = okMsg
@@ -357,8 +353,6 @@ onMounted(() => {
   padding: 8px 10px; font-size: 12px; background: var(--surface); color: var(--text);
   border: 1px solid var(--border); border-radius: 4px; outline: none;
 }
-.f-input:focus { border-color: var(--glow-dim); }
-.f-input.mono { font-family: var(--font); }
 
 .btn-row { display: flex; justify-content: flex-end; }
 button.primary { padding: 8px 18px; font-size: 12px; border-radius: 4px; cursor: pointer; background: var(--glow-dim); color: var(--text); border: 1px solid var(--glow); }

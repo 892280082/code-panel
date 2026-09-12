@@ -5,7 +5,7 @@
 //   故挂载即读取等价;切项目重读同样等价(面板未挂载时不触发)。
 
 import { ref, watch, onMounted } from 'vue'
-import { apiFetch, errText } from '@/utils/api-fetch'
+import { apiJson, errText } from '@/utils/api-fetch'
 import { useProjectsStore } from '@/stores/projects'
 
 const projects = useProjectsStore()
@@ -20,12 +20,9 @@ async function loadFilesCfg() {
   fileMsg.value = ''; fileErr.value = ''
   if (!projects.currentId) { upDir.value = ''; downDir.value = ''; return }
   try {
-    const res = await apiFetch(`/api/files/config?project=${encodeURIComponent(projects.currentId)}`)
-    const data = await res.json()
-    if (data?.ok) {
-      upDir.value = data.data.upload
-      downDir.value = data.data.download
-    } else throw new Error(data?.error || '读取失败')
+    const data = await apiJson<{ data: { upload: string; download: string } }>(`/api/files/config?project=${encodeURIComponent(projects.currentId)}`)
+    upDir.value = data.data.upload
+    downDir.value = data.data.download
   } catch (e) {
     fileErr.value = errText(e, '读取失败')
   }
@@ -36,13 +33,11 @@ async function saveFilesCfg() {
   fileMsg.value = ''; fileErr.value = ''
   fileBusy.value = true
   try {
-    const res = await apiFetch(`/api/files/config?project=${encodeURIComponent(projects.currentId)}`, {
+    await apiJson(`/api/files/config?project=${encodeURIComponent(projects.currentId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ upload: upDir.value, download: downDir.value }),
     })
-    const data = await res.json()
-    if (!data?.ok) throw new Error(data?.error || '保存失败')
     fileMsg.value = '✓ 已保存'
     loadFilesCfg()
   } catch (e) {
@@ -102,12 +97,6 @@ watch(() => projects.currentId, loadFilesCfg)
 .acct-grid { display: flex; gap: 8px; }
 .acct-grid.col { flex-direction: column; align-items: stretch; gap: 4px; }
 .f-label { font-size: 11px; color: var(--text-dim); }
-.f-input { padding: 7px 10px; font-size: 12px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 4px; outline: none; }
-.f-input:focus { border-color: var(--glow-dim); }
-.f-input.mono { font-family: var(--font); }
 .files-btns { display: flex; align-items: center; gap: 8px; }
 .files-btns .spacer { flex: 1; }
-button.primary { padding: 7px 16px; font-size: 12px; border-radius: 4px; cursor: pointer; background: var(--glow-dim); color: var(--text); border: 1px solid var(--glow); }
-button.primary:disabled { opacity: .5; cursor: default; }
-button.ghost { padding: 7px 16px; font-size: 12px; border-radius: 4px; cursor: pointer; background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
 </style>

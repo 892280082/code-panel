@@ -2,7 +2,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import { apiFetch } from '@/utils/api-fetch'
+import { apiFetch, apiJson } from '@/utils/api-fetch'
 import { useProjectsStore, projectQS } from './projects'
 
 export interface GitRepo {
@@ -155,9 +155,8 @@ export const useGitStore = defineStore('git', () => {
   async function loadRepos() {
     if (!projects.currentId) { repos.value = []; return }
     try {
-      const res = await apiFetch(`/api/git/repos?${qs()}`)
-      const data = await res.json()
-      repos.value = data?.ok ? (data.data || []) : []
+      const data = await apiJson<{ data: GitRepo[] }>(`/api/git/repos?${qs()}`)
+      repos.value = data?.data || []
     } catch { repos.value = [] }
   }
 
@@ -165,9 +164,8 @@ export const useGitStore = defineStore('git', () => {
     if (!projects.currentId) { summaries.value = {}; return }
     const results = await Promise.allSettled(
       repos.value.map(async r => {
-        const res = await apiFetch(`/api/git/summary/${encodeURIComponent(r.id)}?${qs()}&staged=${showStaged.value}`)
-        const data = await res.json()
-        if (data?.ok) summaries.value[r.id] = data as RepoSummary
+        const data = await apiJson<RepoSummary>(`/api/git/summary/${encodeURIComponent(r.id)}?${qs()}&staged=${showStaged.value}`)
+        summaries.value[r.id] = data
         return data
       })
     )
@@ -186,9 +184,8 @@ export const useGitStore = defineStore('git', () => {
     loading.value = true
     try {
       const staged = showStaged.value ? '&staged=true' : ''
-      const res = await apiFetch(`/api/git/diff/${encodeURIComponent(id)}?${qs()}${staged}`)
-      const data = await res.json()
-      if (data?.ok) diffResult.value = data as RepoDiff
+      const data = await apiJson<RepoDiff>(`/api/git/diff/${encodeURIComponent(id)}?${qs()}${staged}`)
+      diffResult.value = data
     } catch { diffResult.value = null }
     finally { loading.value = false }
     expandedRepos.value = new Set(expandedRepos.value) // trigger reactivity
@@ -211,9 +208,8 @@ export const useGitStore = defineStore('git', () => {
     if (!projects.currentId) return
     sourceLoading.value = true
     try {
-      const res = await apiFetch(`/api/git/source/${encodeURIComponent(repoId)}?${qs()}&file=${encodeURIComponent(filePath)}`)
-      const data = await res.json()
-      if (data?.ok) fileSource.value = data.content
+      const data = await apiJson<{ content: string }>(`/api/git/source/${encodeURIComponent(repoId)}?${qs()}&file=${encodeURIComponent(filePath)}`)
+      fileSource.value = data.content
     } catch { fileSource.value = '' }
     finally { sourceLoading.value = false }
   }
@@ -239,19 +235,14 @@ export const useGitStore = defineStore('git', () => {
 
   async function addRepo(name: string, repoPath: string, notes?: string) {
     if (!projects.currentId) return
-    const res = await apiFetch(`/api/git/repos?${qs()}`, {
+    await apiJson(`/api/git/repos?${qs()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, repoPath, notes }),
     })
-    const data = await res.json()
-    if (data?.ok) {
-      await loadRepos()
-      await loadAllSummaries()
-      showAddRepo.value = false
-    } else {
-      throw new Error(data?.error || '添加失败')
-    }
+    await loadRepos()
+    await loadAllSummaries()
+    showAddRepo.value = false
   }
 
   async function removeRepo(id: string) {
@@ -265,10 +256,11 @@ export const useGitStore = defineStore('git', () => {
     await loadAllSummaries()
     // Also refresh expanded repo's full diff
     for (const id of expandedRepos.value) {
-      const staged = showStaged.value ? '&staged=true' : ''
-      const res = await apiFetch(`/api/git/diff/${encodeURIComponent(id)}?${qs()}${staged}`)
-      const data = await res.json()
-      if (data?.ok) diffResult.value = data as RepoDiff
+      try {
+        const staged = showStaged.value ? '&staged=true' : ''
+        const data = await apiJson<RepoDiff>(`/api/git/diff/${encodeURIComponent(id)}?${qs()}${staged}`)
+        diffResult.value = data
+      } catch { /* 单仓库失败不阻断其余仓库 */ }
     }
   }
 
@@ -279,11 +271,8 @@ export const useGitStore = defineStore('git', () => {
     pulling.value = true
     pullResults.value = []
     try {
-      const res = await apiFetch(`/api/git/pull-all?${qs()}`, { method: 'POST' })
-      const data = await res.json()
-      if (data?.ok) {
-        pullResults.value = data.results || []
-      }
+      const data = await apiJson<{ results: PullResult[] }>(`/api/git/pull-all?${qs()}`, { method: 'POST' })
+      pullResults.value = data.results || []
       await loadAllSummaries()
     } catch { /* handled by ui */ }
     finally { pulling.value = false }
@@ -297,9 +286,8 @@ export const useGitStore = defineStore('git', () => {
     logLoading.value = true
     logResult.value = null
     try {
-      const res = await apiFetch(`/api/git/log/${encodeURIComponent(repoId)}?${qs()}&limit=100`)
-      const data = await res.json()
-      if (data?.ok) logResult.value = data as RepoLog
+      const data = await apiJson<RepoLog>(`/api/git/log/${encodeURIComponent(repoId)}?${qs()}&limit=100`)
+      logResult.value = data
     } catch { logResult.value = null }
     finally { logLoading.value = false }
   }

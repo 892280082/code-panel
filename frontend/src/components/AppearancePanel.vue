@@ -96,7 +96,6 @@ onMounted(load)
   border: 1px solid var(--border, #23232a); border-radius: 8px;
 }
 .cfg-title { font-size: 13px; color: var(--text, #c8c8d0); font-weight: 600; }
-.cfg-hint { font-size: 11px; color: var(--text-dim, #6b6b78); line-height: 1.7; }
 .cfg-hint.tip { margin: 0; opacity: 0.8; }
 .form-error { color: #f44747; font-size: 11px; margin: 0; }
 .ok { color: var(--glow, #22ee66); font-size: 11px; margin: 0; }

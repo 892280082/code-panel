@@ -2,7 +2,7 @@
 // ── nginx 检测面板(嵌入 ⚙ 配置 → nginx Tab)─────────────────
 //   只读:本机 nginx 状态 + 项目 .code-panel/nginx 下 conf 列表/查看 + 「检测」按钮
 //   (nginx -t 语法 / server_name 是否被本机加载 / 项目副本 vs 本机实际加载 md5)
-import { apiFetch } from '@/utils/api-fetch'
+import { apiJson, errText } from '@/utils/api-fetch'
 import { ref, watch, onMounted } from 'vue'
 import { useProjectsStore, projectQS } from '@/stores/projects'
 
@@ -40,12 +40,10 @@ const qs = projectQS
 async function loadStatus() {
   statusMsg.value = ''
   try {
-    const res = await apiFetch(`/api/nginx/status?${qs()}`)
-    const data = await res.json()
-    if (data?.ok) status.value = data.data
-    else statusMsg.value = data?.error || '读取失败'
-  } catch {
-    statusMsg.value = '无法读取 nginx 状态'
+    const data = await apiJson<{ data: NginxInfo }>(`/api/nginx/status?${qs()}`)
+    status.value = data.data
+  } catch (e) {
+    statusMsg.value = errText(e, '无法读取 nginx 状态')
   }
 }
 
@@ -56,12 +54,9 @@ async function loadConfs() {
   checkResult.value = null
   if (!projects.currentId) { dir.value = ''; return }
   try {
-    const res = await apiFetch(`/api/nginx/confs?${qs()}`)
-    const data = await res.json()
-    if (data?.ok) {
-      confs.value = data.data
-      dir.value = data.data.length ? data.data[0].abs.replace(/[^/]+\.conf$/, '') : ''
-    }
+    const data = await apiJson<{ data: ConfItem[] }>(`/api/nginx/confs?${qs()}`)
+    confs.value = data.data
+    dir.value = data.data.length ? data.data[0].abs.replace(/[^/]+\.conf$/, '') : ''
   } catch { /* ignore */ }
 }
 
@@ -71,9 +66,8 @@ async function openConf(name: string) {
   checkResult.value = null
   if (!name) return
   try {
-    const res = await apiFetch(`/api/nginx/conf?${qs()}&file=${encodeURIComponent(name)}`)
-    const data = await res.json()
-    if (data?.ok) content.value = data.data.content
+    const data = await apiJson<{ data: { content: string } }>(`/api/nginx/conf?${qs()}&file=${encodeURIComponent(name)}`)
+    content.value = data.data.content
   } catch { content.value = '' }
 }
 
@@ -83,16 +77,14 @@ async function runCheck() {
   checkErr.value = ''
   checkResult.value = null
   try {
-    const res = await apiFetch(`/api/nginx/check?${qs()}`, {
+    const data = await apiJson<{ data: NginxCheckInfo }>(`/api/nginx/check?${qs()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ file: selected.value }),
     })
-    const data = await res.json()
-    if (data?.ok) checkResult.value = data.data
-    else checkErr.value = data?.error || '检测失败'
-  } catch {
-    checkErr.value = '网络错误'
+    checkResult.value = data.data
+  } catch (e) {
+    checkErr.value = errText(e, '检测失败')
   } finally {
     busy.value = false
   }

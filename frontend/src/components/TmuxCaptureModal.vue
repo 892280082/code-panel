@@ -6,9 +6,10 @@
 //   ttyd 不支持 OSC52 —— 后端 capture-pane 出纯文本,弹窗里随意选/
 //   一键复制,是网页远程时唯一可靠的复制通道。
 
-import { apiFetch } from '@/utils/api-fetch'
+import { apiJson, errText } from '@/utils/api-fetch'
 import { ref, watch } from 'vue'
 import { useTerminalStore } from '@/stores/terminal'
+import { useCopyFeedback } from '@/composables/useCopyFeedback'
 
 const terminal = useTerminalStore()
 
@@ -16,7 +17,7 @@ const capLines = ref(200)
 const capText = ref('')
 const capLoading = ref(false)
 const capError = ref('')
-const capCopied = ref(false)
+const { copied: capCopied, copy } = useCopyFeedback()
 
 async function fetchCapture() {
   const t = terminal.capTarget
@@ -24,12 +25,11 @@ async function fetchCapture() {
   capLoading.value = true; capError.value = ''; capCopied.value = false
   try {
     const q = `project=${encodeURIComponent(t.project)}&name=${encodeURIComponent(t.fullName)}&lines=${capLines.value}`
-    const res = await apiFetch(`/api/terminal/tmux/capture?${q}`)
-    const data = await res.json()
-    if (!data.ok) { capError.value = data.error || '抓屏失败'; capText.value = '' }
-    else capText.value = data.data.text
-  } catch {
-    capError.value = '网络错误'
+    const data = await apiJson<{ data: { text: string } }>(`/api/terminal/tmux/capture?${q}`)
+    capText.value = data.data.text
+  } catch (e) {
+    capError.value = errText(e, '抓屏失败')
+    capText.value = ''
   } finally {
     capLoading.value = false
   }
@@ -38,26 +38,11 @@ async function fetchCapture() {
 // 打开即抓屏(换目标重开也触发 —— openCapture 每次放新对象)
 watch(() => terminal.capTarget, (t) => { if (t) fetchCapture() })
 
-/** 剪贴板写入:secure context(localhost/https)走 navigator.clipboard;
- *  内网 http 下该 API 不存在 → execCommand 兜底(用户手势点击内有效) */
+/** 复制全部(utils/clipboard.copyText 带 http 内网兜底;成功后 copied 亮 1.5s 自动灭) */
 async function copyAll(): Promise<void> {
   const text = capText.value
   if (!text) return
-  let ok = false
-  try {
-    await navigator.clipboard.writeText(text)
-    ok = true
-  } catch {
-    const ta = document.createElement('textarea')
-    ta.value = text
-    ta.style.position = 'fixed'; ta.style.opacity = '0'
-    document.body.appendChild(ta)
-    ta.select()
-    try { ok = document.execCommand('copy') } catch { ok = false }
-    ta.remove()
-  }
-  capCopied.value = ok
-  if (ok) setTimeout(() => { capCopied.value = false }, 1500)
+  await copy(text)
 }
 </script>
 

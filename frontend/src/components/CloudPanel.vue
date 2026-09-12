@@ -11,7 +11,8 @@ import { useCloudStore } from '@/stores/cloud'
 import { useProjectsStore } from '@/stores/projects'
 import { useAuthStore } from '@/stores/auth'
 import { copyText } from '@/utils/clipboard'
-import { fmtSize } from '@/utils/format'
+import { fmtSize, fmtTime } from '@/utils/format'
+import { useCopyFeedback } from '@/composables/useCopyFeedback'
 
 interface CloudFile {
   name: string; size: number; mtime: number; ext: string; image: boolean; abs: string
@@ -43,12 +44,6 @@ function rawUrl(name: string, side: Tab): string {
   return `/api/files/raw?project=${encodeURIComponent(id)}&side=${side}&name=${encodeURIComponent(name)}&token=${auth.token}`
 }
 
-function fmtTime(ms: number): string {
-  if (!ms) return ''
-  const d = new Date(ms)
-  const pad = (x: number) => String(x).padStart(2, '0')
-  return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
 function setTip(m: string) { tip.value = m; setTimeout(() => { if (tip.value === m) tip.value = '' }, 3000) }
 
 async function load(side: Tab) {
@@ -143,14 +138,11 @@ async function copyPath(f: CloudFile) {
 }
 
 // 顶部「复制整个目录」按钮(告诉终端/AI 往哪写 / 在哪取)
-const copiedDir = ref<Tab | ''>('')
+const { copied: dirCopied, copy: copyDirText } = useCopyFeedback(1600)
 async function copyDir(side: Tab) {
   const p = side === 'upload' ? dirUpload.value : dirDownload.value
   if (!p) return
-  if (await copyText(p)) {
-    copiedDir.value = side
-    setTimeout(() => { if (copiedDir.value === side) copiedDir.value = '' }, 1600)
-  }
+  await copyDirText(p)
 }
 
 // ── 下载(AI 写的文件)→ 浏览器拿回本地 ─────────────────
@@ -233,8 +225,8 @@ function openPreview(f: CloudFile) {
               <div class="cloud-dirlabel">{{ tab === 'upload' ? '上传目录 · 文件传到这里' : '下载目录 · 复制路径发给终端/AI,让它往这里写文档/文件' }}</div>
               <div class="cloud-dirpath" :title="tab === 'upload' ? dirUpload : dirDownload">{{ tab === 'upload' ? dirUpload : dirDownload }}</div>
             </div>
-            <button class="cloud-dircopy" :class="{ ok: copiedDir === tab }" title="复制整个目录的绝对路径" @click="copyDir(tab)">
-              {{ copiedDir === tab ? '✓ 已复制' : '复制目录' }}
+            <button class="cloud-dircopy" :class="{ ok: dirCopied }" title="复制整个目录的绝对路径" @click="copyDir(tab)">
+              {{ dirCopied ? '✓ 已复制' : '复制目录' }}
             </button>
           </div>
 

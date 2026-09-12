@@ -148,8 +148,6 @@ const tabs: { key: TabKey; label: string }[] = [
 .modal-body { flex: 1; padding: 14px 16px; overflow-y: auto; display: flex; flex-direction: column; }
 .tab-pane { display: flex; flex-direction: column; gap: 8px; }
 
-button.ghost { padding: 7px 16px; font-size: 12px; border-radius: 4px; cursor: pointer; background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
-
 .modal-footer {
   display: flex; align-items: center; justify-content: flex-end; gap: 8px;
   padding: 10px 16px; border-top: 1px solid var(--border);

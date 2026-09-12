@@ -2,7 +2,7 @@
 // ── 备份面板(内容区;嵌入 ⚙ 配置「备份」Tab)────────────────
 //   从原 BackupDrawer 抽出:配置路径 / 立即备份 / 列表下载,去掉浮层按钮。
 
-import { apiFetch } from '@/utils/api-fetch'
+import { apiJson, errText } from '@/utils/api-fetch'
 import { ref, onMounted } from 'vue'
 import { fmtSize } from '@/utils/format'
 
@@ -18,20 +18,16 @@ const runMsg = ref('')
 
 async function loadConfig() {
   try {
-    const res = await apiFetch('/api/backup/config')
-    const data = await res.json()
-    if (data.ok) {
-      pathInput.value = data.data.path
-      maxKeep.value = data.data.maxKeep
-    }
+    const data = await apiJson<{ data: { path: string; maxKeep: number } }>('/api/backup/config')
+    pathInput.value = data.data.path
+    maxKeep.value = data.data.maxKeep
   } catch { /* ignore */ }
 }
 
 async function loadList() {
   try {
-    const res = await apiFetch('/api/backup/list')
-    const data = await res.json()
-    if (data.ok) backups.value = data.data
+    const data = await apiJson<{ data: BackupEntry[] }>('/api/backup/list')
+    backups.value = data.data
   } catch { /* ignore */ }
 }
 
@@ -40,16 +36,14 @@ async function handleSavePath() {
   if (!pathInput.value.trim()) { pathError.value = '请输入备份路径'; return }
   saving.value = true
   try {
-    const res = await apiFetch('/api/backup/config', {
+    await apiJson('/api/backup/config', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: pathInput.value.trim() }),
     })
-    const data = await res.json()
-    if (!data.ok) { pathError.value = data.error || '保存失败' }
-    else loadList()
-  } catch {
-    pathError.value = '网络错误'
+    loadList()
+  } catch (e) {
+    pathError.value = errText(e, '保存失败')
   } finally {
     saving.value = false
   }
@@ -60,16 +54,11 @@ async function handleRun() {
   running.value = true
   runMsg.value = ''
   try {
-    const res = await apiFetch('/api/backup/run', { method: 'POST' })
-    const data = await res.json()
-    if (data.ok) {
-      runMsg.value = '✓ 备份完成:' + (data.data.file || '').split('/').pop()
-      loadList()
-    } else {
-      runMsg.value = '✗ ' + (data.error || '备份失败')
-    }
-  } catch {
-    runMsg.value = '✗ 网络错误'
+    const data = await apiJson<{ data: { file?: string } }>('/api/backup/run', { method: 'POST' })
+    runMsg.value = '✓ 备份完成:' + (data.data.file || '').split('/').pop()
+    loadList()
+  } catch (e) {
+    runMsg.value = '✗ ' + errText(e, '备份失败')
   } finally {
     running.value = false
   }
@@ -137,17 +126,8 @@ onMounted(() => {
   padding: 10px; background: var(--bg, #09090b);
   border: 1px solid var(--border, #23232a); border-radius: 8px;
 }
-.cfg-label { font-size: 12px; color: var(--text, #c8c8d0); font-weight: 500; }
 .cfg-row { display: flex; gap: 6px; }
-.cfg-row .form-input { flex: 1; min-width: 0; }
 .cfg-hint { font-size: 10px; color: var(--text-dim, #6b6b78); }
-.form-input {
-  padding: 8px 10px; border: 1px solid var(--border, #23232a); border-radius: 4px;
-  background: var(--surface, #131316); color: var(--text, #c8c8d0); font-size: 12px; outline: none;
-}
-.form-input:focus { border-color: var(--glow, #22ee66); }
-.form-input.mono { font-family: var(--font, monospace); }
-.form-error { color: #f44747; font-size: 11px; }
 .save-btn {
   padding: 8px 14px; border: 1px solid var(--glow-dim, rgba(34,238,102,0.3));
   border-radius: 4px; background: transparent; color: var(--glow, #22ee66);

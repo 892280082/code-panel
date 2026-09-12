@@ -184,12 +184,6 @@ button.mini.save:hover { background: rgba(34,238,102,0.1); color: var(--glow); }
 .add-err-line .spacer { flex: 1; }
 .add-err-line button { margin-left: 4px; }
 
-.f-input { padding: 7px 10px; font-size: 12px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 4px; outline: none; }
-.f-input:focus { border-color: var(--glow-dim); }
-.f-input.mono { font-family: var(--font); }
-button.primary { padding: 7px 16px; font-size: 12px; border-radius: 4px; cursor: pointer; background: var(--glow-dim); color: var(--text); border: 1px solid var(--glow); }
-button.primary:disabled { opacity: .5; cursor: default; }
-button.ghost { padding: 7px 16px; font-size: 12px; border-radius: 4px; cursor: pointer; background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
 button.mini { background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; font-size: 11px; padding: 2px 6px; cursor: pointer; }
 button.mini.danger:hover { color: #f44747; border-color: #f44747; }
 </style>

@@ -6,15 +6,10 @@
 
 import { useCapsuleStore } from '@/stores/capsule';
 import { useOverlayLayer } from '@/utils/z-layer';
+import { fmtTime } from '@/utils/format';
 
 const capsule = useCapsuleStore();
 const { zIndex, onRaise } = useOverlayLayer(() => capsule.toasts.length > 0);
-
-function fmtTime(ms: number): string {
-  const d = new Date(ms);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 </script>
 
 <template>

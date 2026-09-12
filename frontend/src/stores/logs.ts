@@ -1,7 +1,7 @@
 // ── Log viewer store(按当前项目作用域) ────────────────────
 //   数据源 = GET /api/logs?project=<id>;SSE 随项目重连;切换项目自动重置。
 
-import { apiFetch } from '@/utils/api-fetch'
+import { apiFetch, apiJson } from '@/utils/api-fetch'
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { LogEntry } from '@/types'
@@ -96,9 +96,8 @@ export const useLogStore = defineStore('logs', () => {
   async function loadLogs() {
     if (!projects.currentId) { logs.value = []; return }
     try {
-      const res = await apiFetch(`/api/logs?project=${encodeURIComponent(projects.currentId)}`)
-      const data = await res.json()
-      if (data?.ok) logs.value = data.data || []
+      const data = await apiJson<{ data: LogEntry[] }>(`/api/logs?project=${encodeURIComponent(projects.currentId)}`)
+      logs.value = data.data || []
       // 同步端口状态(SSE 未覆盖前先用列表初始 alive 值)
       for (const log of logs.value) {
         if (log.port !== undefined && log.port !== null) {
@@ -123,8 +122,7 @@ export const useLogStore = defineStore('logs', () => {
 
     try {
       const q = `project=${encodeURIComponent(projects.currentId)}&file=${encodeURIComponent(fp)}`
-      const res = await apiFetch(`/api/log/content?${q}`)
-      const data = await res.json()
+      const data = await apiJson<{ data?: { content?: string }; content?: string }>(`/api/log/content?${q}`)
       const content = data?.data?.content ?? data?.content ?? ''
       if (content) {
         tabs.value[fp].content = content
@@ -167,8 +165,7 @@ export const useLogStore = defineStore('logs', () => {
     if (!projects.currentId) return
     try {
       const q = `project=${encodeURIComponent(projects.currentId)}&file=${encodeURIComponent(fp)}`
-      const res = await apiFetch(`/api/log/content?${q}`)
-      const data = await res.json()
+      const data = await apiJson<{ data?: { content?: string }; content?: string }>(`/api/log/content?${q}`)
       const content = data?.data?.content ?? data?.content ?? ''
       if (content && tabs.value[fp]) {
         tabs.value[fp].content = content

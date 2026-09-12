@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { errText } from '@/utils/api-fetch'
 import { type RepoSummary,useGitStore, gitPullStatusIcon, gitFormatLogTime  } from '@/stores/git'
 import { useProjectsStore } from '@/stores/projects'

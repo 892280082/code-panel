@@ -8,7 +8,8 @@
 //   自带 5s 轮询、与抽屉开合同步。新建表单展开态由父组件持有 ——
 //   底部「＋ 新建 Tmux」按钮的文案与高亮也依赖它;创建成功后 emit 收起表单。
 
-import { apiFetch } from '@/utils/api-fetch'
+import { apiJson, errText } from '@/utils/api-fetch'
+import { fmtTime } from '@/utils/format'
 import type { TmuxSessionInfo } from '@/types'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useProjectsStore } from '@/stores/projects'
@@ -37,12 +38,9 @@ watch(() => props.showForm, (open) => {
 /** 拉取宿主全部 tmux 会话(不带 project = 全项目平铺;项目归属前端用 chip 展示) */
 async function loadTmuxSessions() {
   try {
-    const res = await apiFetch('/api/terminal/tmux/list')
-    const data = await res.json()
-    if (data.ok) {
-      const list: TmuxSessionInfo[] = data.data || []
-      tmuxSessions.value = list.slice().sort((a, b) => b.createdAt - a.createdAt)
-    }
+    const data = await apiJson<{ data: TmuxSessionInfo[] }>('/api/terminal/tmux/list')
+    const list: TmuxSessionInfo[] = data.data || []
+    tmuxSessions.value = list.slice().sort((a, b) => b.createdAt - a.createdAt)
   } catch { /* ignore */ }
 }
 
@@ -88,7 +86,7 @@ async function handleCreateTmux() {
   // 备注留空则以添加当时的项目名兜底(归属一眼可见)
   const desc = newTmuxDesc.value.trim() || projects.currentProject?.name || ''
   try {
-    const res = await apiFetch('/api/terminal/tmux/create', {
+    const data = await apiJson<{ data: { name: string; fullName: string } }>('/api/terminal/tmux/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -97,15 +95,13 @@ async function handleCreateTmux() {
         description: desc || undefined,
       }),
     })
-    const data = await res.json()
-    if (!data.ok) { tmuxError.value = data.error || '创建失败'; return }
     const { name, fullName } = data.data
     newTmuxName.value = ''; newTmuxDesc.value = ''
     emit('update:showForm', false)
     loadTmuxSessions()
     await terminal.attachTmux(fullName, name, projects.currentId!, desc)
-  } catch {
-    tmuxError.value = '网络错误'
+  } catch (e) {
+    tmuxError.value = errText(e, '创建失败')
   }
 }
 
@@ -134,21 +130,13 @@ function openCapture(s: TmuxSessionInfo) {
  *  开 → 恢复滚轮滚动(复制走「抓屏」弹窗) */
 async function onToggleMouse(s: TmuxSessionInfo) {
   try {
-    const res = await apiFetch('/api/terminal/tmux/mouse', {
+    await apiJson('/api/terminal/tmux/mouse', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ project: s.project, name: s.fullName, enabled: !s.mouse }),
     })
-    const data = await res.json()
-    if (data.ok) loadTmuxSessions()
+    loadTmuxSessions()
   } catch { /* ignore */ }
-}
-
-function fmtTime(ms: number): string {
-  if (!ms) return ''
-  const d = new Date(ms)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 function startPolling() {
