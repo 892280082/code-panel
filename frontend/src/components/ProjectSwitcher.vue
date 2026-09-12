@@ -56,21 +56,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
   display: flex; align-items: center; justify-content: center;
 }
 .ps-panel {
-  max-width: min(860px, 92vw);
+  max-width: min(1376px, 94vw);   /* 860 × 1.6 */
   background: var(--surface, #101014);
-  border: 1px solid var(--border, #23232a); border-radius: 10px;
+  border: 1px solid var(--border, #23232a); border-radius: 16px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-  padding: 12px; outline: none;
+  padding: 19px; outline: none;   /* 12 × 1.6 */
 }
 .ps-head {
-  font-size: 12px; font-weight: 700; color: var(--text, #c8c8d0);
-  padding: 2px 4px 10px; letter-spacing: 0.04em;
+  font-size: 19px; font-weight: 700; color: var(--text, #c8c8d0);
+  padding: 3px 6px 16px; letter-spacing: 0.04em;
 }
-.ps-hint { font-size: 10px; font-weight: 400; color: var(--text-dim, #6b6b78); margin-left: 8px; }
-.ps-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.ps-hint { font-size: 16px; font-weight: 400; color: var(--text-dim, #6b6b78); margin-left: 13px; }
+.ps-row { display: flex; gap: 13px; flex-wrap: wrap; }
 .ps-card {
-  display: flex; flex-direction: column; gap: 4px; min-width: 130px; max-width: 200px;
-  padding: 10px 12px; cursor: pointer; border-radius: 8px;
+  display: flex; flex-direction: column; gap: 6px; min-width: 208px; max-width: 320px; /* 130/200 × 1.6 */
+  padding: 16px 19px; cursor: pointer; border-radius: 13px;
   border: 1px solid var(--border, #23232a); background: var(--bg, #09090b);
   transition: border-color 0.1s, background 0.1s, transform 0.1s;
 }
@@ -79,11 +79,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
   border-color: var(--glow, #22ee66); background: rgba(34,238,102,0.07);
   transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.4);
 }
-.ps-icon { font-size: 18px; position: relative; }
+.ps-icon { font-size: 29px; position: relative; }   /* 18 × 1.6 */
 .ps-card.cur .ps-icon::after {
-  content: '● 当前'; font-size: 9px; color: var(--glow, #22ee66);
-  position: absolute; left: 26px; top: 4px; white-space: nowrap;
+  content: '● 当前'; font-size: 14px; color: var(--glow, #22ee66);
+  position: absolute; left: 42px; top: 7px; white-space: nowrap;
 }
-.ps-name { font-size: 12px; color: var(--text, #c8c8d0); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ps-note { font-size: 10px; color: var(--text-dim, #6b6b78); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ps-name { font-size: 19px; color: var(--text, #c8c8d0); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ps-note { font-size: 16px; color: var(--text-dim, #6b6b78); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
