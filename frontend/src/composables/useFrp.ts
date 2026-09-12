@@ -19,14 +19,9 @@ async function load(): Promise<void> {
   } catch { /* 面板旧版本无此接口 → 保持 null,卡片隐藏 */ }
 }
 
-/** 切换公网暴露;含二次确认。返回 {ok} + error/raw 供调用方选择展示方式 */
+/** 切换公网暴露(无确认弹窗,拨了就切)。返回 {ok} + error/raw 供调用方选择展示方式 */
 async function toggle(next: boolean): Promise<{ ok: boolean; error?: string; raw?: string }> {
   if (busy.value) return { ok: false }
-  if (next && !window.confirm(
-    '开启 FRP 公网暴露?\n\n' +
-    '公网 203.0.113.10 的 60101/60111/60112/60113 将对所有人开放,\n' +
-    '存在暴露风险 —— 仅在需要外网访问/演示时开启。')) return { ok: false }
-  if (!next && !window.confirm('关闭 FRP 公网暴露?\n\n公网口全部下线;管理隧道(SSH/code-server/code-panel)不受影响。')) return { ok: false }
   busy.value = true
   const prev = info.value
   if (info.value) info.value = { ...info.value, on: next } // 乐观更新,失败回滚
