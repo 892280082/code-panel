@@ -52,7 +52,7 @@ router.get('/api/wiki/files', route((_req: Request, res: Response) => {
   res.json({ ok: true, data: { clonePath: root, cloned: getWikiConfig().url !== '' && fs.existsSync(path.join(root, '.git')), files } });
 }));
 
-// GET /api/wiki/view?file= — 双栏查看页(左导航=全 wiki 文件;linkMode=wiki)
+// GET /api/wiki/view?file= — 双栏查看页(左导航=当前文件所在目录;linkMode=wiki)
 router.get('/api/wiki/view', route((req: Request, res: Response) => {
   const file = typeof req.query.file === 'string' ? req.query.file : '';
   const root = wikiDir();

@@ -21,7 +21,11 @@ export interface FileTreeRow<T> {
   depth: number
 }
 
-export function useFileTree<T extends { path: string }>(files: Ref<T[]>) {
+export function useFileTree<T extends { path: string }>(
+  files: Ref<T[]>,
+  opts?: { compress?: boolean }   // 压缩单孩子目录链(默认 true;传 false = 逐级展开完整层级)
+) {
+  const compress = opts?.compress !== false
   const expandedDirs = ref<Set<string>>(new Set())
 
   const tree = computed<FileTreeNode<T>[]>(() => {
@@ -55,7 +59,7 @@ export function useFileTree<T extends { path: string }>(files: Ref<T[]>) {
         let name = node.name
         let full = prefix ? prefix + '/' + name : name
         let children = node.children
-        while (children.size === 1) {
+        while (compress && children.size === 1) {
           const only = [...children.values()][0]
           if (only.file) break
           const k = [...children.keys()][0]

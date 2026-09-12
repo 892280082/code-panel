@@ -22,7 +22,7 @@ const cloned = ref(true)
 const currentFile = ref('')
 const frameKey = ref(0)
 
-const { visibleRows, toggleDir } = useFileTree<WikiFile>(files)
+const { visibleRows, toggleDir } = useFileTree<WikiFile>(files, { compress: false })
 
 const frameSrc = computed(() => {
   if (!cloned.value) return ''

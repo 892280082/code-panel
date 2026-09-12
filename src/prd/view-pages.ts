@@ -246,13 +246,20 @@ export function buildViewPage(md: string, mdName: string, dir: string, extraBase
     ? `<pre class="code-pre"><code>${esc(md)}</code></pre>`
     : rewriteLinks(inlineTabWidgets(inlineProtoSections(markdownToHtml(md), refs), md, dir), dir, projQ, target);
   // 2026-09-11 递归列表 → 2026-09-12 收敛:PRD 模式过 navVisible(顶层 + plan 三桶),
-  //   防全量递归把 drafts/ 等灌爆左栏;胶囊/wiki(target)保持全量树不变
-  const files = target ? listViewFiles(dir) : listViewFiles(dir).filter(f => navVisible(path.relative(dir, f)));
+  //   防全量递归把 drafts/ 等灌爆左栏;胶囊(target)保持全量树不变;
+  //   wiki 只列当前文件所在目录(全仓导航由外层 WikiView 侧栏树负责,iframe 内平铺全仓属噪音)
+  const files = !target
+    ? listViewFiles(dir).filter(f => navVisible(path.relative(dir, f)))
+    : target.mode === 'wiki'
+      ? listViewFiles(dir).filter(f => path.dirname(f) === path.dirname(path.resolve(dir, mdName)))
+      : listViewFiles(dir);
   const nav = files.map(f => {
     const rel = path.relative(dir, f);
+    // wiki 模式左栏只列当前文件所在目录 → 显示纯文件名即可(带目录前缀属噪音);PRD/胶囊仍显示相对路径
+    const label = target?.mode === 'wiki' ? path.basename(f) : rel;
     const active = f === path.resolve(dir, mdName) ? ' class="on"' : '';
     const href = target ? viewHref(target, f) : `/api/prd/view?dir=${encodeURIComponent(dir)}&file=${encodeURIComponent(rel)}${projQ}`;
-    return `<a${active} href="${href}">${rel}</a>`;
+    return `<a${active} href="${href}">${label}</a>`;
   }).join('\n');
 
   return `<!DOCTYPE html>
