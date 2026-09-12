@@ -7,17 +7,23 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { getHotkeys, setHotkey, eventCombo, fmtCombo, type Hotkeys } from '@/utils/hotkeys'
 
 const combo = ref<Hotkeys>(getHotkeys())
-const recording = ref(false)
+const recording = ref<keyof Hotkeys | null>(null)
 const note = ref('')
 
-function startRecord(): void {
-  recording.value = true
+/** 动作清单(新动作在此登记,渲染/改键通用) */
+const ACTIONS: Array<{ key: keyof Hotkeys; name: string; desc: string }> = [
+  { key: 'toggleTerm', name: '显示 / 隐藏 tmux 终端', desc: '一键收起或恢复全部 tmux 终端窗口;一个都没开时打开命令终端抽屉' },
+  { key: 'switchProject', name: '项目切换器(Alt+Tab 风格)', desc: '呼出项目卡片浮层,再按同键循环高亮;← → 选择,Enter 切换,Esc 取消' },
+]
+
+function startRecord(action: keyof Hotkeys): void {
+  recording.value = action
   note.value = ''
   window.addEventListener('keydown', onRecordKey, true)
 }
 
 function stopRecord(): void {
-  recording.value = false
+  recording.value = null
   window.removeEventListener('keydown', onRecordKey, true)
 }
 
@@ -32,7 +38,7 @@ function onRecordKey(e: KeyboardEvent): void {
     note.value = '需搭配 Ctrl / ⌘ / Alt 修饰键'
     return
   }
-  setHotkey('toggleTerm', c)
+  setHotkey(recording.value ?? 'toggleTerm', c)
   combo.value = getHotkeys()
   note.value = `✅ 已改为 ${fmtCombo(c)}`
   stopRecord()
@@ -44,14 +50,14 @@ onBeforeUnmount(stopRecord)
 
 <template>
   <div class="hk">
-    <div class="hk-row">
+    <div v-for="a in ACTIONS" :key="a.key" class="hk-row">
       <div class="hk-info">
-        <div class="hk-name">显示 / 隐藏 tmux 终端</div>
-        <div class="hk-desc">一键收起或恢复全部 tmux 终端窗口;一个都没开时打开命令终端抽屉</div>
+        <div class="hk-name">{{ a.name }}</div>
+        <div class="hk-desc">{{ a.desc }}</div>
       </div>
-      <template v-if="!recording">
-        <span class="hk-key">{{ fmtCombo(combo.toggleTerm) }}</span>
-        <button class="hk-btn" @click="startRecord">修改</button>
+      <template v-if="recording !== a.key">
+        <span class="hk-key">{{ fmtCombo(combo[a.key]) }}</span>
+        <button class="hk-btn" @click="startRecord(a.key)">修改</button>
       </template>
       <template v-else>
         <span class="hk-key rec">按下新组合…</span>

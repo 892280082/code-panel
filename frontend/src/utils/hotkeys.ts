@@ -6,10 +6,12 @@
 export interface Hotkeys {
   /** 显示/隐藏全部 tmux 终端窗口(无窗口时开命令抽屉) */
   toggleTerm: string
+  /** 项目切换器(Alt+Tab 风格:呼出/循环高亮;左右选,回车切) */
+  switchProject: string
 }
 
 const KEY = 'cp-hotkeys'
-const DEFAULTS: Hotkeys = { toggleTerm: 'ctrl+1' }
+const DEFAULTS: Hotkeys = { toggleTerm: 'ctrl+1', switchProject: 'ctrl+2' }
 
 export function getHotkeys(): Hotkeys {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') } } catch { return { ...DEFAULTS } }

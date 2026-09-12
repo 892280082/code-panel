@@ -8,6 +8,8 @@ import CapsulePreviewModal from '@/components/CapsulePreviewModal.vue'
 import RepoBrowserModal from '@/components/RepoBrowserModal.vue'
 import CloudPanel from '@/components/CloudPanel.vue'
 import { useTerminalStore } from '@/stores/terminal'
+import ProjectSwitcher from '@/components/ProjectSwitcher.vue'
+import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import { useRepoBrowserStore } from '@/stores/repo-browser'
 import { useCapsuleStore } from '@/stores/capsule'
 import { useAuthStore } from '@/stores/auth'
@@ -23,6 +25,7 @@ watchEffect(() => {
   document.title = name ? `${name} · code-panel` : 'code-panel'
 })
 const terminalStore = useTerminalStore()
+const switcher = useProjectSwitcher()
 const browserStore = useRepoBrowserStore()
 const capsuleStore = useCapsuleStore()
 
@@ -42,6 +45,7 @@ onMounted(() => {
   offHotkeys = startHotkeyListener(() => {
     const map: Record<string, () => void> = {}
     map[getHotkeys().toggleTerm] = () => terminalStore.toggleTmuxVisibility()
+    map[getHotkeys().switchProject] = () => switcher.hotkeyTap()
     return map
   })
   // 刷新后恢复上次打开的终端窗口(tmux 重连 / cmd 复用服务端会话)。
@@ -69,7 +73,8 @@ onUnmounted(() => { offHotkeys?.() })
       @close="browserStore.closeModal"
     />
     <CloudPanel />
-  </template>
+    <ProjectSwitcher />
+</template>
 </template>
 
 <style scoped>
