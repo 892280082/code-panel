@@ -22,7 +22,7 @@ export interface GlmQuota {
 
 const LS_QUERY = 'glm-plan-query'    // 开启 Plan 查询
 const LS_TOPBAR = 'glm-plan-topbar'  // 顶栏迷你仪表盘
-const POLL_MS = 60_000               // 1 分钟一轮(2026-09-13 用户定:进度要跟得上)
+const POLL_MS = 2 * 60_000           // 2 分钟一轮(2026-09-13 用户定:1 分钟太频,没必要)
 
 let timer: ReturnType<typeof setInterval> | null = null
 
@@ -44,8 +44,8 @@ export function usageColor(percent: number): string {
 
 export const useGlmPlanStore = defineStore('glmPlan', {
   state: () => ({
-    enabled: false,        // 开启 Plan 查询
-    topbar: false,         // 右上角迷你仪表盘
+    enabled: false,        // 开启 Plan 查询(默认关:查不查是显式动作)
+    topbar: true,          // 右上角迷你仪表盘(默认开,可取消;须 Plan 查询开着才有数据)
     quota: null as GlmQuota | null,
     err: '',
     loading: false,
@@ -62,8 +62,9 @@ export const useGlmPlanStore = defineStore('glmPlan', {
       this.inited = true
       try {
         this.enabled = localStorage.getItem(LS_QUERY) === '1'
-        this.topbar = localStorage.getItem(LS_TOPBAR) === '1'
-      } catch { /* ignore */ }
+        // top-bar 默认开:开启 Plan 查询即显示顶栏仪表盘,用户显式关过('0')才默认关
+        this.topbar = localStorage.getItem(LS_TOPBAR) !== '0'
+      } catch { this.topbar = true }
       if (this.enabled) this.ensurePolling()
     },
     setEnabled(v: boolean) {

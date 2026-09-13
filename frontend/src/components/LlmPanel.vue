@@ -337,7 +337,7 @@ onMounted(async () => {
         <span class="plan-title">⚡ Plan 额度</span>
         <span v-if="glm.quota" class="plan-sub">{{ glm.quota.providerName }} · {{ glm.quota.level || '—' }}</span>
         <span class="spacer" />
-        <label class="en-switch" title="开启后每 1 分钟查询智谱 Coding Plan 剩余额度">
+        <label class="en-switch" title="开启后每 2 分钟查询智谱 Coding Plan 剩余额度">
           <input type="checkbox" :checked="glm.enabled" @change="glm.setEnabled(($event.target as HTMLInputElement).checked)" />Plan 查询
         </label>
         <label class="en-switch" title="右上角(CPU/内存圆环旁)显示两个迷你仪表盘">
@@ -358,7 +358,7 @@ onMounted(async () => {
         <div v-else-if="!glm.quota && glm.err" class="plan-err">✗ {{ glm.err }}</div>
         <div v-if="glm.quota && glm.err" class="plan-err soft">最近一次查询失败:{{ glm.err }}(以上为旧数据)</div>
       </template>
-      <div v-else class="plan-hint">开启后自动查询智谱 Coding Plan 剩余额度(Key 用下方智谱供应商的,后端代查、每 1 分钟刷新,不经过浏览器)</div>
+      <div v-else class="plan-hint">开启后自动查询智谱 Coding Plan 剩余额度(Key 用下方智谱供应商的,后端代查、每 2 分钟刷新,不经过浏览器)</div>
     </div>
 
     <!-- ── 顶部:供应商卡片(点哪张,下面换成哪家)── -->
