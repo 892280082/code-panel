@@ -124,6 +124,12 @@ function projectQSuffix(): string {
   return projects.currentId ? `&project=${encodeURIComponent(projects.currentId)}` : ''
 }
 
+/** 记住上次选中的 folder(按项目存 localStorage),下次进 PRD 页直接渲染该用户的 index.md */
+function dirKey() { return `prd:dir:${projects.currentId || 'g'}` }
+function loadSavedDir(): string {
+  try { return localStorage.getItem(dirKey()) || '' } catch { return '' }
+}
+
 async function loadFolders() {
   if (!projects.currentId) { folders.value = []; currentDir.value = ''; entryFile.value = ''; return }
   try {
@@ -131,10 +137,11 @@ async function loadFolders() {
     const data = await res.json()
     if (data.ok) {
       folders.value = data.folders || []
-      // 保持已选中目录;否则默认选第一个
+      // 保持已选中目录;否则恢复上次选中的(仍在列表才认);都没有才默认选第一个
       if (currentDir.value && folders.value.some(f => f.dir === currentDir.value)) return
-      const first = folders.value[0]
-      if (first) await selectFolder(first.dir)
+      const saved = folders.value.find(f => f.dir === loadSavedDir())
+      const target = saved || folders.value[0]
+      if (target) await selectFolder(target.dir)
       else { currentDir.value = ''; entryFile.value = '' }
     }
   } catch { folders.value = [] }
@@ -145,6 +152,7 @@ async function selectFolder(dir: string) {
   currentDir.value = dir
   entryFile.value = ''
   frameKey.value++
+  try { localStorage.setItem(dirKey(), dir) } catch { /* ignore */ }
   try {
     const res = await apiFetch('/api/prd/files?dir=' + encodeURIComponent(dir))
     const data = await res.json()
