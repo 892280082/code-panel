@@ -7,10 +7,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { errText } from '@/utils/api-fetch'
 import { useLlmStore, type LlmProvider } from '@/stores/llm'
+import { useGlmPlanStore, countdown, usageColor } from '@/stores/glm-plan'
 import { useAuthStore } from '@/stores/auth'
 
 const llm = useLlmStore()
 const auth = useAuthStore()
+const glm = useGlmPlanStore()
+glm.init()   // 幂等:恢复开关,已开启则起轮询
 
 /** 编辑区一行变量 */
 interface Entry {
@@ -328,6 +331,36 @@ onMounted(async () => {
 
 <template>
   <div class="llm-root">
+    <!-- ── Plan 额度(智谱 Coding Plan;Key 用下方智谱供应商的,后端代查不出服务端)── -->
+    <div class="plan-card">
+      <div class="plan-head">
+        <span class="plan-title">⚡ Plan 额度</span>
+        <span v-if="glm.quota" class="plan-sub">{{ glm.quota.providerName }} · {{ glm.quota.level || '—' }}</span>
+        <span class="spacer" />
+        <label class="en-switch" title="开启后每 1 分钟查询智谱 Coding Plan 剩余额度">
+          <input type="checkbox" :checked="glm.enabled" @change="glm.setEnabled(($event.target as HTMLInputElement).checked)" />Plan 查询
+        </label>
+        <label class="en-switch" title="右上角(CPU/内存圆环旁)显示两个迷你仪表盘">
+          <input type="checkbox" :checked="glm.topbar" :disabled="!glm.enabled" @change="glm.setTopbar(($event.target as HTMLInputElement).checked)" />top-bar 提醒
+        </label>
+        <button class="ghost sm" :disabled="!glm.enabled || glm.loading" @click="glm.refresh()">
+          {{ glm.loading ? '查询中…' : '↻ 刷新' }}
+        </button>
+      </div>
+      <template v-if="glm.enabled">
+        <div v-for="p in glm.quota?.pools ?? []" :key="p.key" class="pool">
+          <span class="pool-name">{{ p.label }}</span>
+          <div class="pool-bar"><div class="pool-fill" :style="{ width: p.percent + '%', background: usageColor(p.percent) }" /></div>
+          <span class="pool-pct" :style="{ color: usageColor(p.percent) }">{{ Math.round(p.percent) }}%</span>
+          <span class="pool-detail">剩余 {{ p.remaining.toLocaleString() }} / {{ p.total.toLocaleString() }} · {{ countdown(p.resetAt) }}</span>
+        </div>
+        <div v-if="!glm.quota && glm.loading" class="plan-hint">查询中…</div>
+        <div v-else-if="!glm.quota && glm.err" class="plan-err">✗ {{ glm.err }}</div>
+        <div v-if="glm.quota && glm.err" class="plan-err soft">最近一次查询失败:{{ glm.err }}(以上为旧数据)</div>
+      </template>
+      <div v-else class="plan-hint">开启后自动查询智谱 Coding Plan 剩余额度(Key 用下方智谱供应商的,后端代查、每 1 分钟刷新,不经过浏览器)</div>
+    </div>
+
     <!-- ── 顶部:供应商卡片(点哪张,下面换成哪家)── -->
     <div class="cards">
       <button
@@ -428,6 +461,22 @@ onMounted(async () => {
 <style scoped>
 .llm-root { display: flex; flex-direction: column; gap: 10px; }
 .hint { font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px 0; line-height: 1.8; }
+
+/* ── Plan 额度卡 ── */
+.plan-card { display: flex; flex-direction: column; gap: 7px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; background: var(--bg); }
+.plan-head { display: flex; align-items: center; gap: 8px; }
+.plan-head .en-switch { white-space: nowrap; }
+.plan-title { font-size: 12px; font-weight: 700; color: var(--text); }
+.plan-sub { font-size: 10px; color: var(--text-dim); }
+.pool { display: flex; align-items: center; gap: 8px; }
+.pool-name { flex: 0 0 34px; font-size: 11px; font-weight: 600; color: var(--text); }
+.pool-bar { flex: 0 0 220px; height: 10px; border-radius: 5px; background: rgba(255,255,255,0.06); overflow: hidden; }
+.pool-fill { height: 100%; border-radius: 5px; transition: width 0.8s ease, background 0.4s ease; }
+.pool-pct { flex: 0 0 38px; font-size: 12px; font-weight: 700; font-family: var(--font, monospace); text-align: right; }
+.pool-detail { font-size: 10px; color: var(--text-dim); font-family: var(--font, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-hint { font-size: 11px; color: var(--text-dim); line-height: 1.6; }
+.plan-err { font-size: 11px; color: #f44747; }
+.plan-err.soft { color: #e5c07b; }
 .ok { font-size: 11px; color: var(--glow); }
 .err { font-size: 11px; color: #f44747; }
 .spacer { flex: 1; }

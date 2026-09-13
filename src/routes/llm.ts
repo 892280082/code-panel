@@ -27,6 +27,7 @@ import {
   revealProviderVars,
   llmSnapshot,
 } from '../llm/provider-store';
+import { fetchGlmQuota } from '../llm/glm-quota';
 
 const router = Router();
 
@@ -137,6 +138,16 @@ router.post('/api/llm/activate', requireSuperadmin, route((req: Request, res: Re
 // POST /api/llm/mount — 显式补挂 shell rc(幂等)
 router.post('/api/llm/mount', requireSuperadmin, route((_req: Request, res: Response) => {
   res.json({ ok: true, data: ensureLlmRcMount() });
+}));
+
+// GET /api/llm/glm-quota — 智谱 Coding Plan 剩余额度(登录即可;
+// 服务端代查官方 monitor 接口,Key 不出服务端、不回传;错误走 {ok:false,error} 信封)
+router.get('/api/llm/glm-quota', route(async (_req: Request, res: Response) => {
+  try {
+    res.json({ ok: true, data: await fetchGlmQuota() });
+  } catch (e: unknown) {
+    res.status(502).json({ ok: false, error: errorMessage(e) });
+  }
 }));
 
 export default router;

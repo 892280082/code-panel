@@ -3,6 +3,7 @@
 //   用法:嵌进各视图自己的 .toolbar 最右(margin-left:auto 推到右端),
 //   使其与视图原有左侧按钮在同一根导航条内,而非悬浮页面右上角。
 import SystemResourceMonitor from '@/components/SystemResourceMonitor.vue'
+import GlmPlanGauges from '@/components/GlmPlanGauges.vue'
 import QuickLinks from '@/components/QuickLinks.vue'
 import EnvSwitcher from '@/components/EnvSwitcher.vue'
 import CapsuleEntry from '@/components/CapsuleEntry.vue'
@@ -13,6 +14,7 @@ import CapsuleEntry from '@/components/CapsuleEntry.vue'
   <div class="top-tools">
     <CapsuleEntry />
     <SystemResourceMonitor />
+    <GlmPlanGauges />
     <QuickLinks />
     <EnvSwitcher />
   </div>
