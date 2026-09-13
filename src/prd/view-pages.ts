@@ -70,15 +70,20 @@ function findHtmlRefs(md: string, baseDir: string, extraBases: string[] = []): {
   return refs;
 }
 
-/** 把 MD 中 `> 原型图：`code`路径.html``` 的引用原地替换为内联原型 iframe（不再堆到文档末尾） */
+/** 把 MD 中 `> 原型图：` 的引用原地替换为内联原型 iframe（不再堆到文档末尾）。
+ *  ⭐2026-09-13 放宽匹配(此前过严导致大量 md 只显示链接不内嵌):
+ *  - 冒号全角/半角均可;引用后可跟尾注(如「(复用,站点只读同款)」);
+ *  - 链接格式 `[文字](相对路径.html)` 按 href 匹配(文字可任意,路径可 ../ 相对); */
 function inlineProtoSections(body: string, refs: { name: string; url: string }[]): string {
   let b = body;
   for (const r of refs) {
-    const escName = r.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const n = r.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const proto = `<section class="proto"><div class="proto-head">📎 原型：<code>${r.name}</code></div><iframe src="${r.url}" class="proto-frame"></iframe></section>`;
-    b = b.replace(new RegExp(`<blockquote>原型图：<code>${escName}</code></blockquote>`), proto);
-    // ⭐2026-08-30 补：链接格式 `> 原型图：[名](路径.html)` 渲染出的 <a> 形式同样内嵌 iframe（之前只显示文字链接）
-    b = b.replace(new RegExp(`<blockquote>原型图：<a href="${escName}">[^<]*</a></blockquote>`), proto);
+    const pats = [
+      new RegExp(`<blockquote>原型图[：:]\\s*<a href="${n}">[\\s\\S]*?</a>[\\s\\S]*?</blockquote>`),
+      new RegExp(`<blockquote>原型图[：:]\\s*<code>${n}</code>[\\s\\S]*?</blockquote>`),
+    ];
+    for (const re of pats) b = b.replace(re, proto);
   }
   return b;
 }
@@ -195,7 +200,7 @@ const TAB_WIDGET_CSS = (headBg: string) => `
 .max-code{flex:1;min-width:0;background:#fff}
 .max-code iframe{width:100%;height:100%;border:none;display:block}`;
 
-const TAB_WIDGET_JS = `<script>mermaid.initialize({startOnLoad:true});
+const TAB_WIDGET_JS = `<script>window.addEventListener('load',function(){try{if(window.mermaid){mermaid.initialize({startOnLoad:true});mermaid.run();}}catch(e){}});
 document.querySelectorAll('.code-tabs').forEach(function(t){
   var bs=t.querySelectorAll('.tab-btn'), ps=t.querySelectorAll('.tab-panel');
   bs.forEach(function(b){ b.addEventListener('click',function(){
@@ -248,8 +253,10 @@ export function buildViewPage(md: string, mdName: string, dir: string, extraBase
   // 2026-09-11 递归列表 → 2026-09-12 收敛:PRD 模式过 navVisible(顶层 + plan 三桶),
   //   防全量递归把 drafts/ 等灌爆左栏;胶囊(target)保持全量树不变;
   //   wiki 只列当前文件所在目录(全仓导航由外层 WikiView 侧栏树负责,iframe 内平铺全仓属噪音)
+  //   ⭐2026-09-13 PRD 左栏再收敛为「仅 .md」:标题就叫 MD 文件,混入 .java/.js 属视觉噪音
+  //     (代码文件仍可经正文链接/@tabs 直接打开,只是不占左栏)
   const files = !target
-    ? listViewFiles(dir).filter(f => navVisible(path.relative(dir, f)))
+    ? listViewFiles(dir).filter(f => navVisible(path.relative(dir, f)) && f.endsWith('.md'))
     : target.mode === 'wiki'
       ? listViewFiles(dir).filter(f => path.dirname(f) === path.dirname(path.resolve(dir, mdName)))
       : listViewFiles(dir);
@@ -266,7 +273,7 @@ export function buildViewPage(md: string, mdName: string, dir: string, extraBase
 <html lang="zh-CN"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <style>
 :root{--bg:#f2f3f5;--card:#fff;--border:#e5e7eb;--text:#1f2329;--t2:#61666d;--a2:#8b5cf6}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -324,7 +331,7 @@ export function renderContentOnly(md: string, dir: string, extraBases: string[],
   return `<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="UTF-8">
 <title>${title}</title>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <style>
 :root{--bg:#0d0d10;--card:#131316;--border:#23232a;--text:#c8c8d0;--t2:#8b8b96;--a:#22ee66;--a2:#8b5cf6}
 *{box-sizing:border-box;margin:0;padding:0}

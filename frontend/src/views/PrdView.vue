@@ -103,13 +103,18 @@ const frameKey = ref(0)          // 强制 iframe 重新加载
 const frameEl = ref<HTMLIFrameElement | null>(null)
 
 const currentFolderName = computed(() => folders.value.find(f => f.dir === currentDir.value)?.name || '')
-/** 当前文件相对项目根路径(如 prd/原型规范/CONSTITUTION.md),供复制定位 */
+/** iframe 当前实际所在目录(点正文链接翻到子目录页时更新;空 = 还在选中 folder 本身) */
+const currentFileDir = ref('')
+/** 当前文件相对项目根路径(如 prd/原型规范/CONSTITUTION.md),供复制定位。
+ *  ⭐取 iframe 真实 dir(2026-09-13):此前固定用外层选中 folder 的 dir,翻到子目录
+ *  (如 plan/xx-伪代码/)后工具栏路径丢掉子目录段,复制出来的定位路径是错的 */
 const currentFileRel = computed(() => {
-  if (!currentDir.value || !currentFile.value) return ''
+  const dir = currentFileDir.value || currentDir.value
+  if (!dir || !currentFile.value) return ''
   const root = projects.currentProject?.root
-  let dir = currentDir.value
-  if (root && dir.startsWith(root)) dir = dir.slice(root.length).replace(/^[/\\]+/, '')
-  return `${dir}/${currentFile.value}`.replace(/\/+/g, '/')
+  let d = dir
+  if (root && d.startsWith(root)) d = d.slice(root.length).replace(/^[/\\]+/, '')
+  return `${d}/${currentFile.value}`.replace(/\/+/g, '/')
 })
 
 /** 后台双栏渲染页(自带 MD 文件导航),整屏内嵌;?project= 让正文链接翻页时上下文连续 */
@@ -150,6 +155,7 @@ async function loadFolders() {
 /** 选中 folder:右侧整屏 iframe 打开该目录双栏页(入口 = index.md 优先,无则第一篇 md) */
 async function selectFolder(dir: string) {
   currentDir.value = dir
+  currentFileDir.value = dir
   entryFile.value = ''
   frameKey.value++
   try { localStorage.setItem(dirKey(), dir) } catch { /* ignore */ }
@@ -222,7 +228,9 @@ function onFrameLoad() {
   try {
     const u = new URL(href, location.href)
     const f = u.searchParams.get('file')
+    const d = u.searchParams.get('dir')
     if (f) currentFile.value = decodeURIComponent(f)
+    if (d) currentFileDir.value = decodeURIComponent(d)
   } catch { /* 忽略解析失败 */ }
 }
 
@@ -241,6 +249,7 @@ async function copyPath() {
 // 项目切换:清空重载
 watch(() => projects.currentId, async () => {
   currentDir.value = ''
+  currentFileDir.value = ''
   entryFile.value = ''
   currentFile.value = ''
   frameKey.value++
