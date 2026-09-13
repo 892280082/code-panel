@@ -5,7 +5,7 @@
 //   NginxPanel/SecurityPanel/AppearancePanel/AccountPanel);日志/库/仓库/PRD 等不做
 //   手配 UI,统一在项目 .code-panel/*.yaml 维护。
 
-import { ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useProjectsStore } from '@/stores/projects'
 import { useUiStore } from '@/stores/ui'
 import BackupPanel from '@/components/BackupPanel.vue'
@@ -23,6 +23,17 @@ const emit = defineEmits<{ (e: 'close'): void }>()
 
 const projects = useProjectsStore()
 const ui = useUiStore()
+
+// Esc 关闭弹窗(2026-09-14 用户定,与 Ctrl+` 呼出配套)。
+// ⭐ setTimeout 判 defaultPrevented:快捷键 Tab 录入新键位时 Esc = 取消录入
+//   (HotkeyPanel 捕获阶段已 preventDefault),本监听虽先注册但延后一拍看标志,
+//   录入中的 Esc 就不会误关整个弹窗。
+function onEsc(e: KeyboardEvent): void {
+  if (e.key !== 'Escape' || !ui.cfgOpen) return
+  setTimeout(() => { if (!e.defaultPrevented) ui.closeConfig() }, 0)
+}
+onMounted(() => window.addEventListener('keydown', onEsc))
+onBeforeUnmount(() => window.removeEventListener('keydown', onEsc))
 
 type TabKey = 'project' | 'llm' | 'capsule' | 'backup' | 'files' | 'nginx' | 'security' | 'account' | 'hotkey' | 'appearance'
 const activeTab = ref<TabKey>((ui.cfgTab as TabKey) || 'project')

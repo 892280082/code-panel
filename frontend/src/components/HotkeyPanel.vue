@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // ── ⚙ 配置「快捷键」Tab ─────────────────────────────────
-//   目前一个:显示/隐藏全部 tmux 终端窗口(无窗口时开命令抽屉)。
+//   动作:tmux 终端呼出 / 项目切换器 / ⚙ 配置弹窗。
 //   点「修改」→ 按下新组合即存(Esc 取消);改完即时生效,无需重启。
 
 import { ref, onMounted, onBeforeUnmount } from 'vue'
@@ -14,6 +14,7 @@ const note = ref('')
 const ACTIONS: Array<{ key: keyof Hotkeys; name: string; desc: string }> = [
   { key: 'toggleTerm', name: '显示 / 隐藏 tmux 终端', desc: '一键收起或恢复全部 tmux 终端窗口;一个都没开时打开命令终端抽屉' },
   { key: 'switchProject', name: '项目切换器(Alt+Tab 风格)', desc: '呼出项目卡片浮层,再按同键循环高亮;← → 选择,Enter 切换,Esc 取消' },
+  { key: 'openConfig', name: '打开 / 关闭 ⚙ 配置', desc: '默认 Ctrl + `(1 左边反引号键)呼出全局配置弹窗,再按同键或 Esc 关闭' },
 ]
 
 function startRecord(action: keyof Hotkeys): void {

@@ -13,12 +13,12 @@
     var t = e.target
     // 输入控件内不触发(与父页面热键系统同规则)
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
-    // ⭐ 只桥 Ctrl/⌘ + 数字(1-9/0):字母组合(Ctrl+C/V/X/A/S/F…)一律不碰,
+    // ⭐ 只桥 Ctrl/⌘ + 数字(1-9/0)与反引号 `:字母组合(Ctrl+C/V/X/A/S/F…)一律不碰,
     //    原型页内复制粘贴/保存等原生行为零干扰(2026-09-13 修复:初版拦了所有
-    //    修饰键组合,导致 iframe 里连复制都不能)。
+    //    修饰键组合,导致 iframe 里连复制都不能);2026-09-14 增桥 ` —— Ctrl+` 呼配置。
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return
     var k = (e.key || '').toLowerCase()
-    if (!/^[0-9]$/.test(k)) return
+    if (!/^[0-9`]$/.test(k)) return
     var parts = []
     if (e.ctrlKey) parts.push('ctrl')
     if (e.metaKey) parts.push('meta')

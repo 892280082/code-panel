@@ -1,4 +1,4 @@
-// ── 全局快捷键(目前一个:显示/隐藏 tmux 终端窗口)────────
+// ── 全局快捷键(终端呼出 / 项目切换器 / ⚙ 配置弹窗)────────
 //   键位存 localStorage(cp-hotkeys),⚙ →「快捷键」Tab 可改;
 //   输入框/文本域内不触发;命中即 preventDefault(如 Ctrl+1
 //   是浏览器切标签页的默认键,必须拦下)。
@@ -8,10 +8,12 @@ export interface Hotkeys {
   toggleTerm: string
   /** 项目切换器(Alt+Tab 风格:呼出/循环高亮;左右选,回车切) */
   switchProject: string
+  /** 打开/关闭 ⚙ 配置弹窗(1 左边那个反引号键,顺手;Esc 同样可关) */
+  openConfig: string
 }
 
 const KEY = 'cp-hotkeys'
-const DEFAULTS: Hotkeys = { toggleTerm: 'ctrl+1', switchProject: 'ctrl+2' }
+const DEFAULTS: Hotkeys = { toggleTerm: 'ctrl+1', switchProject: 'ctrl+2', openConfig: 'ctrl+`' }
 
 export function getHotkeys(): Hotkeys {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') } } catch { return { ...DEFAULTS } }

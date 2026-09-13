@@ -14,10 +14,12 @@ import { useRepoBrowserStore } from '@/stores/repo-browser'
 import { useCapsuleStore } from '@/stores/capsule'
 import { useAuthStore } from '@/stores/auth'
 import { useProjectsStore } from '@/stores/projects'
+import { useUiStore } from '@/stores/ui'
 import { getHotkeys, startHotkeyListener } from '@/utils/hotkeys'
 
 const auth = useAuthStore()
 const projects = useProjectsStore()
+const ui = useUiStore()
 
 // 浏览器标签页标题跟随当前项目(多标签页各开一个项目时,靠标题区分)
 watchEffect(() => {
@@ -46,6 +48,7 @@ onMounted(() => {
     const map: Record<string, () => void> = {}
     map[getHotkeys().toggleTerm] = () => terminalStore.toggleTmuxVisibility()
     map[getHotkeys().switchProject] = () => switcher.hotkeyTap()
+    map[getHotkeys().openConfig] = () => (ui.cfgOpen ? ui.closeConfig() : ui.openConfig())
     return map
   })
   // 刷新后恢复上次打开的终端窗口(tmux 重连 / cmd 复用服务端会话)。
