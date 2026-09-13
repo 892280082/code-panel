@@ -6,8 +6,7 @@
 //   结构统一铁律:每个人中心的看板都由本程序渲染,结构一模一样。
 //   列:计划 | 内容 | 伪代码 | spec | 评审 | 状态
 //     - 内容  = 计划文档 `> 主题:` 行(缺省取「一、目标一句话」首行)
-//     - 伪代码 = 步骤书(plan/ 或 plan/pseudocode/ 下 plan-NN-伪代码/index.md;存量单文件 plan-NN-伪代码.md 兼容)
-//              + 原型 plan-NN-*.html(plan/ 与 pseudocode/ 同扫)+ 核心实现(plan/pseudocode/plan-NN-核心实现[/index.md|.md])
+//     - 伪代码 = 步骤书(N)(N=步骤数;2026-09-13 起原型/核心实现链接不再入列,入口在步骤书内)
 //     - spec  = 计划文档全部 `> spec 访问:[t](u)` 行 → [spec](u) / [spec①][spec②]
 //     - 评审  = 计划文档 `## 评审` 章节最后一条(最新),展示前 50 字
 //     - 状态  = 目录(todo ⏳ / doing 🔄)+ done 的 `> 归档:` 日期
@@ -21,7 +20,7 @@ const HEADERS = '| 计划 | 内容 | 伪代码 | spec | 评审 | 状态 |\n|---|
 const REVIEW_LIMIT = 50;
 const STATE_MAP: Record<string, string> = { todo: '⏳ 待启动', doing: '🔄 进行中', done: '✅ 已完成' };
 /** --all 遍历时排除:规范目录 / 里程碑 / 软链(specs 等非人名中心) */
-const EXCLUDED_CENTERS = new Set(['原型规范', '总进度', 'specs']);
+const EXCLUDED_CENTERS = new Set(['原型规范', '总进度', '设计目标', 'specs']);
 
 // ── 单个计划解析 ─────────────────────────────────────────
 
@@ -79,31 +78,27 @@ function parsePlan(md: string, statusDir: string, prdDir: string): PlanRow {
     }
   }
 
-  // 伪代码:步骤书/单文件伪代码 + 原型 + 核心实现
-  // ⚠️ 2026-09-11 修:原逻辑只认 plan/ 根目录形式 → pseudocode/ 下目录与存量单文件(38/39 等)整列全 —;
+  // 伪代码:只出 步骤书(N)(N=步骤数;2026-09-13 用户定:原型/核心实现链接堆在
+  //   看板列里太乱,全撤 —— 它们的入口在步骤书/计划文档里本来就有)
   //   三形态 = plan/plan-NN-伪代码/(根,活跃)/ plan/pseudocode/plan-NN-伪代码/(目录)/ plan/pseudocode/plan-NN-伪代码.md(老式单文件)
   const pseudo: string[] = [];
   const planRoot = path.join(prdDir, 'plan');
   const pseudoRoot = path.join(planRoot, 'pseudocode');
   const nnPad = `plan-${nn}`;
-  if (fs.existsSync(path.join(planRoot, nnPad + '-伪代码', 'index.md')))
-    pseudo.push(`[步骤书](plan/${nnPad}-伪代码/index.md)`);
-  else if (fs.existsSync(path.join(pseudoRoot, nnPad + '-伪代码', 'index.md')))
-    pseudo.push(`[步骤书](plan/pseudocode/${nnPad}-伪代码/index.md)`);
-  else if (fs.existsSync(path.join(pseudoRoot, nnPad + '-伪代码.md')))
-    pseudo.push(`[伪代码](plan/pseudocode/${nnPad}-伪代码.md)`);
-  // 核心实现(归档产物,目录/单文件;SKILL 契约「与伪代码目录配对,看板自动出链接」)
-  if (fs.existsSync(path.join(pseudoRoot, nnPad + '-核心实现', 'index.md')))
-    pseudo.push(`[核心实现](plan/pseudocode/${nnPad}-核心实现/index.md)`);
-  else if (fs.existsSync(path.join(pseudoRoot, nnPad + '-核心实现.md')))
-    pseudo.push(`[核心实现](plan/pseudocode/${nnPad}-核心实现.md)`);
-  // 原型 html:plan/ 根与 pseudocode/ 同扫
-  for (const dir of [planRoot, pseudoRoot]) {
-    const base = dir === planRoot ? 'plan' : 'plan/pseudocode';
-    for (const html of listDir(dir).filter(f => f.startsWith(nnPad + '-') && f.endsWith('.html')).sort()) {
-      const label = html.slice(nnPad.length + 1, -'.html'.length);   // 去 `plan-NN-` 前缀与 .html 后缀
-      pseudo.push(`[${label}](${base}/${html})`);
-    }
+  /** 步骤书目录数步骤:只数 .md 步骤文档(「步骤N-*」或「N-*」数字前缀命名;
+   *  同目录的 .java/.sql 伪代码文件不算步数,只是步骤的配套代码);0 = 不带括号 */
+  const stepCount = (dir: string): number =>
+    listDir(dir).filter(f => f.endsWith('.md') && /^(步骤\d|\d+[-.])/u.test(f)).length;
+  if (fs.existsSync(path.join(planRoot, nnPad + '-伪代码', 'index.md'))) {
+    const c = stepCount(path.join(planRoot, nnPad + '-伪代码'));
+    pseudo.push(`[步骤书${c ? `(${c})` : ''}](plan/${nnPad}-伪代码/index.md)`);
+  } else if (fs.existsSync(path.join(pseudoRoot, nnPad + '-伪代码', 'index.md'))) {
+    const c = stepCount(path.join(pseudoRoot, nnPad + '-伪代码'));
+    pseudo.push(`[步骤书${c ? `(${c})` : ''}](plan/pseudocode/${nnPad}-伪代码/index.md)`);
+  } else if (fs.existsSync(path.join(pseudoRoot, nnPad + '-伪代码.md'))) {
+    // 老式单文件:数正文「## 步骤」小节数,数得出一样带 (N)
+    const c = (text.match(/^##\s*步骤/gm) || []).length;
+    pseudo.push(`[伪代码${c ? `(${c})` : ''}](plan/pseudocode/${nnPad}-伪代码.md)`);
   }
 
   const archiveLine = text.split('\n').find(l => l.startsWith('> 归档:')) ?? '';
@@ -203,7 +198,7 @@ function processCenter(prdDir: string, init: boolean): string {
     `# ${name} 的需求看板`, '',
     '> **状态 = 目录位置**:计划放 `plan/todo/`(待启动)/ `plan/doing/`(进行中)/ `plan/done/`(已完成),移动文件即流转。',
     '> **看板 = 程序渲染**(code-panel 内置生成器,全中心结构统一;本文件整份由程序输出,勿手改 —— 手写内容写 [notes.md](notes.md))。',
-    '> **列说明**:内容 = 计划文档 `> 主题:` 行(缺省依次取「一、目标一句话」首行 / H1 标题);伪代码 = 步骤书/单文件伪代码 + 原型 + 核心实现;spec = `> spec 访问:` 行(跳规格化目录);'
+    '> **列说明**:内容 = 计划文档 `> 主题:` 行(缺省依次取「一、目标一句话」首行 / H1 标题);伪代码 = 步骤书(N=步骤数,原型/核心实现入口在步骤书内);spec = `> spec 访问:` 行(跳规格化目录);'
       + '评审 = 计划文档 `## 评审` 章节最新一条前 50 字(评审人把意见写进计划文档即可)。',
     '',
   ].join('\n');
