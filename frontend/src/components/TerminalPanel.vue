@@ -12,6 +12,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useTerminalDrag } from '@/composables/useTerminalDrag'
 import { useTerminalViewport } from '@/composables/useTerminalViewport'
 import { getHotkeys, eventCombo } from '@/utils/hotkeys'
+import { computed } from 'vue'
 
 const store = useTerminalStore()
 const auth = useAuthStore()
@@ -54,6 +55,17 @@ function tmuxProjectOf(s: TerminalSession): string | null {
   const m = /^p_([A-Za-z0-9-]+)_/.exec(s.tmuxSession || '')
   return m ? m[1] : null
 }
+
+/** tmux 会话有序端口表 —— 与 FAB 数字芯片条(useFabChips.sessionList)同源同序,
+ *  窗口标题的圆框编号取自此表,关掉中间窗口两边同步重排,永远一一对应。 */
+const tmuxPorts = computed(() =>
+  [...store.sessions.entries()].filter(([, s]) => s.kind === 'tmux').map(([port]) => port),
+)
+
+/** 窗口标题徽章编号(tmux = 在数字条中的序号;cmd/一次性窗口不占号,无徽章) */
+function badgeNo(port: number): number {
+  return tmuxPorts.value.indexOf(port) + 1
+}
 </script>
 
 <template>
@@ -72,7 +84,10 @@ function tmuxProjectOf(s: TerminalSession): string | null {
     @pointerdown.capture="onWindowPointerDown(port, session)"
   >
     <div class="terminal-header" @mousedown.prevent="(e) => onDragStart(e, port)">
-      <span class="terminal-title">▸ {{ session.label }}</span>
+      <span class="terminal-title">
+        <span v-if="session.kind === 'tmux'" class="title-badge" :title="`终端 ${badgeNo(port)}(对应右下角数字芯片)`">{{ badgeNo(port) }}</span>
+        ▸ {{ session.label }}
+      </span>
       <div class="terminal-actions">
         <!-- ⧉ 复制屏幕:tmux mouse on 截获网页拖选 → 抓屏弹窗是唯一可靠复制通道(仅 tmux 会话) -->
         <button
@@ -134,7 +149,7 @@ function tmuxProjectOf(s: TerminalSession): string | null {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 6px 12px;
   background: var(--bg, #09090b);
   border-bottom: 1px solid var(--border, #23232a);
   cursor: grab;
@@ -147,6 +162,20 @@ function tmuxProjectOf(s: TerminalSession): string | null {
   color: var(--text-dim, #6b6b78);
   letter-spacing: 0.05em;
   pointer-events: none;
+}
+/* 标题前圆框编号:对应右下角 FAB 数字芯片条(tmux 窗口才有);
+   颜色跟标题同灰(和谐,不抢眼) */
+.title-badge {
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  width: 16px; height: 16px;
+  margin-right: 5px;
+  border: 1px solid var(--border, #2c2c33);
+  border-radius: 50%;
+  color: var(--text-dim, #6b6b78);
+  font-family: 'Fira Code', monospace;
+  font-size: 9px; font-weight: 700;
+  vertical-align: -3px;
 }
 .terminal-actions { display: flex; gap: 4px; pointer-events: auto; }
 .btn-copy, .btn-minimize, .btn-maximize, .btn-close {
