@@ -14,7 +14,7 @@ if command -v systemctl >/dev/null 2>&1 && systemctl --user cat code-panel >/dev
 fi
 
 # 检查是否已在运行
-if lsof -i :$PORT -t >/dev/null 2>&1; then
+if lsof -iTCP:$PORT -sTCP:LISTEN -t >/dev/null 2>&1; then
     echo "⏳ 服务已在运行 → http://localhost:$PORT/log"
     exit 0
 fi
@@ -37,7 +37,7 @@ echo "🚀 启动服务 → http://localhost:$PORT"
 nohup npx tsx src/server.ts > /dev/null 2>&1 &
 sleep 2
 
-if lsof -i :$PORT -t >/dev/null 2>&1; then
+if lsof -iTCP:$PORT -sTCP:LISTEN -t >/dev/null 2>&1; then
     echo "✅ 启动成功"
     echo "   日志面板: http://localhost:$PORT/log"
     echo "   SQL 面板: http://localhost:$PORT/sql"
