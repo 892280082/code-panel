@@ -5,7 +5,7 @@
 //   双栏页(buildViewPage 渲染,md 内链走 wiki 自己的路由)。
 //   写入与 push 由终端 claude code 做,本页只读 + Pull。
 
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { apiJson } from '@/utils/api-fetch'
 import { injectHotkeyBridge } from '@/utils/iframe-hotkey-bridge'
 import Sidebar from '@/components/Sidebar.vue'
@@ -18,9 +18,14 @@ interface WikiFile { path: string; name: string; size: number; mtime: number }
 
 const ui = useUiStore()
 
+/** 记住上次打开的文档(刷新/重进 /wiki 不再跳回 README —— 本地缓存) */
+const LAST_FILE_KEY = 'cp:wiki-file'
+
 const files = ref<WikiFile[]>([])
 const cloned = ref(true)
 const currentFile = ref('')
+/** iframe 实际加载的文件(独立于 currentFile:iframe 内链跳转只更 currentFile,不重载 iframe) */
+const frameFile = ref('')
 const frameKey = ref(0)
 const frameEl = ref<HTMLIFrameElement | null>(null)
 
@@ -28,7 +33,7 @@ const { visibleRows, toggleDir } = useFileTree<WikiFile>(files, { compress: fals
 
 const frameSrc = computed(() => {
   if (!cloned.value) return ''
-  const f = currentFile.value ? `?file=${encodeURIComponent(currentFile.value)}` : ''
+  const f = frameFile.value ? `?file=${encodeURIComponent(frameFile.value)}` : ''
   return `/api/wiki/view${f}`
 })
 
@@ -37,10 +42,13 @@ async function load(): Promise<void> {
     const res = await apiJson('/api/wiki/files')
     cloned.value = !!res.data?.cloned
     files.value = res.data?.files || []
-    // 默认入口:README/index 优先(后端 view 也会兜底,这里选中侧栏高亮)
+    // 入口:上次打开的文件优先(本地缓存),没有再退 README/index
     if (!currentFile.value) {
-      const hit = files.value.find(f => /^(readme|index)\.md$/i.test(f.name))
-      if (hit) currentFile.value = hit.path
+      const saved = localStorage.getItem(LAST_FILE_KEY) || ''
+      const hit = saved && files.value.find(f => f.path === saved)
+      if (hit) { currentFile.value = hit.path; frameFile.value = hit.path; return }
+      const idx = files.value.find(f => /^(readme|index)\.md$/i.test(f.name))
+      if (idx) currentFile.value = idx.path
     }
   } catch {
     cloned.value = false
@@ -49,7 +57,21 @@ async function load(): Promise<void> {
 
 function pick(f: WikiFile): void {
   currentFile.value = f.path
+  frameFile.value = f.path
+  try { localStorage.setItem(LAST_FILE_KEY, f.path) } catch { /* ignore */ }
   frameKey.value++
+}
+
+/** iframe 内部点链接跳了别的文件 → 上报回来:更新高亮/路径条 + 记缓存。
+ *  ⚠ 不动 frameFile —— frameSrc 绑定它,改了会重载 iframe(它本来就在那页,白闪一次);
+ *  刷新恢复走 localStorage,那里已经记上了。 */
+function onViewFileMsg(e: MessageEvent): void {
+  const d = e.data as { type?: string; file?: unknown; target?: unknown } | null
+  if (!d || d.type !== 'cp-view-file' || d.target !== 'wiki' || typeof d.file !== 'string') return
+  if (d.file && d.file !== currentFile.value) {
+    currentFile.value = d.file
+    try { localStorage.setItem(LAST_FILE_KEY, d.file) } catch { /* ignore */ }
+  }
 }
 
 function onRow(r: { type: 'dir' | 'file'; node: FileTreeNode<WikiFile> }): void {
@@ -65,7 +87,11 @@ async function onCopyPath(): Promise<void> {
   await doCopy(`wiki:${currentFile.value}`)
 }
 
-onMounted(load)
+onMounted(() => {
+  window.addEventListener('message', onViewFileMsg)
+  load()
+})
+onUnmounted(() => window.removeEventListener('message', onViewFileMsg))
 watch(() => files.value.length, () => { /* 树自动响应(computed) */ })
 </script>
 

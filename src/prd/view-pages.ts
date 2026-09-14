@@ -273,6 +273,7 @@ export function buildViewPage(md: string, mdName: string, dir: string, extraBase
 <html lang="zh-CN"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
+<script>try{if(window.parent!==window)parent.postMessage({type:'cp-view-file',file:${JSON.stringify(mdName)},target:${JSON.stringify(target?.mode || 'prd')}},'*')}catch(e){}</script>
 <script defer src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <style>
 :root{--bg:#f2f3f5;--card:#fff;--border:#e5e7eb;--text:#1f2329;--t2:#61666d;--a2:#8b5cf6}
