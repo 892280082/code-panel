@@ -183,6 +183,16 @@ function onClickCommand(cmd: CommandButton) {
         <!-- 固定头部 -->
         <div class="drawer-header">
           <span class="drawer-title">命令终端</span>
+          <!-- 🔒 项目隔离开关:关=所有终端全部一起显示;开=每个项目只显示自己打开的终端 -->
+          <button
+            class="drawer-lock"
+            :class="{ on: terminal.isolated }"
+            :disabled="!projects.currentId"
+            :title="terminal.isolated
+              ? '终端按项目隔离中:每个项目只显示自己打开的终端。点击关闭(全部共享)'
+              : '终端全项目共享。点击开启项目隔离:每个项目只显示自己打开的终端'"
+            @click="terminal.setIsolated(!terminal.isolated)"
+          />
           <button
             class="drawer-pin"
             title="记住当前屏幕尺寸下终端窗口与浮标的位置;之后切到这个尺寸自动对齐"
@@ -447,6 +457,21 @@ function onClickCommand(cmd: CommandButton) {
   flex-shrink: 0;
 }
 .drawer-title { font-size: 14px; font-weight: 600; color: var(--text, #c8c8d0); margin-right: auto; }
+/* 🔒 项目隔离开关(纯滑块无文字,样式对齐 FrpSwitch 的 el-switch 风格):
+   关=所有终端全部一起显示;开=每个项目只显示自己打开的终端 */
+.drawer-lock {
+  width: 30px; height: 16px; border-radius: 8px; position: relative;
+  background: #3a3a44; border: none; cursor: pointer;
+  transition: background 0.2s; padding: 0; margin-right: 10px; flex-shrink: 0;
+}
+.drawer-lock.on { background: #67c23a; }
+.drawer-lock:disabled { opacity: 0.35; cursor: default; }
+.drawer-lock::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 12px; height: 12px; border-radius: 50%; background: #fff;
+  transition: left 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+.drawer-lock.on::after { left: 16px; }
 /* 📍 定位:记住当前屏幕尺寸的窗口/浮标位置,切屏自动对齐 */
 .drawer-pin {
   font-family: var(--font); font-size: 10px;
