@@ -33,9 +33,9 @@
         >{{ copied ? '✓ 已复制' : '⧉ 复制路径' }}</button>
         <span class="toolbar-right">
           <button
-            v-if="viewUrl"
+            v-if="frameSrc"
             class="open-btn"
-            title="在新窗口打开双栏页"
+            title="在新窗口打开双栏页(当前这篇)"
             @click="openInTab"
           >新窗口 ↗</button>
           <button :disabled="refreshing" title="重绘各中心看板并刷新视图" @click="reload">{{ refreshing ? '↻ 重绘中…' : '↻ Refresh' }}</button>
@@ -67,10 +67,10 @@
           <span>该文件夹无 .md 文档(index.md 或任意 md 均可作为入口)</span>
         </div>
         <iframe
-          v-else
+          v-else-if="frameSrc"
           :key="frameKey"
           ref="frameEl"
-          :src="viewUrl"
+          :src="frameSrc"
           class="pv-full"
           @load="onFrameLoad"
         ></iframe>
@@ -101,6 +101,10 @@ const currentFile = ref('')      // iframe 当前实际显示文件(点左栏文
 const { copied, copy } = useCopyFeedback(2500)   // 复制路径按钮反馈
 const frameKey = ref(0)          // 强制 iframe 重新加载
 const frameEl = ref<HTMLIFrameElement | null>(null)
+/** iframe 实际加载地址(独立 ref,⚠ 不做成 computed:iframe 内部导航后同步
+ *  entryFile/currentFile 若牵动 :src 会把同页再重载一次白闪;刷新/重挂时
+ *  由 reload()/selectFolder() 显式赋值,天然带「当前文件」) */
+const frameSrc = ref('')
 
 const currentFolderName = computed(() => folders.value.find(f => f.dir === currentDir.value)?.name || '')
 /** iframe 当前实际所在目录(点正文链接翻到子目录页时更新;空 = 还在选中 folder 本身) */
@@ -117,12 +121,15 @@ const currentFileRel = computed(() => {
   return `${d}/${currentFile.value}`.replace(/\/+/g, '/')
 })
 
-/** 后台双栏渲染页(自带 MD 文件导航),整屏内嵌;?project= 让正文链接翻页时上下文连续 */
-const viewUrl = computed(() =>
-  currentDir.value && entryFile.value
-    ? '/api/prd/view?dir=' + encodeURIComponent(currentDir.value) + '&file=' + encodeURIComponent(entryFile.value) + projectQSuffix()
-    : ''
-)
+/** 后台双栏渲染页(自带 MD 文件导航),整屏内嵌;?project= 让正文链接翻页时上下文连续。
+ *  ⭐ 用「当前真实位置」(currentFileDir/currentFile,翻页后由 onFrameLoad 跟上)
+ *  而非选中 folder 的入口 —— ↻ Refresh / 新窗口打开都停在当前页,不跳回 index。 */
+function buildViewUrl(): string {
+  const dir = currentFileDir.value || currentDir.value
+  const file = currentFile.value || entryFile.value
+  if (!dir || !file) return ''
+  return '/api/prd/view?dir=' + encodeURIComponent(dir) + '&file=' + encodeURIComponent(file) + projectQSuffix()
+}
 
 /** 当前项目 query 后缀(&project=<id>);无项目返回 '' */
 function projectQSuffix(): string {
@@ -133,6 +140,19 @@ function projectQSuffix(): string {
 function dirKey() { return `prd:dir:${projects.currentId || 'g'}` }
 function loadSavedDir(): string {
   try { return localStorage.getItem(dirKey()) || '' } catch { return '' }
+}
+
+/** 记住上次打开的文件({dir,file},按项目存):F5 后直接回到那篇,不再重进 index */
+function fileKey() { return `prd:file:${projects.currentId || 'g'}` }
+function loadSavedFile(): { dir: string; file: string } | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(fileKey()) || 'null')
+    return v && typeof v.dir === 'string' && typeof v.file === 'string' ? v : null
+  } catch { return null }
+}
+function saveFile(dir: string, file: string): void {
+  if (!dir || !file) return
+  try { localStorage.setItem(fileKey(), JSON.stringify({ dir, file })) } catch { /* ignore */ }
 }
 
 async function loadFolders() {
@@ -152,20 +172,26 @@ async function loadFolders() {
   } catch { folders.value = [] }
 }
 
-/** 选中 folder:右侧整屏 iframe 打开该目录双栏页(入口 = index.md 优先,无则第一篇 md) */
+/** 选中 folder:右侧整屏 iframe 打开该目录双栏页。
+ *  入口 = 上次打开的文件优先(同目录内才认,防子目录残留),否则 index.md,无则第一篇 */
 async function selectFolder(dir: string) {
   currentDir.value = dir
   currentFileDir.value = dir
   entryFile.value = ''
+  currentFile.value = ''
+  frameSrc.value = ''
   frameKey.value++
   try { localStorage.setItem(dirKey(), dir) } catch { /* ignore */ }
   try {
     const res = await apiFetch('/api/prd/files?dir=' + encodeURIComponent(dir))
     const data = await res.json()
     const list: PrdFile[] = data.ok ? data.files : []
-    const entry = list.find(f => f.name === 'index.md') || list[0]
+    const saved = loadSavedFile()
+    const savedHit = saved && saved.dir === dir ? list.find(f => f.name === saved.file) : null
+    const entry = savedHit || list.find(f => f.name === 'index.md') || list[0]
     entryFile.value = entry ? entry.name : ''
     currentFile.value = entryFile.value
+    frameSrc.value = buildViewUrl()
   } catch { entryFile.value = ''; currentFile.value = '' }
 }
 
@@ -212,6 +238,8 @@ async function reload() {
       if (refreshNote.value) setTimeout(() => { refreshNote.value = '' }, 2500)
     }
   }
+  // ⭐ 重挂用「当前真实页」重建地址:翻到哪篇就重载哪篇,不再跳回入口 index
+  frameSrc.value = buildViewUrl()
   frameKey.value++
   loadFolders()
 }
@@ -231,12 +259,15 @@ function onFrameLoad() {
     const d = u.searchParams.get('dir')
     if (f) currentFile.value = decodeURIComponent(f)
     if (d) currentFileDir.value = decodeURIComponent(d)
+    if (f) entryFile.value = currentFile.value   // 入口跟着当前页走(新窗口打开不再指回 index;src 是独立 ref,不会白闪)
+    if (f && d) saveFile(currentFileDir.value, currentFile.value)
   } catch { /* 忽略解析失败 */ }
 }
 
 function openInTab() {
-  if (!viewUrl.value) return
-  window.open(viewUrl.value, '_blank')
+  const url = buildViewUrl()
+  if (!url) return
+  window.open(url, '_blank')
 }
 
 /** 复制当前文件相对路径到剪贴板(utils 带 http 内网兜底;成功后 copied 亮 2.5s 自动灭) */
@@ -252,6 +283,7 @@ watch(() => projects.currentId, async () => {
   currentFileDir.value = ''
   entryFile.value = ''
   currentFile.value = ''
+  frameSrc.value = ''
   frameKey.value++
   await loadFolders()
 })
