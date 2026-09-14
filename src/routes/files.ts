@@ -110,6 +110,16 @@ function safeName(name: string): string {
   return base;
 }
 
+/** 修中文文件名乱码:浏览器 multipart 的 filename 不带 RFC5987 编码时,
+ *  busboy 默认按 latin1 解码 → UTF-8 中文名变 "ä¸­æ" 这类 mojibake。
+ *  latin1 展开的 UTF-8 序列有固定特征(首字节 U+00C2-U+00F4 后跟 U+0080-U+00BF),
+ *  检测到才转回 UTF-8;正常文件名(含已正确的中文)不匹配特征,原样返回。 */
+function fixMojibakeName(name: string): string {
+  return /[\u00C2-\u00F4][\u0080-\u00BF]/.test(name)
+    ? Buffer.from(name, 'latin1').toString('utf8')
+    : name;
+}
+
 /** 冲突则追加 -1/-2… 后缀(绝对路径给终端用,避免空格) */
 function uniqueName(dir: string, name: string): string {
   const ext = path.extname(name);
@@ -128,7 +138,7 @@ const upload = multer({
     filename: (req: any, file: any, cb) => {
       try {
         const dir = sideDir(reqProject(req), 'upload');
-        cb(null, uniqueName(dir, safeName(file.originalname)));
+        cb(null, uniqueName(dir, safeName(fixMojibakeName(file.originalname))));
       } catch (e) { cb(e as Error, ''); }
     },
   }),
