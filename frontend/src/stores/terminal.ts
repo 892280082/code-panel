@@ -7,10 +7,18 @@
 //   持久化(对齐 code-server):窗口「位置 + 打开/最小化状态」存 localStorage,
 //   页面刷新后自动恢复 —— tmux 重连,cmd 若服务端会话仍在则重新接回。
 //
-//   🔒 项目隔离(纯浏览器,不碰后端):锁关 = 全局清单,所有项目共享全部
-//   终端窗口;锁开 = 每个项目在 localStorage 里记住自己打开的终端
-//   (cp:term:proj:<id>),切项目时清单外的窗口自动断开(tmux 会话不死,
-//   切回重开)。允许 A/B 项目各自打开同一终端(attach 复用同一 tmux 会话)。
+//   🌐 项目归属与视角(2026-09-14 归一化,纯浏览器不碰后端):
+//     · 归属单一字段 proj —— 创建时盖章(cmd=当时项目快照 / tmux=会话所属
+//       项目),此后不变;持久化按项目分清单 cp:term:proj:<id>(唯一事实源,
+//       老全局清单 cp:terminal-windows 仅作首次升级的迁移兜底)。
+//     · 默认「项目视角」:只显示归属当前项目的窗口 —— 天然隔离,打不开
+//       别的项目的终端;抽屉「🌐」开关临时切「全局视角」看全部(盘点/清理)。
+//     · 视角/切项目 = 纯显示过滤(v-show),窗口一旦打开常驻运行:iframe
+//       不卸载(cmd 回滚不丢)、进程不杀、tmux 接入不重连。
+//     · 清单 upsert 合并写入:恢复失败/未接上的条目永不丢失,只有显式
+//       关闭(closeSession/removeFromAllLists)才从清单移除。
+//     · 刷新只恢复当前项目的清单(端口池有界);切到别的项目时把该项目
+//       清单里未接上的窗口懒补齐(syncProjectWindows)。
 
 import { apiFetch, apiJson } from '@/utils/api-fetch'
 import type { TerminalServerSession } from '@/types'
@@ -18,7 +26,7 @@ import { raise } from '@/utils/z-layer'
 import { slotPos } from '@/utils/viewport-layout'
 import { useProjectsStore } from './projects'
 import { defineStore } from 'pinia'
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 
 export interface TerminalSession {
   port: number
@@ -31,6 +39,7 @@ export interface TerminalSession {
   y: number
   zIndex: number            // 层级：与 Repo Browser 共用全局计数器，点击置顶
   kind: 'cmd' | 'tmux'
+  proj?: string             // 🌐 归属项目 id(创建时盖章,唯一归属字段)
   tmuxSession?: string // tmux 物理会话名(p_<projectId>_<name>),作会话唯一 key
   tmuxProject?: string // tmux 会话归属项目 id(标题栏「复制屏幕」抓屏要用)
   tmuxDesc?: string
@@ -46,6 +55,7 @@ interface SavedWindow {
   label: string
   command: string
   cwd: string
+  proj?: string
   tmuxSession?: string
   tmuxProject?: string
   minimized: boolean
@@ -53,15 +63,24 @@ interface SavedWindow {
   y: number
 }
 
+/** 老全局清单(迁移兜底:当前项目还没有自己的清单时读一次) */
 const PERSIST_KEY = 'cp:terminal-windows'
-/** 🔒 隔离锁状态(全局;1=按项目隔离) */
-const ISO_KEY = 'cp:term-isolated'
-/** 锁开时每项目一份窗口清单:每个项目记住自己打开的终端 */
+/** 🌐 全局视角开关(全局;1=显示所有项目的终端)。默认 0=项目视角(只看本项目) */
+const SHOW_ALL_KEY = 'cp:term-show-all'
+/** 每项目一份窗口清单(唯一事实源) */
 const projListKey = (id: string) => `cp:term:proj:${id}`
 
-/** 窗口身份:tmux 用物理会话名唯一;cmd 用 label+command(与恢复匹配规则一致) */
-function windowKey(w: Pick<SavedWindow, 'kind' | 'tmuxSession' | 'label' | 'command'>): string {
-  return w.kind === 'tmux' ? `t:${w.tmuxSession}` : `c:${w.label}|${w.command}`
+/** 窗口身份:tmux 用物理会话名唯一(前缀已含项目);cmd 用 归属+label+command ——
+ *  必须带归属:两个项目各开一个裸终端(label=终端,command='')长得一模一样,
+ *  不带归属会互相顶替(懒补齐误判"已在运行"、清单互相覆盖)。 */
+function windowKey(w: Pick<SavedWindow, 'kind' | 'tmuxSession' | 'label' | 'command' | 'proj'>): string {
+  return w.kind === 'tmux' ? `t:${w.tmuxSession}` : `c:${w.proj || ''}|${w.label}|${w.command}`
+}
+
+/** 从 tmux 物理会话名 p_<projectId>_<name> 解析归属项目 id(老数据兜底) */
+function pidFromTmuxName(name: string): string | undefined {
+  const m = /^p_([A-Za-z0-9-]+)_/.exec(name)
+  return m ? m[1] : undefined
 }
 
 export const useTerminalStore = defineStore('terminal', () => {
@@ -72,9 +91,64 @@ export const useTerminalStore = defineStore('terminal', () => {
   function toggleDrawer() { drawerOpen.value = !drawerOpen.value }
   function closeDrawer() { drawerOpen.value = false }
 
+  // ── 🌐 项目视角 / 全局视角 ────────────────────────────────
+  //   (2026-09-14 语义反转:原「🔒隔离锁」默认全局共享、开=隔离 → 现在
+  //    默认就是项目隔离,开关只在「看全部」时打开;旧开关值作废重置)
+  try { localStorage.removeItem('cp:term-isolated') } catch { /* 一次性迁移 */ }
+  const showAll = ref(localStorage.getItem(SHOW_ALL_KEY) === '1')
+
+  /** 归属 = 唯一字段 proj(tmux 在 attach 时、cmd 在创建时盖章) */
+  function ownerOf(s: Pick<TerminalSession, 'proj'>): string | undefined {
+    return s.proj || undefined
+  }
+
+  /** 当前视角是否显示该窗口(纯显示过滤,窗口本身常驻运行) */
+  function inView(s: TerminalSession): boolean {
+    if (showAll.value) return true
+    const pid = projectsStore.currentId
+    if (!pid) return true            // 无当前项目(极端初始态)→ 全显示,避免空屏
+    return ownerOf(s) === pid
+  }
+
+  /** 当前视角可见的会话条目([port, session]) */
+  const visibleEntries = computed(() =>
+    [...sessions.entries()].filter(([, s]) => inView(s)),
+  )
+
+  function visibleList(): TerminalSession[] {
+    return visibleEntries.value.map(([, s]) => s)
+  }
+
+  /** 归属当前项目的条目(无论视角开关 —— 启停反馈 chip 等项目内语义用) */
+  const projectEntries = computed(() => {
+    const pid = projectsStore.currentId
+    if (!pid) return [...sessions.entries()]
+    return [...sessions.entries()].filter(([, s]) => ownerOf(s) === pid)
+  })
+
+  /** 归属项目名(全局视角窗口徽标用);解析不出返回空串 */
+  function projNameOf(s: TerminalSession): string {
+    const pid = ownerOf(s)
+    if (!pid) return ''
+    return projectsStore.projects.find(p => p.id === pid)?.name || ''
+  }
+
+  /** 窗口徽章是否显示:全局视角,或无当前项目的兜底全显(否则分不清是谁的窗口) */
+  function showProjChip(s: TerminalSession): boolean {
+    return (showAll.value || !projectsStore.currentId) && !!projNameOf(s)
+  }
+
+  /** 🌐 切换视角。纯显示过滤,不动任何运行中会话(不重连/不杀进程)。 */
+  function setShowAll(v: boolean): void {
+    if (showAll.value === v) return
+    showAll.value = v
+    try { localStorage.setItem(SHOW_ALL_KEY, v ? '1' : '0') } catch { /* ignore */ }
+  }
+
   /** 窗口落位:per-port 记忆优先(该窗口刷新后回原位,越界钳回可视区);
-   *  新窗口(无记忆)→ 按已占槽位找空位落座(当前尺寸记过位用档案槽,
-   *  否则向右阶梯错开)—— 第 1 个/第 2 个…各就各位 */
+   *  新窗口(无记忆)→ 在「当前视角可见」的窗口里找空位落座(含最小化
+   *  chip 的窗口也占位,避免落座即重叠)—— 本项目第 1 个窗口永远从
+   *  左上角起,不被别的项目的窗口顶走。 */
   function readSavedPos(port: number): { x: number; y: number } {
     try {
       const saved = JSON.parse(localStorage.getItem(`cmd-terminal-pos-${port}`) || 'null')
@@ -89,26 +163,14 @@ export const useTerminalStore = defineStore('terminal', () => {
         }
       }
     } catch { /* 无记忆/坏数据 → 落到槽位 */ }
-    const taken = [...sessions.values()].map(s => ({ x: s.x, y: s.y }))
-    return slotPos(sessions.size, taken)
-  }
-
-  // ── 🔒 项目隔离锁 ────────────────────────────────────────
-  //   关(默认):终端窗口全项目共享(全局清单 PERSIST_KEY)
-  //   开:每个项目一份清单(projListKey),切项目时清单外窗口断开、
-  //      清单内补开;允许 A/B 项目各自打开同一终端(同 tmux 复用同端口)。
-  const isolated = ref(localStorage.getItem(ISO_KEY) === '1')
-
-  /** 生效清单 key:锁开且有当前项目 → 项目清单;否则全局清单 */
-  function activeListKey(): string {
-    const pid = projectsStore.currentId
-    return isolated.value && pid ? projListKey(pid) : PERSIST_KEY
+    const vis = visibleList()
+    return slotPos(vis.length, vis.map(s => ({ x: s.x, y: s.y })))
   }
 
   /** 运行时会话 → 持久化窗口描述 */
   function toSaved(s: TerminalSession): SavedWindow {
     return {
-      kind: s.kind, label: s.label, command: s.command, cwd: s.cwd,
+      kind: s.kind, label: s.label, command: s.command, cwd: s.cwd, proj: s.proj,
       tmuxSession: s.tmuxSession, tmuxProject: s.tmuxProject,
       minimized: s.minimized, x: s.x, y: s.y,
     }
@@ -121,15 +183,35 @@ export const useTerminalStore = defineStore('terminal', () => {
     } catch { return [] }
   }
 
-  /** 把当前屏幕窗口集写入指定清单(调用方决定写全局还是某项目) */
-  function persistWindowsTo(key: string): void {
-    const list: SavedWindow[] = []
-    for (const s of sessions.values()) list.push(toSaved(s))
-    try { localStorage.setItem(key, JSON.stringify(list)) } catch { /* ignore */ }
+  /** 读某项目的清单并补归属:老版本(隔离锁时期)写的条目没有 proj,按清单 key 补上,
+   *  保证 windowKey(含归属)与运行时窗口可比。 */
+  function readProjList(pid: string): SavedWindow[] {
+    return readSavedWindowsFrom(projListKey(pid)).map(w => ({ ...w, proj: w.proj || pid }))
   }
 
-  function persistWindows() {
-    persistWindowsTo(activeListKey())
+  /** 持久化 = 按归属 upsert 进各项目清单(原位更新 + 追加新增)。
+   *  绝不截短:清单里有、运行时没有的条目(恢复失败/懒补未到)原样保留,
+   *  只有显式关闭(removeFromAllLists)才移除 —— 恢复失败永不丢窗口。 */
+  function persistWindows(): void {
+    const byProj = new Map<string, SavedWindow[]>()
+    for (const s of sessions.values()) {
+      const pid = ownerOf(s)
+      if (!pid) continue
+      const list = byProj.get(pid) || []
+      list.push(toSaved(s))
+      byProj.set(pid, list)
+    }
+    try {
+      for (const [pid, live] of byProj) {
+        const key = projListKey(pid)
+        const old = readSavedWindowsFrom(key)
+        const liveKeys = new Set(live.map(windowKey))
+        const merged = old
+          .map(w => (liveKeys.has(windowKey(w)) ? live.find(l => windowKey(l) === windowKey(w))! : w))
+        for (const l of live) if (!old.some(o => windowKey(o) === windowKey(l))) merged.push(l)
+        localStorage.setItem(key, JSON.stringify(merged))
+      }
+    } catch { /* ignore */ }
   }
 
   /** 关窗口 = 从全局 + 所有项目清单里移除该条目(关了就是关了,切项目不许复活)。
@@ -150,62 +232,40 @@ export const useTerminalStore = defineStore('terminal', () => {
     }
   }
 
-  /** 🔒 切换隔离锁。
-   *  开:项目清单为空 → 收编屏幕现有窗口为该项目清单(首次接管,不丢窗口);
-   *      清单非空 → 按清单重建屏幕(清单外的断开)。
-   *  关:屏幕窗口原样保留,写回全局清单(各项目清单保留,下次开锁还在)。 */
-  function setIsolated(v: boolean): void {
-    if (isolated.value === v) return
-    isolated.value = v
-    localStorage.setItem(ISO_KEY, v ? '1' : '0')
-    const pid = projectsStore.currentId
-    if (!v) { persistWindowsTo(PERSIST_KEY); return }
-    if (!pid) return
-    if (readSavedWindowsFrom(projListKey(pid)).length === 0) persistWindowsTo(projListKey(pid))
-    else void applyProjectScope(pid)
-  }
-
-  /** 🔒 锁开 + 项目切换:让屏幕窗口集合 = 目标项目清单。
-   *  清单外断开(tmux 只断接入,会话不死;cmd 杀进程),清单内补开。
-   *  全程绕开 persistWindows(会话集合收敛中,中途写清单会截短目标清单),
-   *  结束后统一写一次。scopeSeq 防竞态:连续快速切项目,旧重建自动作废。 */
-  let scopeSeq = 0
-  async function applyProjectScope(pid: string): Promise<void> {
-    const seq = ++scopeSeq
-    const want = readSavedWindowsFrom(projListKey(pid))
-    const wantKeys = new Set(want.map(windowKey))
-    for (const [port, s] of [...sessions.entries()]) {
-      if (!wantKeys.has(windowKey(s))) await detachPort(port)
-      if (seq !== scopeSeq) return   // 期间又切了项目 → 放弃本次(新一轮已接管)
-    }
+  /** 懒补齐:切到某项目时,把该项目清单里「还没接上」的窗口重开(tmux 重连/
+   *  cmd 复用服务端活会话),保证该项目视角 = 该项目清单全量。 */
+  let syncSeq = 0
+  async function syncProjectWindows(pid: string): Promise<void> {
+    const seq = ++syncSeq
+    const want = readProjList(pid)
+    const missing = want.filter(
+      w => ![...sessions.values()].some(s => windowKey(s) === windowKey(w)),
+    )
+    if (!missing.length) return
     let serverSessions: TerminalServerSession[] = []
     try {
       const d = await apiJson<{ data: TerminalServerSession[] }>('/api/terminal/sessions')
       serverSessions = d?.data || []
     } catch { /* ignore */ }
-    for (const w of want) {
-      const exists = [...sessions.values()].some(s => windowKey(s) === windowKey(w))
-      if (!exists) await reopenSavedWindow(w, serverSessions, { persist: false })
-      if (seq !== scopeSeq) return
+    for (const w of missing) {
+      if (seq !== syncSeq) return   // 期间又切了项目 → 新一轮接管,本次作废
+      await reopenSavedWindow(w, serverSessions, { persist: false })
     }
     persistWindows()
   }
 
-  // 锁开时切换项目:切走前把屏幕快照进旧项目清单,再按新项目清单重建屏幕
-  watch(() => projectsStore.currentId, (pid, old) => {
-    if (!isolated.value) return
-    if (old) persistWindowsTo(projListKey(old))
-    if (pid) void applyProjectScope(pid)
+  // 切项目:懒补齐目标项目的清单窗口(旧项目窗口常驻隐藏,不杀不卸)
+  watch(() => projectsStore.currentId, (pid) => {
+    if (pid) void syncProjectWindows(pid)
   })
 
-  /** 重开一条持久化窗口记录(tmux 重连 / cmd 复用服务端活会话)。
-   *  opts.persist=false:批量恢复中途不写清单(全量派生会截短清单),
-   *  由调用方收尾统一 persist 一次。 */
+  /** 重开一条持久化窗口记录(tmux 重连 / cmd 复用服务端活会话)。 */
   async function reopenSavedWindow(
     w: SavedWindow, serverSessions: TerminalServerSession[], opts?: { persist?: boolean },
   ): Promise<void> {
     if (w.kind === 'tmux' && w.tmuxSession) {
-      const pid = w.tmuxProject || projectsStore.currentId || ''
+      // 归属:清单字段优先,老数据从 tmuxProject / 物理会话名解析兜底
+      const pid = w.proj || w.tmuxProject || pidFromTmuxName(w.tmuxSession) || projectsStore.currentId
       if (!pid) return
       // label 形如 "名 — 描述",拆回展示名/描述(无则退化 label)
       const sep = w.label.indexOf(' — ')
@@ -217,7 +277,7 @@ export const useTerminalStore = defineStore('terminal', () => {
         if (s) { s.x = w.x; s.y = w.y; s.minimized = !!w.minimized }
       }
     } else if (w.kind === 'cmd' && w.command) {
-      // 复用服务端还活着的会话(不重启进程),找不到则跳过
+      // 复用服务端还活着的会话(不重启进程),找不到则跳过(清单条目保留,下次再试)
       const hit = serverSessions.find(ss => ss.label === w.label && ss.command === w.command)
       if (!hit || !hit.port) return
       if (sessions.has(hit.port)) return
@@ -226,6 +286,7 @@ export const useTerminalStore = defineStore('terminal', () => {
         label: w.label,
         command: w.command,
         cwd: w.cwd || '',
+        proj: w.proj,
         minimized: !!w.minimized,
         maximized: false,
         x: w.x,
@@ -233,15 +294,28 @@ export const useTerminalStore = defineStore('terminal', () => {
         zIndex: raise(),
         kind: 'cmd',
       })
-      if (opts?.persist !== false) persistWindows()
     }
+    if (opts?.persist !== false) persistWindows()
   }
 
-  /** 刷新后恢复:重开上次打开的窗口(记住位置 + 最小化状态)。
-   *  🔒 锁开时读当前项目清单(无当前项目则退化全局清单,
-   *  项目列表随后加载完时 watch currentId 会再按项目清单收敛一次)。 */
+  /** 刷新后恢复:只恢复「当前项目」的清单(tmux 端口池 9020-9029 有界,
+   *  绝不全量恢复所有项目);当前项目没有清单(老用户首次升级)→ 读老全局
+   *  清单迁移一次(tmux 从物理会话名解析归属,cmd 归当前项目)。
+   *  其他项目的窗口在切到该项目时由 syncProjectWindows 懒补齐。 */
   async function restorePersisted() {
-    const saved = readSavedWindowsFrom(activeListKey())
+    if (!projectsStore.currentId && !projectsStore.loaded) {
+      try { await projectsStore.load() } catch { /* 拿不到项目列表 → 按无项目兜底 */ }
+    }
+    const pid = projectsStore.currentId
+    let saved = pid ? readProjList(pid) : []
+    if (!saved.length) {
+      saved = readSavedWindowsFrom(PERSIST_KEY).map(w => ({
+        ...w,
+        proj: w.proj || (w.kind === 'tmux'
+          ? (w.tmuxProject || pidFromTmuxName(w.tmuxSession || '') || pid)
+          : pid) || undefined,
+      }))
+    }
     if (!saved.length) return
     // 服务端当前还活着的 cmd 会话(刷新前若没清理,它们还在)
     let serverSessions: TerminalServerSession[] = []
@@ -259,6 +333,8 @@ export const useTerminalStore = defineStore('terminal', () => {
   async function createSession(
     label: string, command: string, cwd: string, keepShell = true, opts?: { persist?: boolean },
   ) {
+    // 归属在点击瞬间盖章(不等请求回来 —— 期间切项目不能把窗口归错人)
+    const ownerPid = projectsStore.currentId || ''
     try {
       const data = await apiJson<{ data: { port: number } }>('/api/terminal/sessions', {
         method: 'POST',
@@ -270,6 +346,7 @@ export const useTerminalStore = defineStore('terminal', () => {
       const oneshot = !keepShell
       sessions.set(port, {
         port, label, command, cwd,
+        proj: ownerPid,
         minimized: false, maximized: false,
         x: pos.x, y: pos.y,
         zIndex: raise(),
@@ -354,9 +431,10 @@ export const useTerminalStore = defineStore('terminal', () => {
   }
 
   // ── Tmux:连接已有 tmux 会话(持久化终端) ─────────────
-  //   ttyd 只是接入通道,断开/刷新后 tmux session 常驻,可随时重连。
-  //   fullName 是物理会话名(p_<projectId>_<name>);displayName 是展示名(去前缀);
-  //   projectId 用于接口作用域。已连接同会话 → 直接恢复显示。
+  //  ttyd 只是接入通道,断开/刷新后 tmux session 常驻,可随时重连。
+  //  fullName 是物理会话名(p_<projectId>_<name>);displayName 是展示名(去前缀);
+  //  projectId 用于接口作用域,同时盖章为窗口归属 proj。
+  //  已连接同会话 → 直接恢复显示。
   async function attachTmux(
     fullName: string, displayName: string, projectId: string, description?: string,
     opts?: { persist?: boolean },
@@ -391,6 +469,7 @@ export const useTerminalStore = defineStore('terminal', () => {
         y: pos.y,
         zIndex: raise(),
         kind: 'tmux',
+        proj: projectId,
         tmuxSession: sessionName,
         tmuxProject: projectId,
         tmuxDesc: desc,
@@ -405,7 +484,7 @@ export const useTerminalStore = defineStore('terminal', () => {
   }
 
   /** 关窗口底层:杀服务端接入/进程 + 清运行时与位置记忆。
-   *  不写清单(applyProjectScope 批量收敛时调用方自理),也不从清单移除条目。 */
+   *  仅显式关闭时调用(视角/切项目不调用);不从清单移除条目(closeSession 自理)。 */
   async function detachPort(port: number): Promise<void> {
     clearLifecycle(port)
     try {
@@ -497,11 +576,11 @@ export const useTerminalStore = defineStore('terminal', () => {
     capTarget.value = null
   }
 
-  /** 快捷键动作:显示/隐藏全部 tmux 终端窗口(一个都没有时开命令抽屉)。
+  /** 快捷键动作:显示/隐藏当前视角的 tmux 终端窗口(一个都没有时开命令抽屉)。
    *  供两处调用:App.vue 全局热键 + TerminalPanel 注入终端 iframe 的
    *  转发监听(焦点在终端 iframe 里时父窗口收不到按键,必须内也监听) */
   function toggleTmuxVisibility(): void {
-    const tmux = [...sessions.values()].filter(s => s.kind === 'tmux')
+    const tmux = visibleList().filter(s => s.kind === 'tmux')
     if (!tmux.length) { toggleDrawer(); return }
     const anyVisible = tmux.some(s => !s.minimized)
     for (const s of tmux) {
@@ -512,7 +591,9 @@ export const useTerminalStore = defineStore('terminal', () => {
 
   return {
     sessions, drawerOpen,
-    isolated, setIsolated,
+    showAll, setShowAll, inView,
+    visibleEntries, visibleList, projectEntries,
+    projNameOf, showProjChip,
     toggleDrawer, closeDrawer,
     createSession, closeSession,
     minimizeSession, restoreSession, cleanupAll,

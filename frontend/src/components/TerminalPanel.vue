@@ -57,9 +57,10 @@ function tmuxProjectOf(s: TerminalSession): string | null {
 }
 
 /** tmux 会话有序端口表 —— 与 FAB 数字芯片条(useFabChips.sessionList)同源同序,
- *  窗口标题的圆框编号取自此表,关掉中间窗口两边同步重排,永远一一对应。 */
+ *  窗口标题的圆框编号取自此表,关掉中间窗口两边同步重排,永远一一对应。
+ *  ⚠ 同源 = 都取「当前视角可见」的窗口(visibleEntries),编号才对得上芯片。 */
 const tmuxPorts = computed(() =>
-  [...store.sessions.entries()].filter(([, s]) => s.kind === 'tmux').map(([port]) => port),
+  store.visibleEntries.filter(([, s]) => s.kind === 'tmux').map(([port]) => port),
 )
 
 /** 窗口标题徽章编号(tmux = 在数字条中的序号;cmd/一次性窗口不占号,无徽章) */
@@ -72,7 +73,7 @@ function badgeNo(port: number): number {
   <div
     v-for="[port, session] in store.sessions"
     :key="port"
-    v-show="!session.minimized"
+    v-show="!session.minimized && store.inView(session)"
     class="terminal-panel"
     :class="{ maximized: session.maximized }"
     :style="session.maximized
@@ -86,6 +87,7 @@ function badgeNo(port: number): number {
     <div class="terminal-header" @mousedown.prevent="(e) => onDragStart(e, port)">
       <span class="terminal-title">
         <span v-if="session.kind === 'tmux'" class="title-badge" :title="`终端 ${badgeNo(port)}(对应右下角数字芯片)`">{{ badgeNo(port) }}</span>
+        <span v-if="store.showProjChip(session)" class="proj-chip" :title="`归属项目:${store.projNameOf(session)}`">{{ store.projNameOf(session) }}</span>
         ▸ {{ session.label }}
       </span>
       <div class="terminal-actions">
@@ -165,6 +167,19 @@ function badgeNo(port: number): number {
 }
 /* 标题前圆框编号:对应右下角 FAB 数字芯片条(tmux 窗口才有);
    颜色跟标题同灰(和谐,不抢眼) */
+/* 🌐 归属项目徽标:全局视角下标明窗口属于哪个项目(区分"谁的终端") */
+.proj-chip {
+  display: inline-block;
+  font-size: 10px; line-height: 1;
+  padding: 2px 6px; margin-right: 5px;
+  border-radius: 4px;
+  background: rgba(103, 194, 58, 0.12);
+  border: 1px solid rgba(103, 194, 58, 0.35);
+  color: #95d475;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 .title-badge {
   display: inline-flex;
   align-items: center; justify-content: center;

@@ -14,8 +14,10 @@ export function useTerminalViewport() {
 
   function applyViewportLayout(): void {
     const wins = getLayout().wins
+    // 只整理「当前视角可见」的窗口 —— 隐藏着的别项目窗口几何不许被动
+    const vis = store.visibleList()
     if (wins?.length) {
-      const list = [...store.sessions.values()]
+      const list = vis
         .filter(s => !s.maximized)
         .sort((a, b) => a.x - b.x)
       list.forEach((s, i) => {
@@ -27,7 +29,7 @@ export function useTerminalViewport() {
     }
     const w = window.innerWidth, h = window.innerHeight
     let changed = false
-    for (const s of store.sessions.values()) {
+    for (const s of vis) {
       if (w / 2 + s.x < 40 || w / 2 + s.x > w - 40 || h / 2 + s.y < 40 || h / 2 + s.y > h - 40) {
         s.x = 0; s.y = 0
         changed = true

@@ -49,11 +49,13 @@ function projectName(id: string): string {
   return projects.projects.find(p => p.id === id)?.name || `#${id}`
 }
 
-/** 按项目分盒(全项目一屏可见,组序 = 各组最新会话时间倒序);样式对齐 Apps 页 platform-card */
+/** 按项目分盒(项目视角 = 只看当前项目,🌐全局视角 = 全项目一屏;组序 = 各组最新会话时间倒序) */
 const groupedTmux = computed(() => {
   const map = new Map<string, TmuxSessionInfo[]>()
   for (const s of tmuxSessions.value) {
     const key = s.project || ''   // null=未识别归属(后端已滤,防御兜底)
+    // 项目视角只列当前项目的会话 —— 别的项目的不给点(点了也看不见窗口)
+    if (!terminal.showAll && projects.currentId && key !== projects.currentId) continue
     if (!map.has(key)) map.set(key, [])
     map.get(key)!.push(s)
   }
@@ -62,9 +64,10 @@ const groupedTmux = computed(() => {
     .sort((a, b) => (b.sessions[0]?.createdAt ?? 0) - (a.sessions[0]?.createdAt ?? 0))
 })
 
-/** 该 tmux 会话在本页是否已开窗口(有则返回端口,null=未连接) */
+/** 该 tmux 会话在当前视角是否已开窗口(有则返回端口,null=未连接)。
+ *  只认可见窗口:项目视角下别的项目开着的窗口不算,点「连接」走正常 attach */
 function attachedTmuxPort(fullName: string): number | null {
-  for (const [port, s] of terminal.sessions) {
+  for (const [port, s] of terminal.visibleEntries) {
     if (s.kind === 'tmux' && s.tmuxSession === fullName) return port
   }
   return null

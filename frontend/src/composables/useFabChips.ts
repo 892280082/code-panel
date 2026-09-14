@@ -66,9 +66,9 @@ export function useFabChips() {
   let dragStartX = 0, dragStartY = 0, dragOrigX = 0, dragOrigY = 0
 
   // ── 芯片几何：与 FAB 位置联动 ───────────────────────────
-  /** 浮动终端数字条只列 tmux 常驻会话(Apps 启停一次性会话 / 手动 cmd 终端不占 1/2/3) */
+  /** 浮动终端数字条只列当前视角可见的 tmux 常驻会话(Apps 启停一次性会话 / 手动 cmd 终端不占 1/2/3) */
   const sessionList = computed(() =>
-    Array.from(terminal.sessions.entries()).filter(([, s]) => s.kind === 'tmux'),
+    terminal.visibleEntries.filter(([, s]) => s.kind === 'tmux'),
   )
   /** 左侧终端芯片条右缘 = FAB 右缘 + FAB 宽 + 间距 */
   const chipsBarRight = computed(() => btnX.value + BTN_SIZE + GAP)

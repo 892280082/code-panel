@@ -39,7 +39,8 @@ function onPin(): void {
 // ⟲ 重置:当前分辨率下所有终端窗口一键居中,并清掉该尺寸的定位档案
 // (档案记的位置换了分辨率后可能不合适 → 重置回「未记过」状态兜底)
 function onReset(): void {
-  for (const s of terminal.sessions.values()) {
+  // 只整理「当前视角可见」的窗口 —— 一键居中不许改到别的项目隐藏窗口的几何
+  for (const s of terminal.visibleList()) {
     if (!s.maximized) { s.x = 0; s.y = 0 }
   }
   terminal.persistWindows()
@@ -183,15 +184,15 @@ function onClickCommand(cmd: CommandButton) {
         <!-- 固定头部 -->
         <div class="drawer-header">
           <span class="drawer-title">命令终端</span>
-          <!-- 🔒 项目隔离开关:关=所有终端全部一起显示;开=每个项目只显示自己打开的终端 -->
+          <!-- 🌐 显示全部终端:关(默认)=项目视角只看本项目终端;开=全局视角看所有项目的终端(盘点/清理) -->
           <button
             class="drawer-lock"
-            :class="{ on: terminal.isolated }"
+            :class="{ on: terminal.showAll }"
             :disabled="!projects.currentId"
-            :title="terminal.isolated
-              ? '终端按项目隔离中:每个项目只显示自己打开的终端。点击关闭(全部共享)'
-              : '终端全项目共享。点击开启项目隔离:每个项目只显示自己打开的终端'"
-            @click="terminal.setIsolated(!terminal.isolated)"
+            :title="terminal.showAll
+              ? '全局视角:正在显示所有项目的终端。点击回到默认(只看本项目终端)'
+              : '项目视角:只显示当前项目打开的终端(默认隔离)。点击显示所有项目的终端(盘点/清理用)'"
+            @click="terminal.setShowAll(!terminal.showAll)"
           />
           <button
             class="drawer-pin"

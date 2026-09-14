@@ -31,7 +31,9 @@ const platformGroups = computed(() => {
 
 /** 左上角 chip 导航:已自动最小化的启停一次性会话(短时反馈)。点 chip = 打开该服务日志页签(非恢复终端窗口) */
 const oneshotChips = computed(() =>
-  Array.from(terminal.sessions.entries())
+  // 启停反馈 chip 只认「归属当前项目」的(视角开关不影响):点了开本项目的日志、关本项目的会话,
+  // 绝不串别的项目的日志/终端
+  terminal.projectEntries
     .filter(([, s]) => s.kind === 'cmd' && s.oneshot && s.minimized)
     .map(([port, s]) => {
       // label = "<服务名> · 启动/停止",从当前 logs 清单按 name 反查对应日志 file

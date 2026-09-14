@@ -39,7 +39,8 @@ export function useTerminalDrag() {
       const s = store.sessions.get(dragPort)
       if (s) localStorage.setItem(`cmd-terminal-pos-${dragPort}`, JSON.stringify({ x: s.x, y: s.y }))
       store.persistWindows()
-      updateLast({ wins: [...store.sessions.values()]
+      // 📍 快照只记「当前视角可见」的窗口 —— 别的项目隐藏窗口的几何不许串写进档案
+      updateLast({ wins: store.visibleList()
         .sort((a, b) => a.x - b.x)
         .map(w => ({ x: w.x, y: w.y })) } satisfies TermLayout)
     }
