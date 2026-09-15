@@ -7,8 +7,14 @@
 //     做项目隔离(UI 展示时去掉前缀)。会话备注(展示名/描述/归属项目)
 //     不落全局文件,而是放在「归属项目」的 .code-panel/data/tmux-notes.json,
 //     随项目走(项目被删则备注一并消失;tmux 会话本身是宿主机全局的)。
+//
+//   ★ 重启恢复:tmux 会话是内存态,整机重启即全灭 → 备注里记 cwd
+//     (创建时记初始目录,运行中每次 list 顺手同步 pane_current_path,
+//     用户 cd 到哪就记哪),服务启动时 restoreTmuxSessions() 按备注
+//     重建缺失会话并落回最后所在目录(面板由 systemd 开机自启,重启即自动拉回)。
 
 import { spawn, exec, execSync, ChildProcess } from 'child_process';
+import * as fs from 'fs';
 import * as net from 'net';
 import type { ProjectRow } from '../db/global-store';
 import { allProjects, readRuntimeJson, writeRuntimeJson } from '../projects/project-store';
@@ -33,6 +39,7 @@ export interface TmuxNote {
   name: string;        // 展示名(safe name,去前缀后给 UI 看)
   project: string;     // 归属项目 id
   description: string; // 用户备注(可为空)
+  cwd?: string;        // 最后所在目录(重启恢复时 new-session -c 用;list 时同步 pane_current_path)
 }
 
 type TmuxNotes = Record<string /* 物理会话名(fullName) */, TmuxNote>;
@@ -56,6 +63,20 @@ export function execAsync(cmd: string, timeout = 5000): Promise<string> {
       else resolve((stdout || '').trim());
     });
   });
+}
+
+/** sh 单引号包裹(目录含空格/引号/中文也安全;会话名有白名单,目录没有 → 必须包) */
+function shellQuote(s: string): string {
+  return `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
+/** 候选目录里第一个真实存在的(都无效 → null = 不带 -c,用 tmux 默认目录) */
+function firstExistingDir(candidates: Array<string | undefined>): string | null {
+  for (const c of candidates) {
+    if (!c || !c.trim()) continue;
+    try { if (fs.statSync(c).isDirectory()) return c; } catch { /* 不存在/无权限 */ }
+  }
+  return null;
 }
 
 // ── 会话名编码 ────────────────────────────────────────────
@@ -151,7 +172,7 @@ export interface TmuxSessionInfo {
 export async function listTmuxSessions(): Promise<TmuxSessionInfo[]> {
   // tmux 未启动会抛错 → 空列表
   const raw = await execAsync(
-    `tmux list-sessions -F '#{session_name}|#{session_windows}|#{session_created}|#{session_attached}' 2>/dev/null`,
+    `tmux list-sessions -F '#{session_name}|#{session_windows}|#{session_created}|#{session_attached}|#{pane_current_path}' 2>/dev/null`,
   );
   if (!raw) return [];
 
@@ -159,8 +180,15 @@ export async function listTmuxSessions(): Promise<TmuxSessionInfo[]> {
   // 识别前缀时用更长的 projectId 优先,减少 p_a 与 p_a_b 这类歧义
   const projects = allProjects().slice().sort((a, b) => b.id.length - a.id.length);
 
+  // 物理名 → 当前 pane 目录(list 完顺手回写备注,重启恢复才有"最后所在目录")
+  const panePaths = new Map<string, string>();
+
   const sessions = raw.split('\n').filter(Boolean).map(line => {
-    const [fullName, windows, createdAt, attached] = line.split('|');
+    const parts = line.split('|');
+    const [fullName, windows, createdAt, attached] = parts;
+    // pane_current_path 理论可含 '|'(第 5 段起拼回;前 4 段均为数字/白名单名,不含 '|')
+    const panePath = parts.slice(4).join('|');
+    if (panePath) panePaths.set(fullName, panePath);
 
     const note = notesMap.get(fullName);
     let name = fullName;
@@ -193,6 +221,18 @@ export async function listTmuxSessions(): Promise<TmuxSessionInfo[]> {
     };
   });
 
+  // 会话最新目录 → 备注cwd(仅变化才落盘;面板开着时每 list 一次同步一次,
+  // 整机重启后 restoreTmuxSessions() 就能回到用户 cd 到的目录)
+  for (const p of allProjects()) {
+    const notes = readNotes(p);
+    let dirty = false;
+    for (const [full, note] of Object.entries(notes)) {
+      const cwd = panePaths.get(full);
+      if (cwd && note.cwd !== cwd) { note.cwd = cwd; dirty = true; }
+    }
+    if (dirty) writeNotes(p, notes);
+  }
+
   // 逐会话补鼠标模式(show-options 返回 session 生效值,含全局继承)
   for (const s of sessions) {
     try {
@@ -205,9 +245,11 @@ export async function listTmuxSessions(): Promise<TmuxSessionInfo[]> {
 
 // ── 创建会话 ────────────────────────────────────────────
 //   只创建 detached tmux session;备注落本项目 runtime json。
+//   cwd = 会话初始目录(调用方未传/无效 → 项目根;再无效 → tmux 默认),
+//   并记进备注 cwd 字段,重启恢复用。
 
 export async function createTmuxSession(
-  project: ProjectRow, name: string, description?: string,
+  project: ProjectRow, name: string, description?: string, cwd?: string,
 ): Promise<string> {
   const fullName = assertSafeSessionName(project, name);
 
@@ -222,15 +264,58 @@ export async function createTmuxSession(
     // tmux 无会话 → 继续创建
   }
 
-  await execAsync(`tmux new-session -d -s "${fullName}"`);
+  const dir = firstExistingDir([cwd, project.root]);
+  const cwdArg = dir ? ` -c ${shellQuote(dir)}` : '';
+  await execAsync(`tmux new-session -d -s ${shellQuote(fullName)}${cwdArg}`);
   const notes = readNotes(project);
   notes[fullName] = {
     name: name.trim(),
     project: project.id,
     description: (description || '').trim(),
+    ...(dir ? { cwd: dir } : {}),
   };
   writeNotes(project, notes);
   return fullName;
+}
+
+// ── 重启恢复:整机重启后 tmux 会话全灭,按备注重建 ────────
+//   遍历所有项目的 tmux-notes.json:备注里有、tmux 里没有的会话 →
+//   new-session -d 重建并落回备注记录的最后目录(cwd 失效 → 项目根兜底)。
+//   幂等:面板重启但机器没重启时会话都在 → 全命中跳过,一个不建。
+//   注:恢复的是「会话窗口 + 所在目录」,会话里原本跑着的进程无法复活。
+
+export async function restoreTmuxSessions(): Promise<{ restored: number; failed: string[] }> {
+  let existing: string[] = [];
+  try {
+    const raw = await execAsync(`tmux list-sessions -F '#{session_name}' 2>/dev/null`);
+    existing = raw ? raw.split('\n').filter(Boolean) : [];
+  } catch { /* tmux 无会话/server 未启动 */ }
+  const have = new Set(existing);
+
+  let restored = 0;
+  const failed: string[] = [];
+  for (const project of allProjects()) {
+    const notes = readNotes(project);
+    for (const [full, note] of Object.entries(notes)) {
+      if (have.has(full)) continue;
+      // 备注是手可改的 json → 物理名过白名单,防命令注入
+      if (!FULL_NAME_RE.test(full)) {
+        console.warn(`[TMUX] 跳过非法会话名(备注文件手改过?): ${full}`);
+        continue;
+      }
+      const dir = firstExistingDir([note.cwd, project.root]);
+      const cwdArg = dir ? ` -c ${shellQuote(dir)}` : '';
+      try {
+        await execAsync(`tmux new-session -d -s ${shellQuote(full)}${cwdArg}`);
+        restored++;
+        console.log(`[TMUX] ✓ 重启恢复会话 ${full} → ${dir ?? '(默认目录)'}`);
+      } catch (err) {
+        failed.push(full);
+        console.error(`[TMUX] ✗ 重启恢复失败 ${full}:`, (err as Error).message);
+      }
+    }
+  }
+  return { restored, failed };
 }
 
 // ── 连接会话:为已有 tmux session 启动 ttyd attach ───────

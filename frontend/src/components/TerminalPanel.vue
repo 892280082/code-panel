@@ -84,7 +84,9 @@ function badgeNo(port: number): number {
         }"
     @pointerdown.capture="onWindowPointerDown(port, session)"
   >
-    <div class="terminal-header" @mousedown.prevent="(e) => onDragStart(e, port)">
+    <!-- 标题栏拖拽走 pointerdown + setPointerCapture(useTerminalDrag):
+         鼠标拖进终端 iframe 区域也不丢事件(iframe 是独立文档,mousemove 收不到 → 之前不跟手) -->
+    <div class="terminal-header" @pointerdown.prevent="(e) => onDragStart(e, port)">
       <span class="terminal-title">
         <span v-if="session.kind === 'tmux'" class="title-badge" :title="`终端 ${badgeNo(port)}(对应右下角数字芯片)`">{{ badgeNo(port) }}</span>
         <span v-if="store.showProjChip(session)" class="proj-chip" :title="`归属项目:${store.projNameOf(session)}`">{{ store.projNameOf(session) }}</span>
@@ -96,17 +98,17 @@ function badgeNo(port: number): number {
           v-if="session.kind === 'tmux' && session.tmuxSession && tmuxProjectOf(session)"
           class="btn-copy"
           title="复制屏幕文本(弹窗里可拖选局部 / 一键复制)"
-          @mousedown.stop
+          @pointerdown.stop
           @click.stop="store.openCapture({ fullName: session.tmuxSession!, label: session.label, project: tmuxProjectOf(session)! })"
         >⧉</button>
-        <button class="btn-minimize" title="最小化" @mousedown.stop @click.stop="store.minimizeSession(port)">─</button>
+        <button class="btn-minimize" title="最小化" @pointerdown.stop @click.stop="store.minimizeSession(port)">─</button>
         <button
           class="btn-maximize"
           :title="session.maximized ? '还原' : '最大化'"
-          @mousedown.stop
+          @pointerdown.stop
           @click.stop="store.toggleMaximizeSession(port)"
         >{{ session.maximized ? '❐' : '□' }}</button>
-        <button class="btn-close" title="关闭" @mousedown.stop @click.stop="store.closeSession(port)">✕</button>
+        <button class="btn-close" title="关闭" @pointerdown.stop @click.stop="store.closeSession(port)">✕</button>
       </div>
     </div>
     <div class="terminal-body">
@@ -157,6 +159,7 @@ function badgeNo(port: number): number {
   cursor: grab;
   user-select: none;
   flex-shrink: 0;
+  touch-action: none; /* 触摸拖动时不许浏览器抢去滚动/缩放(指针捕获的前提) */
 }
 .terminal-panel.maximized .terminal-header { cursor: default; }
 .terminal-title {

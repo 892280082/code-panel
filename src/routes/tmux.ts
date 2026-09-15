@@ -7,6 +7,7 @@
 //   attach 只返回端口,token 由前端自己拼(与其他终端一致)。
 
 import { Router, Request, Response } from 'express';
+import * as fs from 'fs';
 import { requireProject, reqProject, canAccessProject } from '../projects/context';
 import { reqUser } from '../auth/jwt';
 import { listUserProjectIds } from '../db/global-store';
@@ -47,19 +48,32 @@ router.get('/api/terminal/tmux/list', route(async (req: Request, res: Response) 
 }));
 
 // POST /api/terminal/tmux/create — 创建 detached tmux 会话
-// body: { project, name, description? }
+// body: { project, name, description?, cwd? }
+//   cwd = 初始目录(可选;缺省/目录不存在 → 项目根)
 router.post('/api/terminal/tmux/create', requireProject, route(async (req: Request, res: Response) => {
   const project = reqProject(req);
-  const { name, description } = (req.body ?? {}) as { name?: unknown; description?: unknown };
+  const { name, description, cwd } = (req.body ?? {}) as { name?: unknown; description?: unknown; cwd?: unknown };
   if (typeof name !== 'string' || !name.trim()) {
     res.status(400).json({ ok: false, error: '请提供会话名称' });
     return;
+  }
+  if (cwd !== undefined && cwd !== null && cwd !== '') {
+    if (typeof cwd !== 'string' || !cwd.trim()) {
+      res.status(400).json({ ok: false, error: 'cwd 需为非空字符串' });
+      return;
+    }
+    // 传了就必须是真实目录(别让手滑的路径静默落回项目根)
+    if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) {
+      res.status(400).json({ ok: false, error: `目录不存在:${cwd}` });
+      return;
+    }
   }
   try {
     const fullName = await createTmuxSession(
       project,
       name.trim(),
       typeof description === 'string' ? description : undefined,
+      typeof cwd === 'string' && cwd.trim() ? cwd : undefined,
     );
     // 返回物理名 + 展示名,前端创建后直接用它 attach
     res.status(201).json({ ok: true, data: { name: name.trim(), fullName } });

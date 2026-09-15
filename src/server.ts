@@ -23,7 +23,7 @@ import repoBrowserRouter from './routes/repo-browser';
 import { runBackup } from './backup/backup-manager';
 import { terminalProxyMiddleware, mountTerminalProxy } from './terminal/proxy';
 import { startTTYD, stopTTYD } from './terminal/ttyd-manager';
-import { killAllTmuxAttachSync, cleanupStaleTmuxAttachPorts } from './terminal/tmux-manager';
+import { killAllTmuxAttachSync, cleanupStaleTmuxAttachPorts, restoreTmuxSessions } from './terminal/tmux-manager';
 import { startMonitor } from './log-monitor';
 import { startHealthCheck } from './db/health-check';
 import { initGlobalStore } from './db/global-store';
@@ -131,6 +131,11 @@ async function start() {
 
   // P3:清理上次服务器残留的 tmux 接入 ttyd(9020-9029);tmux 会话本身常驻保留
   cleanupStaleTmuxAttachPorts();
+
+  // P4:整机重启后 tmux 会话全灭 → 按项目备注(tmux-notes.json 记的最后目录)
+  //    重建缺失会话;面板重启但机器没重启时全命中跳过,幂等无副作用
+  const restored = await restoreTmuxSessions();
+  if (restored.restored > 0) console.log(`✓ Tmux 会话重启恢复:${restored.restored} 个`);
 
   await startTTYD();
   startMonitor();
