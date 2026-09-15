@@ -70,7 +70,7 @@ const { zIndex, onRaise } = useOverlayLayer(() => capsule.toasts.length > 0);
   color: var(--text-dim, #6b6b78); cursor: pointer; font-size: 12px;
   padding: 1px 4px; border-radius: 4px;
 }
-.ct-close:hover { color: #f44747; background: rgba(244,71,71,0.1); }
+.ct-close:hover { color: var(--danger); background: rgba(var(--danger-rgb),0.1); }
 .ct-name {
   margin-top: 5px;
   font-family: var(--font, monospace); font-size: 12px;

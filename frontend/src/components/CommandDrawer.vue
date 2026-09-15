@@ -300,9 +300,9 @@ function onClickCommand(cmd: CommandButton) {
   box-shadow: 0 4px 16px rgba(68,153,238,0.25);
 }
 .drawer-trigger.active {
-  color: #22ee66;
-  border-color: rgba(34,238,102,0.5);
-  box-shadow: 0 4px 16px rgba(34,238,102,0.2);
+  color: var(--glow);
+  border-color: rgba(var(--glow-rgb),0.5);
+  box-shadow: 0 4px 16px rgba(var(--glow-rgb),0.2);
 }
 .drawer-badge-count {
   position: absolute; top: -4px; right: -4px;
@@ -340,7 +340,7 @@ function onClickCommand(cmd: CommandButton) {
 /* 最小化：亮色醒目，绿色呼吸 */
 .cmd-chip.minimized {
   background: rgba(30,30,50,0.85); color: rgba(255,255,255,0.75);
-  border: 1px solid rgba(34,238,102,0.35);
+  border: 1px solid rgba(var(--glow-rgb),0.35);
   animation: chip-online 2.4s ease-in-out infinite;
 }
 .cmd-chip.minimized:hover {
@@ -350,8 +350,8 @@ function onClickCommand(cmd: CommandButton) {
   animation: none;
 }
 @keyframes chip-online {
-  0%, 100% { border-color: rgba(34,238,102,0.3);  box-shadow: 0 0 0 rgba(34,238,102,0); }
-  50%      { border-color: rgba(34,238,102,0.85); box-shadow: 0 0 8px rgba(34,238,102,0.45); }
+  0%, 100% { border-color: rgba(var(--glow-rgb),0.3);  box-shadow: 0 0 0 rgba(var(--glow-rgb),0); }
+  50%      { border-color: rgba(var(--glow-rgb),0.85); box-shadow: 0 0 8px rgba(var(--glow-rgb),0.45); }
 }
 
 /* ── 右侧 📂 仓库芯片条 / 最外侧 ☁ 云芯片条 ─────────── */
@@ -425,10 +425,10 @@ function onClickCommand(cmd: CommandButton) {
   transform: scale(1.05);
 }
 .cmd-cloud-chip.on {
-  color: #22ee66;
-  border-color: rgba(34,238,102,0.5);
-  background: rgba(34,238,102,0.12);
-  box-shadow: 0 0 8px rgba(34,238,102,0.25);
+  color: var(--glow);
+  border-color: rgba(var(--glow-rgb),0.5);
+  background: rgba(var(--glow-rgb),0.12);
+  box-shadow: 0 0 8px rgba(var(--glow-rgb),0.25);
 }
 
 /* ── 抽屉 ─────────────────────────────────────────────── */
@@ -483,9 +483,9 @@ function onClickCommand(cmd: CommandButton) {
   transition: color 0.15s, border-color 0.15s;
 }
 .drawer-pin:hover { color: var(--glow, #22ee66); border-color: var(--glow-dim); }
-.drawer-pin.reset:hover { color: #f44747; border-color: rgba(244,71,71,0.5); }
+.drawer-pin.reset:hover { color: var(--danger); border-color: rgba(var(--danger-rgb),0.5); }
 .drawer-close { background: transparent; border: none; color: var(--text-dim, #6b6b78); cursor: pointer; font-size: 16px; }
-.drawer-close:hover { color: #f44747; }
+.drawer-close:hover { color: var(--danger); }
 
 /* ── 固定 Tab ─────────────────────────────────────────── */
 .drawer-tabs {
@@ -559,13 +559,13 @@ function onClickCommand(cmd: CommandButton) {
 }
 .launch-btn:hover {
   border-color: var(--glow, #22ee66);
-  background: rgba(34,238,102,0.05);
+  background: rgba(var(--glow-rgb),0.05);
 }
 /* 左:新建 Tmux(次要一点;展开中 = 实心绿) */
 .launch-btn.tmux-new { color: var(--text-dim, #6b6b78); }
 .launch-btn.tmux-new:hover { color: var(--glow, #22ee66); }
 .launch-btn.tmux-new.on {
-  color: #09090b; background: var(--glow-dim, rgba(34,238,102,0.6));
+  color: var(--bg); background: var(--glow-dim, rgba(34,238,102,0.6));
   border-color: var(--glow, #22ee66); border-style: solid;
 }
 
@@ -599,7 +599,7 @@ function onClickCommand(cmd: CommandButton) {
 }
 .cmd-btn:hover {
   border-color: var(--glow, #22ee66);
-  background: rgba(34,238,102,0.05);
+  background: rgba(var(--glow-rgb),0.05);
 }
 
 /* 💻 图标按钮 */

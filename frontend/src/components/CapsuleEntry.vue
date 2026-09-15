@@ -172,8 +172,8 @@ function fmtTime(ms: number): string {
   cursor: pointer; letter-spacing: 0.04em;
   transition: all 0.15s; white-space: nowrap;
 }
-.cp-trigger:hover { color: var(--text); border-color: var(--glow-dim); background: rgba(34,238,102,0.04); }
-.cp-trigger.on { color: var(--glow); border-color: var(--glow-dim); background: rgba(34,238,102,0.06); }
+.cp-trigger:hover { color: var(--text); border-color: var(--glow-dim); background: rgba(var(--glow-rgb),0.04); }
+.cp-trigger.on { color: var(--glow); border-color: var(--glow-dim); background: rgba(var(--glow-rgb),0.06); }
 .cp-conn {
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--glow, #22ee66);
@@ -197,10 +197,10 @@ function fmtTime(ms: number): string {
   border: 1px solid var(--border); border-radius: 4px;
 }
 .cp-wiki:hover { color: var(--glow); border-color: var(--glow-dim); }
-.cp-clear:hover { color: #f44747; border-color: rgba(244,71,71,0.5); }
+.cp-clear:hover { color: var(--danger); border-color: rgba(var(--danger-rgb),0.5); }
 /* 复制=主操作:绿色实底,粘到终端补主题即触发时空胶囊 */
 .cp-copy {
-  color: #09090b; background: var(--glow, #22ee66);
+  color: var(--bg); background: var(--glow, #22ee66);
   border-color: transparent; font-weight: 600;
 }
 .cp-copy:hover { filter: brightness(1.1); }
@@ -215,7 +215,7 @@ function fmtTime(ms: number): string {
   padding: 7px 10px; border-radius: 6px; cursor: pointer;
   transition: background 0.12s;
 }
-.cp-item:hover { background: rgba(34,238,102,0.05); }
+.cp-item:hover { background: rgba(var(--glow-rgb),0.05); }
 .cp-kind { font-size: 12px; flex-shrink: 0; }
 .cp-name {
   flex: 1; min-width: 0;
@@ -232,7 +232,7 @@ function fmtTime(ms: number): string {
   transition: color 0.12s, border-color 0.12s;
 }
 .cp-item:hover .cp-merge { color: var(--glow); border-color: var(--glow-dim); }
-.cp-merge:hover { color: #09090b !important; background: var(--glow, #22ee66); border-color: transparent; }
+.cp-merge:hover { color: var(--bg) !important; background: var(--glow, #22ee66); border-color: transparent; }
 .cp-del {
   flex-shrink: 0;
   border: none; background: transparent;
@@ -242,7 +242,7 @@ function fmtTime(ms: number): string {
   transition: opacity 0.12s;
 }
 .cp-item:hover .cp-del { opacity: 1; }
-.cp-del:hover { color: #f44747; background: rgba(244,71,71,0.12); }
+.cp-del:hover { color: var(--danger); background: rgba(var(--danger-rgb),0.12); }
 .cp-foot {
   padding: 4px 12px 7px; border-top: 1px solid var(--border);
   font-family: var(--font, monospace); font-size: 9px;

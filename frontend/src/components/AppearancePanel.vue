@@ -1,12 +1,17 @@
 <script setup lang="ts">
 // ── ⚙ 配置「装修」Tab ─────────────────────────────────
-//   浏览器标签 favicon 换色:同一款 </> 终端造型 8 种颜色,
-//   多台电脑各设一色,标签一眼区分。选择即保存,即时生效。
+//   界面主题(浅色/深色)+ 浏览器标签 favicon 换色:同一款 </> 终端
+//   造型 8 种颜色,多台电脑各设一色,标签一眼区分。选择即保存,即时生效。
 
 import { ref, onMounted } from 'vue'
 import { apiJson, errText } from '@/utils/api-fetch'
 
 interface Preset { id: string; label: string; color: string }
+type Theme = 'light' | 'dark'
+
+const THEME_KEY = 'code-panel-theme'
+
+const theme = ref<Theme>('light')
 
 const presets = ref<Preset[]>([])
 const current = ref('green')
@@ -55,11 +60,53 @@ function swapTabIcon(): void {
   if (link) link.href = `/favicon.svg?v=${Date.now()}`
 }
 
-onMounted(load)
+// ── 界面主题(纯前端:localStorage + <html> data-theme,不进后端;默认深色)──
+function readTheme(): Theme {
+  return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'
+}
+
+function setTheme(t: Theme): void {
+  if (t === theme.value) return
+  theme.value = t
+  try { localStorage.setItem(THEME_KEY, t) } catch { /* ignore */ }
+  if (t === 'light') document.documentElement.setAttribute('data-theme', 'light')
+  else document.documentElement.removeAttribute('data-theme')
+}
+
+onMounted(() => {
+  theme.value = readTheme()
+  load()
+})
 </script>
 
 <template>
   <div class="ap-panel">
+    <div class="cfg-card">
+      <div class="cfg-title">🌗 界面主题(浅色 / 深色)</div>
+      <div class="cfg-hint">
+        整套配色一键切换。选择存在本浏览器(localStorage),即时生效,不影响其他设备与其他账号。
+      </div>
+
+      <div class="theme-row">
+        <button
+          class="theme-opt" :class="{ on: theme === 'light' }"
+          title="浅色:近白底,适合白天 / 强光环境"
+          @click="setTheme('light')"
+        >
+          <span class="theme-chip light"></span>浅色
+          <span class="swatch-check" :class="{ show: theme === 'light' }">✓</span>
+        </button>
+        <button
+          class="theme-opt" :class="{ on: theme === 'dark' }"
+          title="深色:原 Terminal Noir"
+          @click="setTheme('dark')"
+        >
+          <span class="theme-chip dark"></span>深色
+          <span class="swatch-check" :class="{ show: theme === 'dark' }">✓</span>
+        </button>
+      </div>
+    </div>
+
     <div class="cfg-card">
       <div class="cfg-title">🎨 标签图标(favicon)换色</div>
       <div class="cfg-hint">
@@ -97,7 +144,7 @@ onMounted(load)
 }
 .cfg-title { font-size: 13px; color: var(--text, #c8c8d0); font-weight: 600; }
 .cfg-hint.tip { margin: 0; opacity: 0.8; }
-.form-error { color: #f44747; font-size: 11px; margin: 0; }
+.form-error { color: var(--danger); font-size: 11px; margin: 0; }
 .ok { color: var(--glow, #22ee66); font-size: 11px; margin: 0; }
 
 .swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
@@ -118,6 +165,23 @@ onMounted(load)
   opacity: 0; transition: opacity 0.15s;
 }
 .swatch-check.show { opacity: 1; }
+
+/* ── 主题切换卡(浅/深双格,复用上面的 ✓ 角标)── */
+.theme-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.theme-opt {
+  --c: var(--glow); /* 给 .swatch-check 的 ✓ 上色 */
+  position: relative;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 14px 8px;
+  font-size: 12px; color: var(--text-dim);
+  background: transparent; border: 1px solid var(--border); border-radius: 8px;
+  cursor: pointer;
+}
+.theme-opt:hover { border-color: var(--text-dim); }
+.theme-opt.on { border-color: var(--glow); color: var(--text); background: rgba(var(--glow-rgb),0.06); }
+.theme-chip { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--border); box-sizing: border-box; }
+.theme-chip.light { background: linear-gradient(135deg, #ffffff 50%, #eceef1 50%); }
+.theme-chip.dark { background: linear-gradient(135deg, #131316 50%, #09090b 50%); }
 /* 迷你终端图标:整块预设色背景 + 白色 '</>',还原 favicon 造型 */
 .icon-chip {
   display: inline-flex; align-items: center; justify-content: center;

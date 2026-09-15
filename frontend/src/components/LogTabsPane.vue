@@ -142,7 +142,7 @@ setInterval(() => { activityNow.value = Date.now() }, 500)
   font-size: 14px; color: var(--text-dim);
   line-height: 1; padding: 0 3px; border-radius: 2px; cursor: pointer;
 }
-.tab .tab-close:hover { color: var(--danger); background: rgba(244,71,71,0.15); }
+.tab .tab-close:hover { color: var(--danger); background: rgba(var(--danger-rgb),0.15); }
 
 .content-area { flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden; }
 .empty-state {
@@ -190,8 +190,8 @@ setInterval(() => { activityNow.value = Date.now() }, 500)
   cursor: pointer; transition: all 0.15s;
 }
 .log-controls button:hover { color: var(--text); border-color: var(--glow-dim); }
-.log-controls button.on { color: var(--glow); border-color: var(--glow-dim); background: rgba(34,238,102,0.06); }
-.log-controls button.danger, .log-controls button.danger.on { color: var(--danger); border-color: var(--danger); background: rgba(244,71,71,0.06); }
+.log-controls button.on { color: var(--glow); border-color: var(--glow-dim); background: rgba(var(--glow-rgb),0.06); }
+.log-controls button.danger, .log-controls button.danger.on { color: var(--danger); border-color: var(--danger); background: rgba(var(--danger-rgb),0.06); }
 .log-controls .ansi-btn { min-width: 74px; text-align: center; }
 .log-controls .status { font-size: 11px; color: var(--text-dim); }
 .log-controls .status.down { color: var(--danger); }

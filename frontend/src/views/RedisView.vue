@@ -262,7 +262,7 @@ const histActionLabel: Record<string, string> = {
 .conn-list { padding: 8px 10px; overflow-y: auto; }
 .conn-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; cursor: pointer; }
 .conn-item:hover { background: rgba(255,255,255,.05); }
-.conn-item.active { background: rgba(34,238,102,.12); }
+.conn-item.active { background: rgba(var(--glow-rgb),.12); }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .dot.on { background: var(--glow, #22ee66); box-shadow: 0 0 6px var(--glow, #22ee66); }
 .dot.off { background: #555; }
@@ -288,14 +288,14 @@ const histActionLabel: Record<string, string> = {
 .db-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .db-chip { font-size: 11px; padding: 3px 9px; border-radius: 10px; border: 1px solid var(--border, #23232a); cursor: pointer; color: var(--t2, #888); }
 .db-chip em { font-style: normal; margin-left: 4px; color: var(--glow, #22ee66); font-size: 10px; }
-.db-chip.active { border-color: var(--glow, #22ee66); color: var(--text, #ccc); background: rgba(34,238,102,.08); }
+.db-chip.active { border-color: var(--glow, #22ee66); color: var(--text, #ccc); background: rgba(var(--glow-rgb),.08); }
 .key-tools { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .match-input, .db-jump { background: var(--card, #131316); border: 1px solid var(--border, #23232a); color: var(--text, #ccc); border-radius: 6px; padding: 5px 9px; font-size: 12px; font-family: ui-monospace, monospace; }
 .db-jump { width: 70px; }
 .match-input { width: 190px; }
 .mini-btn { background: var(--card, #131316); border: 1px solid var(--border, #23232a); color: var(--text, #ccc); border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer; }
 .mini-btn:hover { border-color: var(--glow, #22ee66); }
-.mini-btn.danger { color: #ff6b6b; border-color: rgba(255,107,107,.4); }
+.mini-btn.danger { color: var(--danger); border-color: rgba(255,107,107,.4); }
 .mini-btn:disabled { opacity: .4; cursor: not-allowed; }
 
 .keys-area { display: grid; grid-template-columns: minmax(380px, 1.4fr) 1fr; gap: 10px; flex: 1; min-height: 0; }
@@ -304,11 +304,11 @@ const histActionLabel: Record<string, string> = {
 .keys-head { color: var(--t2, #888); position: sticky; top: 0; background: var(--card, #131316); border-bottom: 1px solid var(--border, #23232a); }
 .key-row { border-bottom: 1px solid rgba(255,255,255,.03); cursor: pointer; font-family: ui-monospace, monospace; }
 .key-row:hover { background: rgba(255,255,255,.04); }
-.key-row.sel { background: rgba(34,238,102,.08); }
+.key-row.sel { background: rgba(var(--glow-rgb),.08); }
 .h-key { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .badge { display: inline-block; font-size: 9px; padding: 1px 4px; border-radius: 4px; background: rgba(139,92,246,.2); color: #b39ddb; margin-right: 4px; font-style: normal; }
 .keys-foot { display: flex; justify-content: space-between; padding: 8px 10px; position: sticky; bottom: 0; background: var(--card, #131316); }
-.row-del { background: none; border: none; color: #ff6b6b; cursor: pointer; opacity: 0; font-size: 11px; }
+.row-del { background: none; border: none; color: var(--danger); cursor: pointer; opacity: 0; font-size: 11px; }
 .key-row:hover .row-del { opacity: 1; }
 .muted { color: var(--t2, #888); font-size: 11px; }
 .pad { padding: 16px; }
@@ -323,7 +323,7 @@ const histActionLabel: Record<string, string> = {
 .mask { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; display: flex; align-items: center; justify-content: center; }
 .modal { background: var(--card, #131316); border: 1px solid var(--border, #23232a); border-radius: 10px; padding: 18px; width: 420px; }
 .modal h3 { margin: 0 0 10px; font-size: 14px; }
-.danger-modal h3 { color: #ff6b6b; }
+.danger-modal h3 { color: var(--danger); }
 .modal-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .hist-list { max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
 .hist-item { display: flex; align-items: center; gap: 8px; font-size: 11px; }

@@ -265,7 +265,7 @@ function ctxAction() {
 .port-tag.alive {
   color: var(--glow);
   border-color: var(--glow-dim);
-  background: rgba(34,238,102,0.08);
+  background: rgba(var(--glow-rgb),0.08);
 }
 
 .txt-blink {
@@ -302,6 +302,6 @@ function ctxAction() {
   color: var(--glow); border: none; border-radius: 6px;
   font-size: 12px; font-weight: 600; cursor: pointer;
 }
-.ctx-item.stop { color: #ff6b6b; }
+.ctx-item.stop { color: var(--danger); }
 .ctx-item:hover { background: #1a1a28; }
 </style>

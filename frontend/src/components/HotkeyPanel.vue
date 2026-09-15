@@ -88,7 +88,7 @@ onBeforeUnmount(stopRecord)
   padding: 4px 10px;
   color: var(--glow, #22ee66);
   border: 1px solid var(--glow-dim); border-radius: 6px;
-  background: rgba(34,238,102,0.06);
+  background: rgba(var(--glow-rgb),0.06);
   white-space: nowrap;
 }
 .hk-key.rec { color: var(--text-dim); border-color: var(--border); animation: hk-blink 1s infinite; }
@@ -101,6 +101,6 @@ onBeforeUnmount(stopRecord)
 }
 .hk-btn:hover { color: var(--glow); border-color: var(--glow-dim); }
 .hk-note { margin: 0; font-size: 11px; color: var(--glow); }
-.hk-note.warn { color: #f44747; }
+.hk-note.warn { color: var(--danger); }
 .hk-tip { margin: 0; font-size: 10px; color: var(--text-dim); opacity: 0.7; }
 </style>

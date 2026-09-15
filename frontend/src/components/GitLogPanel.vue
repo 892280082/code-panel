@@ -56,18 +56,18 @@ function copyHash(hash: string) { copyToClipboard(hash) }
 .log-count { font-size: 10px; color: var(--text-dim); }
 .log-day-header {
   padding: 8px 20px; font-size: 10px; color: var(--text-dim);
-  background: rgba(35,35,42,0.3);
-  border-bottom: 1px solid rgba(35,35,42,0.5);
+  background: rgba(var(--line-rgb),0.3);
+  border-bottom: 1px solid rgba(var(--line-rgb),0.5);
   font-family: var(--font); text-transform: uppercase; letter-spacing: 0.05em;
   position: sticky; top: 0; z-index: 2;
 }
 .log-commit {
   display: flex; align-items: baseline; gap: 12px;
   padding: 8px 20px; font-size: 12px;
-  border-bottom: 1px solid rgba(35,35,42,0.2);
+  border-bottom: 1px solid rgba(var(--line-rgb),0.2);
   cursor: pointer; transition: background 0.1s;
 }
-.log-commit:hover { background: rgba(34,238,102,0.04); }
+.log-commit:hover { background: rgba(var(--glow-rgb),0.04); }
 .log-commit-hash {
   font-family: var(--font); font-size: 10px;
   color: var(--glow-dim); flex-shrink: 0; width: 56px;

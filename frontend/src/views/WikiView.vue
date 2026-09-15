@@ -159,8 +159,8 @@ watch(() => files.value.length, () => { /* 树自动响应(computed) */ })
   font-size: 12px; color: var(--text-dim);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.tree-row:hover { background: rgba(34,238,102,0.05); color: var(--text); }
-.tree-row.on { color: var(--glow); background: rgba(34,238,102,0.08); }
+.tree-row:hover { background: rgba(var(--glow-rgb),0.05); color: var(--text); }
+.tree-row.on { color: var(--glow); background: rgba(var(--glow-rgb),0.08); }
 .tree-row .tw { font-size: 10px; width: 12px; flex-shrink: 0; text-align: center; }
 .tree-row .tn { overflow: hidden; text-overflow: ellipsis; }
 
@@ -204,7 +204,7 @@ watch(() => files.value.length, () => { /* 树自动响应(computed) */ })
 .empty-state .icon { font-size: 26px; opacity: 0.6; }
 .init-btn {
   padding: 6px 18px; cursor: pointer;
-  color: #09090b; background: var(--glow, #22ee66);
+  color: var(--bg); background: var(--glow, #22ee66);
   border: none; border-radius: 12px; font-size: 12px; font-weight: 600;
 }
 .init-btn:hover { filter: brightness(1.1); }

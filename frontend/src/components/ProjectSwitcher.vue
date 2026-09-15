@@ -76,7 +76,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
 }
 .ps-card:hover { border-color: var(--glow-dim, rgba(34,238,102,0.3)); }
 .ps-card.sel {
-  border-color: var(--glow, #22ee66); background: rgba(34,238,102,0.07);
+  border-color: var(--glow, #22ee66); background: rgba(var(--glow-rgb),0.07);
   transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.4);
 }
 .ps-icon { font-size: 29px; position: relative; }   /* 18 × 1.6 */

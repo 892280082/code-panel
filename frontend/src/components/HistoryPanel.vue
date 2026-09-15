@@ -127,18 +127,18 @@ const selectedCommitFilePath = computed(() => store.selectedCommitFilePath)
 .hist-day-group { }
 .hist-day-header {
   padding: 6px 16px; font-size: 10px; color: var(--text-dim);
-  background: rgba(35,35,42,0.25);
-  border-bottom: 1px solid rgba(35,35,42,0.3);
+  background: rgba(var(--line-rgb),0.25);
+  border-bottom: 1px solid rgba(var(--line-rgb),0.3);
   text-transform: uppercase; letter-spacing: 0.05em;
   position: sticky; top: 0; z-index: 2;
 }
 .hist-commit-row {
   display: flex; align-items: baseline; gap: 10px;
   padding: 7px 16px; font-size: 11px;
-  border-bottom: 1px solid rgba(35,35,42,0.15);
+  border-bottom: 1px solid rgba(var(--line-rgb),0.15);
   cursor: pointer; transition: background 0.1s;
 }
-.hist-commit-row:hover { background: rgba(34,238,102,0.04); }
+.hist-commit-row:hover { background: rgba(var(--glow-rgb),0.04); }
 .hist-hash {
   font-family: var(--font); font-size: 10px;
   color: var(--glow-dim); flex-shrink: 0; width: 52px;
@@ -196,13 +196,13 @@ const selectedCommitFilePath = computed(() => store.selectedCommitFilePath)
 .commit-file-row {
   display: flex; align-items: center; gap: 6px;
   padding: 5px 16px; font-size: 11px;
-  cursor: pointer; border-bottom: 1px solid rgba(35,35,42,0.12);
+  cursor: pointer; border-bottom: 1px solid rgba(var(--line-rgb),0.12);
   transition: background 0.1s;
   user-select: none;
 }
-.commit-file-row:hover { background: rgba(34,238,102,0.04); }
+.commit-file-row:hover { background: rgba(var(--glow-rgb),0.04); }
 .commit-file-row.selected {
-  background: rgba(34,238,102,0.08);
+  background: rgba(var(--glow-rgb),0.08);
   border-left: 2px solid var(--glow-dim);
 }
 .cf-status { font-weight: 700; font-size: 11px; width: 16px; flex-shrink: 0; }
@@ -247,7 +247,7 @@ const selectedCommitFilePath = computed(() => store.selectedCommitFilePath)
 .commit-diff-scroll::-webkit-scrollbar-thumb { background: #1a1a22; border-radius: 3px; }
 .commit-diff-line {
   display: flex; min-height: 21px;
-  border-bottom: 1px solid rgba(35,35,42,0.12);
+  border-bottom: 1px solid rgba(var(--line-rgb),0.12);
 }
 .cl-sign {
   width: 24px; flex-shrink: 0; text-align: center;
@@ -262,10 +262,10 @@ const selectedCommitFilePath = computed(() => store.selectedCommitFilePath)
 .cl-ctx { background: var(--bg); }
 .cl-ctx .cl-sign { color: var(--text-dim); }
 .cl-ctx .cl-text { color: var(--text); }
-.cl-add { background: rgba(34,238,102,0.06); }
+.cl-add { background: rgba(var(--glow-rgb),0.06); }
 .cl-add .cl-sign { color: var(--glow); }
 .cl-add .cl-text { color: #9aefb8; }
-.cl-del { background: rgba(244,71,71,0.08); }
+.cl-del { background: rgba(var(--danger-rgb),0.08); }
 .cl-del .cl-sign { color: var(--danger); }
 .cl-del .cl-text { color: #f09999; }
 

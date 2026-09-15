@@ -233,13 +233,13 @@ onUnmounted(stopPolling)
 .form-input:focus { border-color: var(--glow, #22ee66); }
 .form-input.mono { font-family: var(--font, monospace); }
 .form-error {
-  color: #f44747; font-size: 11px;
+  color: var(--danger); font-size: 11px;
 }
 .form-submit {
   padding: 8px;
   border: none; border-radius: 4px;
   background: var(--glow, #22ee66);
-  color: #09090b; font-size: 13px; cursor: pointer;
+  color: var(--bg); font-size: 13px; cursor: pointer;
   font-weight: 600;
   transition: opacity 0.2s;
 }
@@ -292,13 +292,13 @@ onUnmounted(stopPolling)
   display: flex; flex-direction: column;
   transition: border-color 0.15s;
 }
-.tmux-item:hover { border-color: rgba(34,238,102,0.3); }
+.tmux-item:hover { border-color: rgba(var(--glow-rgb),0.3); }
 .tmux-body {
   padding: 10px 12px 8px;
   cursor: pointer;
   display: flex; flex-direction: column; gap: 4px;
 }
-.tmux-body:hover { background: rgba(34,238,102,0.03); }
+.tmux-body:hover { background: rgba(var(--glow-rgb),0.03); }
 .tmux-badge {
   font-size: 10px; font-weight: 600;
   color: #3fb950;
@@ -327,5 +327,5 @@ onUnmounted(stopPolling)
 }
 .foot-btn:hover:not(:disabled) { color: var(--text, #c8c8d0); background: rgba(255,255,255,0.05); }
 .foot-btn:disabled { opacity: 0.25; cursor: default; }
-.foot-btn.danger:hover { color: #f44747; }
+.foot-btn.danger:hover { color: var(--danger); }
 </style>

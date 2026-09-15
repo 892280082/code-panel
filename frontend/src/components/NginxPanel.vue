@@ -192,7 +192,7 @@ const loadedLabel = (loaded: string) => {
 .hint { color: var(--text-dim, #6b6b78); font-size: 12px; text-align: center; padding: 16px 0; }
 .ok { color: var(--glow, #22ee66); }
 .warn { color: #f2cc60; }
-.err { color: #f44747; }
+.err { color: var(--danger); }
 .dim { color: var(--text-dim, #6b6b78); }
 .mono { font-family: var(--font, monospace); }
 .sub { font-size: 10px; color: var(--text-dim, #6b6b78); font-weight: 400; margin-left: 8px; }
@@ -230,8 +230,8 @@ const loadedLabel = (loaded: string) => {
   color: var(--text-dim, #6b6b78); border-radius: 5px; cursor: pointer;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.conf-item:hover { background: rgba(34,238,102,0.06); color: var(--text, #c8c8d0); }
-.conf-item.on { background: rgba(34,238,102,0.12); color: var(--glow, #22ee66); border: 1px solid var(--glow-dim); }
+.conf-item:hover { background: rgba(var(--glow-rgb),0.06); color: var(--text, #c8c8d0); }
+.conf-item.on { background: rgba(var(--glow-rgb),0.12); color: var(--glow, #22ee66); border: 1px solid var(--glow-dim); }
 
 .conf-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .conf-actions { display: flex; align-items: center; gap: 10px; }
@@ -240,7 +240,7 @@ const loadedLabel = (loaded: string) => {
   margin-left: auto; padding: 6px 12px; font-size: 12px; border-radius: 5px;
   background: var(--glow-dim); color: var(--text, #c8c8d0); border: 1px solid var(--glow, #22ee66); cursor: pointer;
 }
-.chk-btn:hover:not(:disabled) { background: rgba(34,238,102,0.2); }
+.chk-btn:hover:not(:disabled) { background: rgba(var(--glow-rgb),0.2); }
 .chk-btn:disabled { opacity: 0.5; cursor: default; }
 .conf-text {
   flex: 1; min-height: 160px; resize: vertical;

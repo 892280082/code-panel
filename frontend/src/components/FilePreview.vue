@@ -244,7 +244,7 @@ watch(() => store.selectedFilePath, () => {
 }
 .unified-line {
   display: flex; min-height: 21px;
-  border-bottom: 1px solid rgba(35,35,42,0.15);
+  border-bottom: 1px solid rgba(var(--line-rgb),0.15);
 }
 .unified-line:last-child { border-bottom: none; }
 
@@ -253,7 +253,7 @@ watch(() => store.selectedFilePath, () => {
   width: 56px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: flex-end;
   padding: 0 8px;
-  border-right: 1px solid rgba(35,35,42,0.3);
+  border-right: 1px solid rgba(var(--line-rgb),0.3);
   user-select: none;
   background: rgba(0,0,0,0.2);
 }
@@ -278,12 +278,12 @@ watch(() => store.selectedFilePath, () => {
 .line-ctx { background: var(--bg); }
 .line-ctx .line-text { color: var(--text); }
 
-.line-add { background: rgba(34,238,102,0.08); }
-.line-add .line-gutter { background: rgba(34,238,102,0.12); border-right-color: rgba(34,238,102,0.2); }
+.line-add { background: rgba(var(--glow-rgb),0.08); }
+.line-add .line-gutter { background: rgba(var(--glow-rgb),0.12); border-right-color: rgba(var(--glow-rgb),0.2); }
 .line-add .line-text { color: #9aefb8; }
 
-.line-del { background: rgba(244,71,71,0.08); }
-.line-del .line-gutter { background: rgba(244,71,71,0.12); border-right-color: rgba(244,71,71,0.2); }
+.line-del { background: rgba(var(--danger-rgb),0.08); }
+.line-del .line-gutter { background: rgba(var(--danger-rgb),0.12); border-right-color: rgba(var(--danger-rgb),0.2); }
 .line-del .line-text { color: #f09999; }
 .del-text { text-decoration: line-through; }
 
@@ -307,11 +307,11 @@ watch(() => store.selectedFilePath, () => {
   white-space: nowrap;
 }
 .mode-btn:hover { color: var(--text); border-color: var(--text-dim); }
-.mode-btn.active { color: var(--glow); border-color: var(--glow-dim); background: rgba(34,238,102,0.08); }
+.mode-btn.active { color: var(--glow); border-color: var(--glow-dim); background: rgba(var(--glow-rgb),0.08); }
 .mode-bar-spacer { flex: 1; }
 .copy-btn { margin-left: auto; flex-shrink: 0; }
 .copy-btn:hover { color: #f2cc60; border-color: rgba(242,204,96,0.4); }
-.copy-btn.copied { color: var(--glow); border-color: var(--glow); background: rgba(34,238,102,0.1); }
+.copy-btn.copied { color: var(--glow); border-color: var(--glow); background: rgba(var(--glow-rgb),0.1); }
 .history-count {
   margin-left: auto; font-size: 10px; color: var(--text-dim);
   font-variant-numeric: tabular-nums;

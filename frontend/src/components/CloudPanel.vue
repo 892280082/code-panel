@@ -309,7 +309,7 @@ function openPreview(f: CloudFile) {
 }
 .prev-name { font-size: 12px; color: var(--text, #c8c8d0); font-family: var(--font, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prev-close { background: transparent; border: none; color: var(--text-dim, #6b6b78); font-size: 16px; cursor: pointer; }
-.prev-close:hover { color: #f44747; }
+.prev-close:hover { color: var(--danger); }
 .prev-img { max-width: 90vw; max-height: calc(90vh - 44px); object-fit: contain; }
 
 /* 抽屉壳 */
@@ -342,7 +342,7 @@ function openPreview(f: CloudFile) {
 }
 .cloud-refresh:hover { color: var(--glow, #22ee66); border-color: var(--glow-dim, rgba(34,238,102,0.3)); }
 .cloud-close { background: transparent; border: none; color: var(--text-dim, #6b6b78); cursor: pointer; font-size: 16px; flex-shrink: 0; }
-.cloud-close:hover { color: #f44747; }
+.cloud-close:hover { color: var(--danger); }
 
 .cloud-noproj {
   padding: 16px; color: var(--text-dim, #6b6b78); font-size: 12px; line-height: 1.8;
@@ -384,7 +384,7 @@ function openPreview(f: CloudFile) {
   transition: background 0.15s;
 }
 .cloud-dircopy:hover { background: rgba(68,153,238,0.22); }
-.cloud-dircopy.ok { background: rgba(34,238,102,0.15); color: var(--glow, #22ee66); border-color: var(--glow-dim, rgba(34,238,102,0.4)); }
+.cloud-dircopy.ok { background: rgba(var(--glow-rgb),0.15); color: var(--glow, #22ee66); border-color: var(--glow-dim, rgba(34,238,102,0.4)); }
 
 /* 文件行 */
 .f-row {
@@ -412,8 +412,8 @@ function openPreview(f: CloudFile) {
   background: transparent; color: var(--glow, #22ee66);
   border: 1px solid var(--glow-dim, rgba(34,238,102,0.3)); white-space: nowrap;
 }
-.f-copy.ok { background: rgba(34,238,102,0.15); }
-.f-copy:hover, .f-dl:hover { background: rgba(34,238,102,0.12); }
+.f-copy.ok { background: rgba(var(--glow-rgb),0.15); }
+.f-copy:hover, .f-dl:hover { background: rgba(var(--glow-rgb),0.12); }
 .f-dl { color: var(--text, #c8c8d0); border-color: var(--border, #23232a); }
 .f-dl:hover { border-color: var(--glow-dim, rgba(34,238,102,0.3)); }
 
@@ -429,7 +429,7 @@ function openPreview(f: CloudFile) {
   border: 1px dashed var(--glow-dim, rgba(34,238,102,0.4)); border-radius: 6px;
   transition: background 0.15s;
 }
-.pick-btn:hover { background: rgba(34,238,102,0.08); }
+.pick-btn:hover { background: rgba(var(--glow-rgb),0.08); }
 .paste-input {
   flex: 1; min-width: 0;
   padding: 7px 10px; font-size: 12px; border-radius: 6px; outline: none;

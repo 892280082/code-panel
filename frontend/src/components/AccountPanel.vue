@@ -99,7 +99,7 @@ async function logout() {
 </template>
 
 <style scoped>
-.err { font-size: 11px; color: #f44747; }
+.err { font-size: 11px; color: var(--danger); }
 .ok { font-size: 11px; color: var(--glow); }
 .divider { border-top: 1px solid var(--border); margin: 10px 0; }
 
@@ -109,7 +109,7 @@ async function logout() {
   border: 1px solid var(--border); color: var(--text-dim);
 }
 .role-tag.superadmin { color: var(--glow); border-color: var(--glow-dim); }
-.role-tag.user { color: #4a9eee; border-color: rgba(68,153,238,0.3); }
+.role-tag.user { color: var(--info); border-color: rgba(68,153,238,0.3); }
 .acct-card { border: 1px solid var(--border); background: var(--bg); border-radius: 10px; padding: 12px 14px; cursor: pointer; transition: border-color .15s; }
 .acct-card:hover { border-color: var(--text-dim); }
 .acct-card-head { display: flex; align-items: center; justify-content: space-between; }
@@ -120,6 +120,6 @@ async function logout() {
 .acct-grid { display: flex; gap: 8px; }
 .acct-grid .f-input { flex: 1; }
 
-.danger-btn { align-self: flex-start; padding: 8px 20px; font-size: 12px; border-radius: 4px; cursor: pointer; background: transparent; color: #f44747; border: 1px solid #f44747; }
-.danger-btn:hover { background: rgba(244,71,71,0.1); }
+.danger-btn { align-self: flex-start; padding: 8px 20px; font-size: 12px; border-radius: 4px; cursor: pointer; background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+.danger-btn:hover { background: rgba(var(--danger-rgb),0.1); }
 </style>

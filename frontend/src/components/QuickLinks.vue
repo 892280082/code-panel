@@ -185,15 +185,15 @@ onBeforeUnmount(() => {
   transition: all 0.15s;
   white-space: nowrap;
 }
-.ql-trigger:hover { color: var(--text); border-color: var(--glow); background: rgba(34,238,102,0.04); }
+.ql-trigger:hover { color: var(--text); border-color: var(--glow); background: rgba(var(--glow-rgb),0.04); }
 /* 常亮:最高频入口,绿色边框恒亮,一眼可扫 */
 .ql-trigger {
   color: var(--glow);
   border-color: var(--glow, #22ee66);
-  background: rgba(34,238,102,0.08);
-  box-shadow: 0 0 6px rgba(34,238,102,0.25);
+  background: rgba(var(--glow-rgb),0.08);
+  box-shadow: 0 0 6px rgba(var(--glow-rgb),0.25);
 }
-.ql-trigger.on { color: var(--glow); border-color: var(--glow); background: rgba(34,238,102,0.14); }
+.ql-trigger.on { color: var(--glow); border-color: var(--glow); background: rgba(var(--glow-rgb),0.14); }
 
 .ql-panel {
   position: fixed; z-index: 12000;
@@ -214,7 +214,7 @@ onBeforeUnmount(() => {
   background: transparent; border: none; color: var(--text-dim, #6b6b78);
   cursor: pointer; font-size: 14px; line-height: 1; padding: 2px 4px; border-radius: 4px;
 }
-.ql-close:hover { color: var(--danger, #f44747); background: rgba(244,71,71,0.1); }
+.ql-close:hover { color: var(--danger, #f44747); background: rgba(var(--danger-rgb),0.1); }
 
 .ql-search {
   display: flex; align-items: center; gap: 6px;
@@ -272,7 +272,7 @@ onBeforeUnmount(() => {
   padding: 2px 9px;
   font-family: var(--font, monospace); font-size: 10px;
   color: var(--glow, #22ee66);
-  background: rgba(34,238,102,0.06);
+  background: rgba(var(--glow-rgb),0.06);
   border: 1px solid var(--glow-dim, rgba(34,238,102,0.3));
   border-radius: 10px;
   text-decoration: none;

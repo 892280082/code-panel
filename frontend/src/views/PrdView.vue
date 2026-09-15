@@ -333,9 +333,9 @@ onMounted(loadFolders)
   cursor: pointer; letter-spacing: 0.04em;
   transition: all 0.15s;
 }
-.toolbar button:hover { color: var(--text); border-color: var(--glow-dim); background: rgba(34,238,102,0.04); }
+.toolbar button:hover { color: var(--text); border-color: var(--glow-dim); background: rgba(var(--glow-rgb),0.04); }
 .toolbar .copy-btn { color: var(--glow); border-color: var(--glow-dim); font-weight: 600; }
-.toolbar .copy-btn:hover { background: rgba(34,238,102,0.1); color: var(--glow); }
+.toolbar .copy-btn:hover { background: rgba(var(--glow-rgb),0.1); color: var(--glow); }
 .toolbar .open-btn { color: var(--glow); border-color: var(--glow-dim); font-weight: 600; }
 .toolbar .refresh-note { font-size: 10px; color: var(--glow); }
 
@@ -357,11 +357,11 @@ onMounted(loadFolders)
 :deep(.empty-state .hint code) { font-family: var(--font, monospace); font-size: 10px; color: var(--text-dim); }
 .init-btn {
   font-family: var(--font); font-size: 11px; padding: 7px 16px;
-  color: var(--glow); background: rgba(34,238,102,0.08);
+  color: var(--glow); background: rgba(var(--glow-rgb),0.08);
   border: 1px solid var(--glow-dim); border-radius: var(--radius);
   cursor: pointer; font-weight: 600; transition: all 0.15s;
 }
-.init-btn:hover { background: rgba(34,238,102,0.15); }
+.init-btn:hover { background: rgba(var(--glow-rgb),0.15); }
 .init-btn:disabled { opacity: 0.5; cursor: wait; }
 .init-msg { font-size: 10px; color: var(--glow); }
 </style>

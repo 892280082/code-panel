@@ -87,7 +87,7 @@ watch(() => projects.currentId, loadFilesCfg)
 
 <style scoped>
 .hint { font-size: 12px; color: var(--text-dim); text-align: center; padding: 16px 0; }
-.err { font-size: 11px; color: #f44747; }
+.err { font-size: 11px; color: var(--danger); }
 .ok { font-size: 11px; color: var(--glow); }
 
 /* ── 文件 Tab ── */

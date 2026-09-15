@@ -305,7 +305,7 @@ onMounted(() => { load(); loadWatchdog() })
   font-size: 10px; font-weight: 400; padding: 1px 8px; border-radius: 8px;
   border: 1px solid var(--border, #23232a); color: var(--text-dim, #6b6b78);
 }
-.badge.on { color: var(--glow, #22ee66); border-color: var(--glow-dim, rgba(34,238,102,0.3)); background: rgba(34,238,102,0.08); }
+.badge.on { color: var(--glow, #22ee66); border-color: var(--glow-dim, rgba(34,238,102,0.3)); background: rgba(var(--glow-rgb),0.08); }
 .badge.off { color: var(--text-dim, #6b6b78); }
 .cfg-row { display: flex; gap: 6px; align-items: center; }
 .cfg-hint.inline { flex: 1; }
@@ -314,13 +314,13 @@ onMounted(() => { load(); loadWatchdog() })
 .cfg-divider { border-top: 1px dashed var(--border, #23232a); margin: 2px 0; }
 .form-input[readonly] { cursor: text; }
 .ok { color: var(--glow, #22ee66); font-size: 11px; }
-.cfg-hint.warn { color: #e8b339; }
+.cfg-hint.warn { color: var(--warn); }
 .save-btn {
   padding: 8px 14px; border: 1px solid var(--glow-dim, rgba(34,238,102,0.3));
   border-radius: 4px; background: transparent; color: var(--glow, #22ee66);
   font-size: 12px; cursor: pointer; white-space: nowrap;
 }
-.save-btn:hover:not(:disabled) { background: rgba(34,238,102,0.08); }
+.save-btn:hover:not(:disabled) { background: rgba(var(--glow-rgb),0.08); }
 .save-btn:disabled { opacity: 0.5; cursor: default; }
 .ghost-btn {
   padding: 8px 14px; border: 1px solid var(--border, #23232a); border-radius: 4px;
@@ -329,16 +329,16 @@ onMounted(() => { load(); loadWatchdog() })
 .ghost-btn:hover:not(:disabled) { color: var(--text, #c8c8d0); border-color: var(--text-dim, #6b6b78); }
 .ghost-btn:disabled { opacity: 0.5; cursor: default; }
 .toggle-btn { padding: 8px 18px; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-.toggle-btn.on { background: var(--glow, #22ee66); border: none; color: #09090b; }
+.toggle-btn.on { background: var(--glow, #22ee66); border: none; color: var(--bg); }
 .toggle-btn.on:hover:not(:disabled) { opacity: 0.85; }
-.toggle-btn.off { background: transparent; border: 1px solid #f44747; color: #f44747; }
-.toggle-btn.off:hover:not(:disabled) { background: rgba(244,71,71,0.1); }
+.toggle-btn.off { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+.toggle-btn.off:hover:not(:disabled) { background: rgba(var(--danger-rgb),0.1); }
 .toggle-btn:disabled { opacity: 0.5; cursor: default; }
 .danger-btn {
-  padding: 8px 14px; border: 1px solid #f44747; border-radius: 4px;
-  background: transparent; color: #f44747; font-size: 12px; cursor: pointer; white-space: nowrap;
+  padding: 8px 14px; border: 1px solid var(--danger); border-radius: 4px;
+  background: transparent; color: var(--danger); font-size: 12px; cursor: pointer; white-space: nowrap;
 }
-.danger-btn:hover:not(:disabled) { background: rgba(244,71,71,0.1); }
+.danger-btn:hover:not(:disabled) { background: rgba(var(--danger-rgb),0.1); }
 .danger-btn:disabled { opacity: 0.5; cursor: default; }
 .section-hint { color: var(--text-dim, #6b6b78); font-size: 12px; text-align: center; padding: 14px 0; }
 </style>

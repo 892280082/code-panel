@@ -297,8 +297,8 @@ async function handleApprove(id: string) {
   cursor: pointer; letter-spacing: 0.04em;
   transition: all 0.15s;
 }
-.toolbar button:hover { color: var(--text); border-color: var(--glow-dim); background: rgba(34,238,102,0.04); }
-.toolbar button.on { color: var(--glow); border-color: var(--glow-dim); background: rgba(34,238,102,0.06); }
+.toolbar button:hover { color: var(--text); border-color: var(--glow-dim); background: rgba(var(--glow-rgb),0.04); }
+.toolbar button.on { color: var(--glow); border-color: var(--glow-dim); background: rgba(var(--glow-rgb),0.06); }
 .toolbar button.danger:hover { color: var(--danger); border-color: var(--danger); }
 .token-display {
   font-size: 10px; color: var(--warn);
@@ -370,7 +370,7 @@ async function handleApprove(id: string) {
   background: transparent; color: var(--danger);
   border: 1px solid var(--danger);
 }
-.btn-reject:hover { background: rgba(244,71,71,0.1); }
+.btn-reject:hover { background: rgba(var(--danger-rgb),0.1); }
 .btn-ghost {
   background: transparent; color: var(--text-dim);
   border: 1px solid var(--border);
@@ -387,7 +387,7 @@ async function handleApprove(id: string) {
   cursor: pointer; transition: all 0.15s;
 }
 .drawer-btn:hover { color: var(--text); border-color: var(--glow-dim); }
-.drawer-btn.active { color: var(--glow); border-color: var(--glow-dim); background: rgba(34,238,102,0.06); }
+.drawer-btn.active { color: var(--glow); border-color: var(--glow-dim); background: rgba(var(--glow-rgb),0.06); }
 .bell-btn {
   font-size: 14px; padding: 2px 6px;
   background: transparent; border: 1px solid var(--border);

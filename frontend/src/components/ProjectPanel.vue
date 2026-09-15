@@ -143,7 +143,7 @@ async function saveEdit() {
 
 <style scoped>
 .hint { font-size: 12px; color: var(--text-dim); text-align: center; padding: 16px 0; }
-.err { font-size: 11px; color: #f44747; }
+.err { font-size: 11px; color: var(--danger); }
 
 .proj-grid {
   display: grid;
@@ -168,13 +168,13 @@ async function saveEdit() {
 .edit-card { display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--surface); border: 1px dashed var(--border); border-radius: 8px; }
 .edit-btns { display: flex; justify-content: flex-end; gap: 6px; }
 button.mini.save { color: var(--glow); border-color: var(--glow-dim); }
-button.mini.save:hover { background: rgba(34,238,102,0.1); color: var(--glow); }
+button.mini.save:hover { background: rgba(var(--glow-rgb),0.1); color: var(--glow); }
 /* 次操作「移除」在左(默认透明),主操作「使用」在右(高亮) */
 .card-foot .mini.danger { padding: 6px 12px; border-radius: 6px; }
 .use-btn { padding: 6px 16px; font-size: 12px; border-radius: 6px; cursor: pointer; }
-.use-btn:not(:disabled) { background: rgba(34,238,102,0.12); color: var(--glow); border: 1px solid var(--glow-dim); }
-.use-btn:not(:disabled):hover { background: rgba(34,238,102,0.2); }
-.use-btn:disabled { background: var(--glow-dim); color: #09090b; border: 1px solid var(--glow); opacity: .85; cursor: default; }
+.use-btn:not(:disabled) { background: rgba(var(--glow-rgb),0.12); color: var(--glow); border: 1px solid var(--glow-dim); }
+.use-btn:not(:disabled):hover { background: rgba(var(--glow-rgb),0.2); }
+.use-btn:disabled { background: var(--glow-dim); color: var(--bg); border: 1px solid var(--glow); opacity: .85; cursor: default; }
 
 /* 添加项目:放最下面靠左,默认折叠 */
 .add-zone { margin-top: 14px; display: flex; }
@@ -189,5 +189,5 @@ button.mini.save:hover { background: rgba(34,238,102,0.1); color: var(--glow); }
 .add-err-line button { margin-left: 4px; }
 
 button.mini { background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; font-size: 11px; padding: 2px 6px; cursor: pointer; }
-button.mini.danger:hover { color: #f44747; border-color: #f44747; }
+button.mini.danger:hover { color: var(--danger); border-color: var(--danger); }
 </style>

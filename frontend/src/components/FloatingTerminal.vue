@@ -252,7 +252,7 @@ onUnmounted(() => {
   line-height: 1;
 }
 .btn-minimize:hover { color: var(--text, #c8c8d0); background: rgba(255,255,255,0.05); }
-.btn-close:hover { color: #f44747; background: rgba(255,68,68,0.1); }
+.btn-close:hover { color: var(--danger); background: rgba(var(--danger-rgb),0.1); }
 
 .terminal-body {
   flex: 1; background: #000;
@@ -266,5 +266,5 @@ onUnmounted(() => {
   display: flex; align-items: center; justify-content: center;
   color: var(--text-dim, #6b6b78); font-size: 13px;
 }
-.status-msg.error { color: #f44747; }
+.status-msg.error { color: var(--danger); }
 </style>

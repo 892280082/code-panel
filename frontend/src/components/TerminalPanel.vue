@@ -204,9 +204,9 @@ function badgeNo(port: number): number {
   transition: all 0.15s;
 }
 .btn-minimize:hover, .btn-maximize:hover { color: var(--text, #c8c8d0); background: rgba(255,255,255,0.08); }
-.btn-copy:hover { color: var(--glow, #22ee66); background: rgba(34,238,102,0.12); }
+.btn-copy:hover { color: var(--glow, #22ee66); background: rgba(var(--glow-rgb),0.12); }
 .btn-maximize:hover { color: #f2cc60; background: rgba(242,204,96,0.12); }
-.btn-close:hover { color: #f44747; background: rgba(255,68,68,0.1); }
+.btn-close:hover { color: var(--danger); background: rgba(var(--danger-rgb),0.1); }
 .terminal-body {
   flex: 1; background: #000;
   position: relative; overflow: hidden;

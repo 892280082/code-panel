@@ -117,7 +117,7 @@ async function copyAll(): Promise<void> {
 .cap-btn.primary {
   border: none;
   background: var(--glow, #22ee66);
-  color: #09090b; font-weight: 600;
+  color: var(--bg); font-weight: 600;
 }
 .cap-pre {
   flex: 1; margin: 0; padding: 12px;
@@ -132,7 +132,7 @@ async function copyAll(): Promise<void> {
   padding: 32px; text-align: center;
   color: var(--text-dim, #6b6b78); font-size: 12px;
 }
-.cap-msg.err { color: #f44747; }
+.cap-msg.err { color: var(--danger); }
 .cap-foot {
   padding: 6px 12px;
   border-top: 1px solid var(--border, #23232a);

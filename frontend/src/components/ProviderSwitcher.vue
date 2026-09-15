@@ -133,8 +133,8 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocMouseDown))
   cursor: pointer; letter-spacing: 0.04em;
   transition: all 0.15s; white-space: nowrap;
 }
-.pv-trigger:hover { color: var(--text); border-color: var(--glow-dim); background: rgba(34,238,102,0.04); }
-.pv-trigger.on { color: var(--glow); border-color: var(--glow-dim); background: rgba(34,238,102,0.06); }
+.pv-trigger:hover { color: var(--text); border-color: var(--glow-dim); background: rgba(var(--glow-rgb),0.04); }
+.pv-trigger.on { color: var(--glow); border-color: var(--glow-dim); background: rgba(var(--glow-rgb),0.06); }
 
 .pv-panel {
   position: fixed; z-index: 12001;
@@ -151,7 +151,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocMouseDown))
 .pv-manage { font-family: var(--font); font-size: 10px; padding: 2px 8px; cursor: pointer; color: var(--text-dim); background: transparent; border: 1px solid var(--border); border-radius: 8px; }
 .pv-manage:hover { color: var(--glow); border-color: var(--glow-dim); }
 .pv-close { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; line-height: 1; padding: 2px 4px; border-radius: 4px; }
-.pv-close:hover { color: var(--danger, #f44747); background: rgba(244,71,71,0.1); }
+.pv-close:hover { color: var(--danger, #f44747); background: rgba(var(--danger-rgb),0.1); }
 
 .pv-list { display: flex; flex-direction: column; padding: 6px 8px; max-height: min(42vh, 340px); overflow-y: auto; }
 .pv-hint { color: var(--text-dim); font-size: 11px; text-align: center; padding: 20px 10px; line-height: 1.8; }
@@ -160,7 +160,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocMouseDown))
   padding: 6px 8px; border-radius: 6px; border: 1px solid transparent;
 }
 .pv-row:hover { background: rgba(255,255,255,0.03); }
-.pv-row.cur { border-color: var(--glow-dim); background: rgba(34,238,102,0.05); }
+.pv-row.cur { border-color: var(--glow-dim); background: rgba(var(--glow-rgb),0.05); }
 .pv-row-main { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .pv-dot { display: none; }
 .pv-row.cur .pv-dot { display: inline-block; }

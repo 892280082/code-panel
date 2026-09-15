@@ -369,7 +369,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleEsc))
 .file-lang {
   margin-left: 10px; flex-shrink: 0;
   font-size: 9px; color: var(--text-dim);
-  background: rgba(34,238,102,0.08); padding: 1px 6px;
+  background: rgba(var(--glow-rgb),0.08); padding: 1px 6px;
   border-radius: 3px; text-transform: uppercase;
 }
 
@@ -406,7 +406,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleEsc))
   cursor: pointer; white-space: nowrap;
   transition: all 0.15s;
 }
-.load-more-btn:hover:not(:disabled) { background: rgba(34,238,102,0.08); border-color: var(--glow); }
+.load-more-btn:hover:not(:disabled) { background: rgba(var(--glow-rgb),0.08); border-color: var(--glow); }
 .load-more-btn:disabled { opacity: 0.5; cursor: default; }
 
 .file-error {

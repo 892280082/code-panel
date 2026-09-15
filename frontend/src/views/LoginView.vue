@@ -86,8 +86,8 @@ async function handleLogin() {
 .subtitle { font-size: 12px; text-align: center; color: var(--text-dim, #8b949e); margin: 0 0 24px; }
 .error-msg {
   padding: 8px 12px; margin-bottom: 16px; font-size: 13px;
-  background: rgba(255, 68, 68, 0.1); border: 1px solid rgba(255, 68, 68, 0.3);
-  border-radius: 4px; color: #ff6b6b;
+  background: rgba(var(--danger-rgb), 0.1); border: 1px solid rgba(var(--danger-rgb), 0.3);
+  border-radius: 4px; color: var(--danger);
 }
 label { display: block; margin-bottom: 16px; }
 label > span:first-child {

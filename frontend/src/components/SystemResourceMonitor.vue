@@ -98,8 +98,8 @@ function circleDash(v: number): string {
 }
 
 function circleColor(v: number, base: string): string {
-  if (v >= 90) return '#f44747'
-  if (v >= 70) return '#f0a030'
+  if (v >= 90) return 'var(--danger)'
+  if (v >= 70) return 'var(--warn)'
   return base
 }
 
@@ -130,7 +130,7 @@ const diskFreeGB = computed(() => {
 const circleMetrics = computed(() => {
   if (!data.value) return []
   return [
-    { key: 'cpu', percent: data.value.cpu.percent, color: '#4499ee' },
+    { key: 'cpu', percent: data.value.cpu.percent, color: 'var(--info)' },
     { key: 'mem', percent: data.value.memory.percent, color: '#e05588' },
   ]
 })
@@ -145,17 +145,17 @@ const { zIndex, onRaise } = useOverlayLayer(() => showModal.value)
       :key="m.key"
       width="20" height="20" class="sysmon-ring"
     >
-      <circle cx="10" cy="10" :r="R" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="2" />
+      <circle cx="10" cy="10" :r="R" fill="none" style="stroke: var(--border)" stroke-width="2" />
       <circle
         cx="10" cy="10" :r="R" fill="none"
-        :stroke="circleColor(m.percent, m.color)"
+        :style="{ stroke: circleColor(m.percent, m.color) }"
         stroke-width="2"
         stroke-linecap="round"
         :stroke-dasharray="circleDash(m.percent)"
         transform="rotate(-90 10 10)"
         style="transition: stroke-dasharray 0.8s ease, stroke 0.4s ease;"
       />
-      <text x="10" y="12.5" text-anchor="middle" font-size="7" font-weight="700" fill="#c8c8d0" font-family="'Fira Code',monospace">{{ Math.round(m.percent) }}</text>
+      <text x="10" y="12.5" text-anchor="middle" font-size="7" font-weight="700" fill="var(--text)" font-family="'Fira Code',monospace">{{ Math.round(m.percent) }}</text>
     </svg>
     <span v-if="error && !data" class="sysmon-inline-err" title="无法获取资源数据">⚠</span>
     <span v-else-if="!data" class="sysmon-inline-loading">···</span>
@@ -175,7 +175,7 @@ const { zIndex, onRaise } = useOverlayLayer(() => showModal.value)
           <!-- CPU section -->
           <div class="sysmon-section">
             <div class="sysmon-section-title">
-              <span class="sysmon-indicator" style="background:#4499ee"></span>
+              <span class="sysmon-indicator" style="background:var(--info)"></span>
               CPU
               <span v-if="data" class="sysmon-section-val">{{ data.cpu.percent }}%</span>
               <span v-if="data" class="sysmon-section-sub">{{ data.cpu.cores }}核 · 负载 {{ data.cpu.load1 }}</span>
@@ -183,7 +183,7 @@ const { zIndex, onRaise } = useOverlayLayer(() => showModal.value)
             <svg v-if="cpuHistory.length >= 2" viewBox="0 0 300 48" preserveAspectRatio="none" class="sysmon-chart">
               <polyline
                 :points="polylinePoints(cpuHistory)"
-                fill="none" stroke="#4499ee" stroke-width="1.5"
+                fill="none" stroke="var(--info)" stroke-width="1.5"
                 stroke-linecap="round" stroke-linejoin="round"
               />
             </svg>
@@ -211,13 +211,13 @@ const { zIndex, onRaise } = useOverlayLayer(() => showModal.value)
           <!-- DISK section -->
           <div class="sysmon-section">
             <div class="sysmon-section-title">
-              <span class="sysmon-indicator" style="background:#22ee66"></span>
+              <span class="sysmon-indicator" style="background:var(--glow)"></span>
               磁盘
               <span v-if="data" class="sysmon-section-val">{{ data.disk.percent }}%</span>
               <span v-if="data" class="sysmon-section-sub">剩余 {{ diskFreeGB }}/{{ data.disk.totalGB }} GB · {{ data.disk.mount }}</span>
             </div>
             <div class="sysmon-diskbar">
-              <div class="sysmon-diskbar-fill" :style="{ width: (data?.disk.percent ?? 0) + '%', background: circleColor(data?.disk.percent ?? 0, '#22ee66') }" />
+              <div class="sysmon-diskbar-fill" :style="{ width: (data?.disk.percent ?? 0) + '%', background: circleColor(data?.disk.percent ?? 0, 'var(--glow)') }" />
             </div>
           </div>
 
@@ -489,7 +489,7 @@ const { zIndex, onRaise } = useOverlayLayer(() => showModal.value)
 .sysmon-proc-table td {
   padding: 4px 8px;
   color: var(--text);
-  border-bottom: 1px solid rgba(35, 35, 42, 0.3);
+  border-bottom: 1px solid rgba(var(--line-rgb), 0.3);
 }
 
 .sysmon-proc-table td.num {

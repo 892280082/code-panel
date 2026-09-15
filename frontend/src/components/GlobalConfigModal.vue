@@ -146,7 +146,7 @@ const tabs: { key: TabKey; label: string }[] = [
   font-size: 13px; font-weight: 700; letter-spacing: 0.06em; color: var(--text);
 }
 .modal-header .close { background: transparent; border: none; color: var(--text-dim); font-size: 16px; cursor: pointer; }
-.modal-header .close:hover { color: #f44747; }
+.modal-header .close:hover { color: var(--danger); }
 
 .tabs { display: flex; gap: 4px; padding: 8px 16px 0; border-bottom: 1px solid var(--border); }
 .tab {

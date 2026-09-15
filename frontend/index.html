@@ -2,6 +2,13 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
+  <script>
+    // 首屏防闪:样式应用前按 localStorage 主题给 <html> 打 data-theme(缺省深色,浅色才打标)
+    try {
+      if (localStorage.getItem('code-panel-theme') === 'light')
+        document.documentElement.setAttribute('data-theme', 'light')
+    } catch (e) { /* ignore */ }
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <title>code-panel</title>

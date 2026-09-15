@@ -155,7 +155,7 @@ onMounted(loadAll)
 .wp-btn {
   padding: 7px 18px; flex-shrink: 0;
   border: none; border-radius: 4px;
-  background: var(--glow, #22ee66); color: #09090b;
+  background: var(--glow, #22ee66); color: var(--bg);
   font-size: 12px; font-weight: 600; cursor: pointer;
 }
 .wp-btn:disabled { opacity: 0.4; cursor: default; }

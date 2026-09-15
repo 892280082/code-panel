@@ -148,7 +148,7 @@ onMounted(() => {
   padding: 3px 10px;
   font-size: 11px; font-weight: 600;
   color: var(--glow);
-  background: rgba(34,238,102,0.07);
+  background: rgba(var(--glow-rgb),0.07);
   border: 1px solid var(--glow-dim);
   border-radius: 12px;
   cursor: pointer;
@@ -158,13 +158,13 @@ onMounted(() => {
   animation: os-chip-breathe 1.6s ease-in-out infinite;
 }
 .os-chip:hover {
-  background: rgba(34,238,102,0.16);
+  background: rgba(var(--glow-rgb),0.16);
   border-color: var(--glow);
   animation: none;
   transform: scale(1.03);
 }
 @keyframes os-chip-breathe {
-  0%, 100% { box-shadow: 0 0 0 rgba(34,238,102,0); }
-  50%      { box-shadow: 0 0 6px rgba(34,238,102,0.35); }
+  0%, 100% { box-shadow: 0 0 0 rgba(var(--glow-rgb),0); }
+  50%      { box-shadow: 0 0 6px rgba(var(--glow-rgb),0.35); }
 }
 </style>

@@ -475,10 +475,10 @@ onMounted(async () => {
 .pool-pct { flex: 0 0 38px; font-size: 12px; font-weight: 700; font-family: var(--font, monospace); text-align: right; }
 .pool-detail { font-size: 10px; color: var(--text-dim); font-family: var(--font, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plan-hint { font-size: 11px; color: var(--text-dim); line-height: 1.6; }
-.plan-err { font-size: 11px; color: #f44747; }
+.plan-err { font-size: 11px; color: var(--danger); }
 .plan-err.soft { color: #e5c07b; }
 .ok { font-size: 11px; color: var(--glow); }
-.err { font-size: 11px; color: #f44747; }
+.err { font-size: 11px; color: var(--danger); }
 .spacer { flex: 1; }
 
 /* ── 顶部卡片 ── */
@@ -490,7 +490,7 @@ onMounted(async () => {
   color: var(--text-dim); cursor: pointer; transition: all .15s; text-align: left;
 }
 .card:hover { border-color: var(--text-dim); color: var(--text); }
-.card.on { border-color: var(--glow-dim); background: rgba(34,238,102,0.06); color: var(--text); box-shadow: 0 0 0 1px var(--glow-dim) inset; }
+.card.on { border-color: var(--glow-dim); background: rgba(var(--glow-rgb),0.06); color: var(--text); box-shadow: 0 0 0 1px var(--glow-dim) inset; }
 .card.off { opacity: .5; }
 .card.add { min-width: 78px; align-items: center; justify-content: center; border-style: dashed; font-size: 12px; }
 .c-name { font-size: 13px; font-weight: 700; }
@@ -526,7 +526,7 @@ onMounted(async () => {
 .eye { margin-left: -30px; margin-right: 4px; z-index: 1; background: transparent; border: none; cursor: pointer; font-size: 12px; padding: 2px 4px; opacity: .75; }
 .eye:hover { opacity: 1; }
 .del, .del-ph { flex: 0 0 24px; text-align: center; background: transparent; border: 1px solid transparent; color: var(--text-dim); border-radius: 4px; font-size: 11px; padding: 3px 0; cursor: pointer; }
-.del:hover { color: #f44747; border-color: #f44747; }
+.del:hover { color: var(--danger); border-color: var(--danger); }
 
 .row-add { margin-top: 2px; }
 button.ghost.sm { padding: 4px 12px; font-size: 11px; border-style: dashed; }
@@ -555,6 +555,6 @@ button.ghost.sm { padding: 4px 12px; font-size: 11px; border-style: dashed; }
 .warn { font-size: 11px; color: #e5c07b; background: rgba(229,192,123,0.08); border: 1px solid rgba(229,192,123,0.3); border-radius: 6px; padding: 6px 10px; line-height: 1.7; }
 
 button.ghost:hover { color: var(--text); }
-button.ghost.danger:hover { color: #f44747; border-color: #f44747; }
+button.ghost.danger:hover { color: var(--danger); border-color: var(--danger); }
 button.ghost:disabled { opacity: .5; cursor: default; }
 </style>

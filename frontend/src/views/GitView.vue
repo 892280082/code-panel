@@ -394,7 +394,7 @@ function switchToLog() {
 .repo-row {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 12px; cursor: pointer;
-  border-bottom: 1px solid rgba(35,35,42,0.3);
+  border-bottom: 1px solid rgba(var(--line-rgb),0.3);
   transition: background 0.15s;
 }
 .repo-row:hover { background: #1a1a22; }
@@ -417,7 +417,7 @@ function switchToLog() {
   transition: all 0.15s;
   margin-left: 4px;
 }
-.browse-btn:hover { color: var(--glow); border-color: var(--glow-dim); background: rgba(34,238,102,0.06); }
+.browse-btn:hover { color: var(--glow); border-color: var(--glow-dim); background: rgba(var(--glow-rgb),0.06); }
 
 /* Files under expanded repo */
 .file-sublist {
@@ -430,10 +430,10 @@ function switchToLog() {
   display: flex; align-items: center; gap: 4px;
   padding: 4px 12px 4px 28px;
   font-size: 11px; cursor: pointer;
-  border-bottom: 1px solid rgba(35,35,42,0.15);
+  border-bottom: 1px solid rgba(var(--line-rgb),0.15);
 }
-.file-row:hover { background: rgba(34,238,102,0.04); }
-.file-row.selected { background: rgba(34,238,102,0.08); }
+.file-row:hover { background: rgba(var(--glow-rgb),0.04); }
+.file-row.selected { background: rgba(var(--glow-rgb),0.08); }
 .file-status { font-weight: 700; font-size: 11px; width: 14px; flex-shrink: 0; }
 .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 /* 层级树目录行 */
@@ -563,11 +563,11 @@ function switchToLog() {
 .loading-text {
   padding: 20px; font-size: 12px; color: var(--text-dim); text-align: center;
 }
-.diff-line { display: flex; min-height: 21px; border-bottom: 1px solid rgba(35,35,42,0.2); }
+.diff-line { display: flex; min-height: 21px; border-bottom: 1px solid rgba(var(--line-rgb),0.2); }
 .line-num {
   width: 48px; flex-shrink: 0; text-align: right;
   padding: 1px 8px; font-size: 10px; color: var(--text-dim);
-  user-select: none; border-right: 1px solid rgba(35,35,42,0.3);
+  user-select: none; border-right: 1px solid rgba(var(--line-rgb),0.3);
 }
 .line-sign { width: 20px; flex-shrink: 0; text-align: center; font-weight: 700; user-select: none; }
 .line-content { flex: 1; padding: 1px 12px; white-space: pre; overflow-x: auto; font-variant-ligatures: none; }
@@ -575,9 +575,9 @@ function switchToLog() {
 /* 源码模式:无行号/符号,仅变动行着色 */
 .source-file { font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.5; }
 .source-line { padding: 0 10px; white-space: pre-wrap; word-break: break-all; }
-.source-line.src-add { background: rgba(34,238,102,0.08); }
+.source-line.src-add { background: rgba(var(--glow-rgb),0.08); }
 .source-line.src-add .line-content { color: #9aefb8; }
-.source-line.src-del { background: rgba(244,71,71,0.10); }
+.source-line.src-del { background: rgba(var(--danger-rgb),0.10); }
 .source-line.src-del .line-content { color: #f09999; text-decoration: line-through; opacity: .75; }
 
 /* ── Sync section ──────────────────────────────────────── */
@@ -588,11 +588,11 @@ function switchToLog() {
 .sync-btn {
   width: 100%; padding: 7px;
   font-family: var(--font); font-size: 11px;
-  background: rgba(34,238,102,0.08); color: var(--glow);
+  background: rgba(var(--glow-rgb),0.08); color: var(--glow);
   border: 1px solid var(--glow-dim); border-radius: var(--radius);
   cursor: pointer; transition: all 0.15s;
 }
-.sync-btn:hover:not(:disabled) { background: rgba(34,238,102,0.14); }
+.sync-btn:hover:not(:disabled) { background: rgba(var(--glow-rgb),0.14); }
 .sync-btn:disabled { opacity: 0.5; cursor: wait; }
 .sync-results {
   margin-top: 4px; max-height: 160px; overflow-y: auto;
@@ -602,7 +602,7 @@ function switchToLog() {
 .sync-result-row {
   display: flex; align-items: center; gap: 6px;
   padding: 3px 4px; font-size: 10px;
-  border-bottom: 1px solid rgba(35,35,42,0.2);
+  border-bottom: 1px solid rgba(var(--line-rgb),0.2);
 }
 .sync-result-row:last-child { border-bottom: none; }
 .sync-result-row.pulled .sync-status-icon { color: var(--glow); }
@@ -620,7 +620,7 @@ function switchToLog() {
 /* ── Toolbar active button ────────────────────────────── */
 .toolbar button.active {
   color: var(--glow); border-color: var(--glow-dim);
-  background: rgba(34,238,102,0.08);
+  background: rgba(var(--glow-rgb),0.08);
 }
 
 /* Floating copy button */

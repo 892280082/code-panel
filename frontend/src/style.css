@@ -19,6 +19,8 @@
 }
 
 :root {
+  /* 深色(默认)—— 原 Terminal Noir;浅色整套变量在 [data-theme="light"]。
+     三元组变量(*-rgb)供 rgba(var(--x-rgb),α) 半透明用法,两套主题各配一份。 */
   --bg:        #09090b;
   --surface:   #131316;
   --border:    #23232a;
@@ -27,11 +29,34 @@
   --glow:      #22ee66;
   --glow-dim:  #116633;
   --danger:    #f44747;
+  --danger-rgb: 244,71,71;
   --warn:      #f0a030;
   --info:      #4499ee;
+  --glow-rgb:  34,238,102;
+  --line-rgb:  35,35,42;
   --font:      'Fira Code', monospace;
   --radius:    4px;
 }
+
+[data-theme="light"] {
+  /* 浅色:近白底 + 墨色文字;装修 Tab 选「浅色」时给 <html> 打 data-theme="light" */
+  --bg:        #f2f3f5;
+  --surface:   #ffffff;
+  --border:    #d9dbe0;
+  --text:      #23262b;
+  --text-dim:  #6e7480;
+  --glow:      #0a8f3c;
+  --glow-dim:  rgba(10,143,60,0.38);
+  --danger:    #d02020;
+  --danger-rgb: 208,32,32;
+  --warn:      #b06a00;
+  --info:      #1a6dd6;
+  --glow-rgb:  10,143,60;
+  --line-rgb:  0,0,0;
+}
+
+/* 星空/流星是深色底的装饰,浅色下隐藏(切主题无需组件配合) */
+[data-theme="light"] .starfield { display: none; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -56,6 +81,11 @@ body {
 .ansi-bold { font-weight: bold; } .ansi-dim { opacity: 0.7; }
 .ansi-italic { font-style: italic; } .ansi-underline { text-decoration: underline; }
 
+/* 浅色下把 ANSI 白/亮黄系压暗,日志才读得清;深色(默认)用上面终端原色 */
+[data-theme="light"] .ansi-white-fg { color: #5a5a66; }
+[data-theme="light"] .ansi-bright-white-fg { color: #2e2e36; }
+[data-theme="light"] .ansi-bright-yellow-fg { color: #8a7100; }
+
 /* ── Custom scrollbar ────────────────────────────────── */
 .drawer-scroll::-webkit-scrollbar { width: 6px; }
 .drawer-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -74,7 +104,7 @@ body {
 }
 .form-input:focus { border-color: var(--glow); }
 .form-input.mono { font-family: var(--font); }
-.form-error { color: #f44747; font-size: 11px; }
+.form-error { color: var(--danger); font-size: 11px; }
 
 button.primary { padding: 7px 16px; font-size: 12px; border-radius: 4px; cursor: pointer; background: var(--glow-dim); color: var(--text); border: 1px solid var(--glow); }
 button.primary:disabled { opacity: .5; cursor: default; }

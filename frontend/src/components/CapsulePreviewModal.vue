@@ -107,6 +107,6 @@ function openInTab(): void {
   font-size: 12px; cursor: pointer;
 }
 .cpm-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
-.cpm-btn.close:hover { color: #f44747; }
+.cpm-btn.close:hover { color: var(--danger); }
 .cpm-frame { flex: 1; border: none; background: #fff; }
 </style>

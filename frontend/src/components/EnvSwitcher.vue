@@ -178,8 +178,8 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocMouseDown))
   cursor: pointer; letter-spacing: 0.04em;
   transition: all 0.15s; white-space: nowrap;
 }
-.en-trigger:hover { color: var(--text); border-color: var(--glow-dim); background: rgba(34,238,102,0.04); }
-.en-trigger.on { color: var(--glow); border-color: var(--glow-dim); background: rgba(34,238,102,0.06); }
+.en-trigger:hover { color: var(--text); border-color: var(--glow-dim); background: rgba(var(--glow-rgb),0.04); }
+.en-trigger.on { color: var(--glow); border-color: var(--glow-dim); background: rgba(var(--glow-rgb),0.06); }
 
 .en-panel {
   position: fixed; z-index: 12001;
@@ -193,7 +193,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocMouseDown))
 .en-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .en-title { font-size: 12px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .en-close { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; line-height: 1; padding: 2px 4px; border-radius: 4px; }
-.en-close:hover { color: var(--danger, #f44747); background: rgba(244,71,71,0.1); }
+.en-close:hover { color: var(--danger, #f44747); background: rgba(var(--danger-rgb),0.1); }
 
 .en-statbar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.12); flex-shrink: 0; font-size: 10px; }
 .en-cur b { color: var(--glow); }

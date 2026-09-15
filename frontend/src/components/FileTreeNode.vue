@@ -231,14 +231,14 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick))
   padding: 4px 12px; font-size: 11px;
   cursor: pointer; white-space: nowrap;
   transition: background 0.1s;
-  border-bottom: 1px solid rgba(35,35,42,0.12);
+  border-bottom: 1px solid rgba(var(--line-rgb),0.12);
   user-select: none; outline: none;
   /* 行宽按内容撑开: 递归层级深时文件名不被截断, 由顶部横向滚动条拉动查看 */
   min-width: max-content;
 }
-.tree-row:hover { background: rgba(34,238,102,0.04); }
+.tree-row:hover { background: rgba(var(--glow-rgb),0.04); }
 .tree-row:focus { background: rgba(68,153,238,0.12); border-left: 2px solid var(--info); }
-.tree-row.selected { background: rgba(34,238,102,0.08); border-left: 2px solid var(--glow-dim); }
+.tree-row.selected { background: rgba(var(--glow-rgb),0.08); border-left: 2px solid var(--glow-dim); }
 
 .empty-row { cursor: default; }
 .empty-row:hover { background: transparent; }
@@ -278,7 +278,7 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick))
   transition: background 0.1s;
   white-space: nowrap;
 }
-.context-menu-item:hover { background: rgba(34,238,102,0.1); }
+.context-menu-item:hover { background: rgba(var(--glow-rgb),0.1); }
 .ctx-icon { font-size: 12px; width: 18px; text-align: center; flex-shrink: 0; }
 .ctx-label { color: var(--text); }
 </style>
