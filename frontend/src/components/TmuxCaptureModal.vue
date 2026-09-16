@@ -7,7 +7,7 @@
 //   一键复制,是网页远程时唯一可靠的复制通道。
 
 import { apiJson, errText } from '@/utils/api-fetch'
-import { ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { useTerminalStore } from '@/stores/terminal'
 import { useCopyFeedback } from '@/composables/useCopyFeedback'
 
@@ -15,6 +15,7 @@ const terminal = useTerminalStore()
 
 const capLines = ref(200)
 const capText = ref('')
+const capPre = ref<HTMLElement | null>(null)
 const capLoading = ref(false)
 const capError = ref('')
 const { copied: capCopied, copy } = useCopyFeedback()
@@ -32,6 +33,10 @@ async function fetchCapture() {
     capText.value = ''
   } finally {
     capLoading.value = false
+    // 滚到底 —— 底部才是 tmux 最新输出,打开/换行数即见当前现场
+    // (须在 loading=false 后 nextTick,等 <pre> 渲染出来再滚)
+    await nextTick()
+    if (capPre.value) capPre.value.scrollTop = capPre.value.scrollHeight
   }
 }
 
@@ -65,7 +70,7 @@ async function copyAll(): Promise<void> {
         </div>
         <div v-if="capLoading" class="cap-msg">抓屏中…</div>
         <div v-else-if="capError" class="cap-msg err">{{ capError }}</div>
-        <pre v-else class="cap-pre">{{ capText || '(无内容)' }}</pre>
+        <pre v-else ref="capPre" class="cap-pre">{{ capText || '(无内容)' }}</pre>
         <div class="cap-foot">弹窗内文字可手动拖选复制局部 · 鼠标模式为「开」时,这里是网页里唯一可靠的复制通道</div>
       </div>
     </div>
