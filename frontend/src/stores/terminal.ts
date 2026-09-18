@@ -20,7 +20,7 @@
 //     · 刷新只恢复当前项目的清单(端口池有界);切到别的项目时把该项目
 //       清单里未接上的窗口懒补齐(syncProjectWindows)。
 
-import { apiFetch, apiJson } from '@/utils/api-fetch'
+import { apiFetch, apiJson, errText } from '@/utils/api-fetch'
 import type { TerminalServerSession } from '@/types'
 import { raise } from '@/utils/z-layer'
 import { slotPos } from '@/utils/viewport-layout'
@@ -361,7 +361,9 @@ export const useTerminalStore = defineStore('terminal', () => {
         scheduleOneshotCollapse(port)
       }
     } catch (err) {
+      // 起不来必须说出来:静默 catch 的表现就是「点了没反应」,用户无从判断
       console.error('Session creation error:', err)
+      alert(`终端启动失败:${errText(err, '端口池已满或 ttyd 未就绪')}`)
     }
   }
 

@@ -22,7 +22,7 @@ import gitReposRouter from './routes/git-repos';
 import repoBrowserRouter from './routes/repo-browser';
 import { runBackup } from './backup/backup-manager';
 import { terminalProxyMiddleware, mountTerminalProxy } from './terminal/proxy';
-import { startTTYD, stopTTYD } from './terminal/ttyd-manager';
+import { startTTYD, stopTTYD, cleanupStaleCmdPorts } from './terminal/ttyd-manager';
 import { killAllTmuxAttachSync, cleanupStaleTmuxAttachPorts, restoreTmuxSessions } from './terminal/tmux-manager';
 import { startMonitor } from './log-monitor';
 import { startHealthCheck } from './db/health-check';
@@ -131,6 +131,10 @@ async function start() {
 
   // P3:清理上次服务器残留的 tmux 接入 ttyd(9020-9029);tmux 会话本身常驻保留
   cleanupStaleTmuxAttachPorts();
+
+  // 同样清一遍命令终端的残留 ttyd(9002-9011):单元 ExecStartPre 只清 3008/9001,
+  // 池子里的孤儿占位会让新会话 bind 失败却仍被判「就绪」→ 点按钮只弹个空 shell
+  cleanupStaleCmdPorts();
 
   // P4:整机重启后 tmux 会话全灭 → 按项目备注(tmux-notes.json 记的最后目录)
   //    重建缺失会话;面板重启但机器没重启时全命中跳过,幂等无副作用
