@@ -191,10 +191,13 @@ export const useTerminalStore = defineStore('terminal', () => {
 
   /** 持久化 = 按归属 upsert 进各项目清单(原位更新 + 追加新增)。
    *  绝不截短:清单里有、运行时没有的条目(恢复失败/懒补未到)原样保留,
-   *  只有显式关闭(removeFromAllLists)才移除 —— 恢复失败永不丢窗口。 */
+   *  只有显式关闭(removeFromAllLists)才移除 —— 恢复失败永不丢窗口。
+   *  ⭐ 一次性(Apps 启停)窗口不进清单:短命数据无恢复语义,进了反而会在
+   *  刷新后被当普通窗口复活成永久死窗(2026-09-19 终端闪烁问题修复)。 */
   function persistWindows(): void {
     const byProj = new Map<string, SavedWindow[]>()
     for (const s of sessions.values()) {
+      if (s.oneshot) continue
       const pid = ownerOf(s)
       if (!pid) continue
       const list = byProj.get(pid) || []
@@ -356,8 +359,10 @@ export const useTerminalStore = defineStore('terminal', () => {
       })
       if (opts?.persist !== false) persistWindows()
       if (!keepShell) {
-        // keepShell=false 一次性(Apps 启停):大窗展示 2s → 自动最小化到左上角 chip → 20s 未放大自动关闭
-        watchAutoClose(port)
+        // keepShell=false 一次性(Apps 启停):大窗展示 2s → 自动最小化到左上角 chip;
+        // 服务端会话回收(命令跑完,后端已杀 ttyd)即自动关闭,20s 只是兜底。
+        const s = sessions.get(port)
+        if (s) watchAutoClose(port, s)
         scheduleOneshotCollapse(port)
       }
     } catch (err) {
@@ -415,21 +420,24 @@ export const useTerminalStore = defineStore('terminal', () => {
     persistWindows()
   }
 
-  /** 一次性会话:服务端 session 消失(命令已执行完)时,自动收起对应窗口 */
-  function watchAutoClose(port: number) {
+  /** 一次性会话:服务端 session 消失(命令已执行完,后端 watchOneshotExit 已回收
+   *  ttyd)时,自动关闭对应窗口 —— 死 PTY 窗口留着只会反复重连闪烁,毫无价值,
+   *  已激活(activated)的也一并关(要看启停输出去 Apps 日志页签)。
+   *  ⭐ 绑定 session 对象身份而非仅端口号:端口池会复用端口号,旧计时器若只认
+   *  端口号,会把复用同端口的新窗口误关/误留(2026-09-19 修复)。 */
+  function watchAutoClose(port: number, target: TerminalSession) {
     const timer = setInterval(async () => {
-      if (!sessions.has(port)) { clearInterval(timer); return }
+      if (sessions.get(port) !== target) { clearInterval(timer); return }
       try {
         const d = await apiJson<{ data: TerminalServerSession[] }>('/api/terminal/sessions')
         const list: TerminalServerSession[] = (d && d.data) ? d.data : []
-        const alive = list.some(s => s.port === port)
-        if (!alive) {
-          sessions.delete(port)
-          persistWindows()
+        if (!list.some(s => s.port === port)) {
           clearInterval(timer)
+          clearLifecycle(port)
+          sessions.delete(port)
         }
       } catch { /* 网络抖动忽略,下轮再查 */ }
-    }, 1200)
+    }, 500)
   }
 
   // ── Tmux:连接已有 tmux 会话(持久化终端) ─────────────
