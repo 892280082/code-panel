@@ -83,6 +83,7 @@ bash ~/.claude/skills/code-panel/cp get "/api/inspect?project=<id>"
 | 「/code-panel 归入wiki <分类>:<名字>」 | [references/wiki-merge.md](references/wiki-merge.md)(草稿确认铁律) |
 | 「PRD / 写PRD / 原型 / 方案文档」 | [references/prd.md](references/prd.md) + [references/prd-directory-format.md](references/prd-directory-format.md) + `templates/prd/` |
 | 「模型切换 / 换模型 / LLM 供应商」 | [references/llm-providers.md](references/llm-providers.md) |
+| 「claude-glm / claude-ds / 命令行临时用某模型跑 claude」 | [references/claude-llm-cli.md](references/claude-llm-cli.md)(⚠ 会话内禁碰全局激活) |
 | 环境变量组 / 跨机器配置 | [references/env-groups.md](references/env-groups.md) |
 | SQL 查询 / 审批 / 写库 | [references/sql-review.md](references/sql-review.md) |
 | 给用户交付产物 / 收文件 | [references/cloud-files.md](references/cloud-files.md) |

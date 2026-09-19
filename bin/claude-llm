@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# claude-llm <供应商名> [claude 参数…]
+#   从 code-panel「⚙ 配置 → 模型」拉指定供应商的环境变量,以 claude --settings 启动。
+#   为什么用 --settings 而不是 export:~/.claude/settings.json 的 env 优先级高于
+#   shell export(全局激活的模型会压掉 export),--settings 是命令行级、优先级最高。
+#   依赖:cp(ai-token 本机超管通道)、jq。面板没起 → 先 bash ~/.claude/skills/code-panel/start.sh
+set -euo pipefail
+
+CP="$HOME/.claude/skills/code-panel/cp"
+
+name="${1:-}"
+if [ -z "$name" ]; then
+  echo "用法: claude-llm <供应商名> [claude 参数…](供应商名 = 面板 ⚙ 配置 → 模型 里的名字)" >&2
+  exit 2
+fi
+shift
+
+command -v jq     >/dev/null || { echo "缺 jq(apt install jq)" >&2; exit 127; }
+command -v claude >/dev/null || { echo "claude 不在 PATH" >&2; exit 127; }
+[ -x "$CP" ] || { echo "找不到面板调用器 $CP" >&2; exit 1; }
+
+# 1. 按名字找供应商 id
+snap=$(bash "$CP" get /api/llm/providers) || {
+  echo "面板 API 调不通(3008 没起?)→ bash ~/.claude/skills/code-panel/start.sh" >&2; exit 1;
+}
+id=$(printf '%s' "$snap" | jq -r --arg n "$name" '.providers[] | select(.name == $n) | .id' | head -1)
+[ -n "$id" ] || { echo "面板里没有名为「$name」的供应商(⚙ 配置 → 模型)" >&2; exit 1; }
+
+# 2. 明文 vars(reveal 为超管接口,cp 持 ai-token 直通)
+vars=$(bash "$CP" get "/api/llm/providers/$id/reveal" | jq -r '.vars')
+
+# 3. 多行 KEY=VALUE → {"env":{…}}(容忍 export 前缀/引号/空行/#注释;值 <占位符> = 未填,跳过)
+#    注:单引号字符用 (39|implode) 生成,避开 bash/jq 双层引号嵌套
+json=$(printf '%s\n' "$vars" | jq -Rn '
+  def trim: gsub("^\\s+|\\s+$"; "");
+  def unquote:
+    (.[0:1]) as $q
+    | if (length > 1) and ($q == "\"" or $q == ([39] | implode)) and (endswith($q))
+      then .[1:(length - 1)]
+      else .
+      end;
+  reduce inputs as $raw ({};
+    ($raw | trim) as $l
+    | if ($l == "" or ($l | startswith("#"))) then .
+      else
+        ($l | sub("^export\\s+"; "")) as $l2
+        | (($l2 | index("=")) // -1) as $i
+        | if $i < 1 then .
+          else
+            ($l2[0:$i] | trim) as $k
+            | (($l2[($i+1):] | trim) | unquote) as $v
+            | if ($v | test("^<[^<>]*>$")) then .    # 未填占位符:跳过,不写坏配置
+              else . + {($k): $v}
+              end
+          end
+      end)
+  | {env: .}
+')
+[ "$(printf '%s' "$json" | jq '.env | length')" -gt 0 ] || {
+  echo "供应商「$name」没有可用的环境变量(全是占位符或空)→ 先去面板填好" >&2; exit 1;
+}
+
+# 4. 启动
+exec claude --settings "$json" "$@"
