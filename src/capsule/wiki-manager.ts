@@ -1,13 +1,16 @@
 // ── Wiki 仓库管理(SSH 公钥 clone / ff-only pull)────────
-//   克隆固定在 ~/.code-panel/wiki/,地址存全局 settings 键 'wiki'
-//   = {url, lastPullAt}。只接受 git@/ssh://git@ 形式(公钥拉取,
-//   不存任何账号密码);面板只 clone/pull 不 push —— push 由终端里
-//   的 claude code 按 SKILL.md 指令执行。进程内互斥锁防并发 git。
+//   克隆固定在 <capsuleDir>/wiki/(默认 ~/.code-panel-capsules/wiki,
+//   随 capsule 目录设置走 —— ⭐ 用户定:胶囊类数据独立于 ~/.code-panel,
+//   面板备份会把 ~/.code-panel 整个打包推走,wiki 克隆不得进备份链路)。
+//   地址存全局 settings 键 'wiki' = {url, lastPullAt}。只接受
+//   git@/ssh://git@ 形式(公钥拉取,不存任何账号密码);面板只 clone/pull
+//   不 push —— push 由终端里的 claude code 按 SKILL.md 指令执行。
+//   进程内互斥锁防并发 git。
 
 import fs from 'fs';
 import path from 'path';
 import { gitExec, type GitExecError } from '../git/git-exec';
-import { globalDataDir } from '../paths';
+import { capsuleDir } from './capsule-store';
 import { getSetting, setSetting } from '../db/global-store';
 
 export interface WikiConfig {
@@ -21,7 +24,7 @@ export interface WikiSyncResult {
 }
 
 export function wikiDir(): string {
-  return path.join(globalDataDir(), 'wiki');
+  return path.join(capsuleDir(), 'wiki');
 }
 
 export function getWikiConfig(): WikiConfig {
@@ -85,6 +88,9 @@ export function cloneWiki(): WikiSyncResult {
   if (isWikiCloned()) return { status: 'already', message: '已克隆过' };
   gitBusy = true;
   try {
+    // 父目录(capsule 根)可能未建(capsuleDir 默认 ~/.code-panel-capsules,
+    // 不随面板初始化创建)→ git clone 只建最后一级,父级先补上
+    fs.mkdirSync(path.dirname(wikiDir()), { recursive: true });
     // 半成品(上次 clone 中断留下的目录,无 .git)→ 删掉重来
     if (fs.existsSync(wikiDir())) fs.rmSync(wikiDir(), { recursive: true, force: true });
     runWikiGit(`clone "${url}" "${wikiDir()}"`, 120000);
