@@ -5,6 +5,8 @@ import { requireProject, reqProject } from '../projects/context';
 import { getTTYDStatus, createSession, killSession, getSessions } from '../terminal/ttyd-manager';
 import { getAllCommands, addCommand, deleteCommand, updateCommand, reorderCommands } from '../terminal/command-store';
 import { route } from '../utils/route-utils';
+import { getSetting, setSetting } from '../db/global-store';
+import { reqUser } from '../auth/jwt';
 
 const router = Router();
 
@@ -165,6 +167,35 @@ router.delete('/api/terminal/commands/:id', requireProject, route((req: Request,
     return;
   }
   res.json({ ok: true });
+}));
+
+// ── Subgroup visibility(2026-09-20:分组按钮显示开关,每用户每项目独立)──
+//   不是所有人都用得上某个分组(如「在线部署」)—— 分组头上带开关,关 = 收起该组按钮。
+//   状态存全局库 settings 表,key 拼 username → 多账号互不影响;值 = 隐藏分组名数组(JSON)。
+const hiddenKey = (req: Request, projectId: string): string =>
+  `cmdSubgroupHidden:${reqUser(req)?.username ?? 'anon'}:${projectId}`;
+
+// GET /api/terminal/subgroup-hidden?project=x — 当前用户在该项目的隐藏分组列表
+router.get('/api/terminal/subgroup-hidden', requireProject, route((req: Request, res: Response) => {
+  const project = reqProject(req);
+  const list = getSetting<string[]>(hiddenKey(req, project.id), []);
+  res.json({ ok: true, data: list });
+}));
+
+// PUT /api/terminal/subgroup-hidden?project=x — body { subgroup, hidden } 切换某分组
+router.put('/api/terminal/subgroup-hidden', requireProject, route((req: Request, res: Response) => {
+  const project = reqProject(req);
+  const { subgroup, hidden } = req.body;
+  if (typeof subgroup !== 'string' || !subgroup.trim() || typeof hidden !== 'boolean') {
+    res.status(400).json({ ok: false, error: 'subgroup(string) and hidden(boolean) are required' });
+    return;
+  }
+  const key = hiddenKey(req, project.id);
+  const set = new Set(getSetting<string[]>(key, []));
+  if (hidden) set.add(subgroup.trim()); else set.delete(subgroup.trim());
+  const list = Array.from(set);
+  setSetting(key, list);
+  res.json({ ok: true, data: list });
 }));
 
 export default router;

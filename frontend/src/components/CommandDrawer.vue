@@ -64,6 +64,33 @@ const groupedCustomCmds = computed(() => {
   return Array.from(map.entries())
 })
 
+// ── 分组显隐开关(2026-09-20):每用户每项目,状态存面板库;关 = 收起该组按钮只留标题 ──
+const hiddenGroups = ref<string[]>([])
+const isGroupHidden = (sub: string): boolean => hiddenGroups.value.includes(sub)
+
+async function loadHidden(): Promise<void> {
+  if (!projects.currentId) { hiddenGroups.value = []; return }
+  try {
+    const url = `/api/terminal/subgroup-hidden?project=${encodeURIComponent(projects.currentId)}`
+    const res = await apiFetch(url)
+    const data = await res.json()
+    if (data.ok) hiddenGroups.value = data.data
+  } catch { /* ignore */ }
+}
+
+async function toggleGroup(sub: string, hidden: boolean): Promise<void> {
+  if (!projects.currentId) return
+  hiddenGroups.value = hidden ? [...hiddenGroups.value, sub] : hiddenGroups.value.filter(s => s !== sub)
+  try {
+    const url = `/api/terminal/subgroup-hidden?project=${encodeURIComponent(projects.currentId)}`
+    await apiFetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subgroup: sub, hidden }),
+    })
+  } catch { /* 保存失败仅本地生效 */ }
+}
+
 // ── FAB + 芯片簇(位置持久化/拖拽/点击联动;markup 与样式在本文件)──
 const {
   btnX, btnY, sessionList,
@@ -85,6 +112,7 @@ async function loadCommands() {
 
 function startPolling() {
   loadCommands()
+  loadHidden()
   pollTimer = setInterval(loadCommands, 5000)
 }
 function stopPolling() {
@@ -94,7 +122,7 @@ function stopPolling() {
 // 项目切换时重新加载命令(会话列表由 TmuxSessionsTab 自管)
 watch(() => projects.currentId, () => {
   commands.value = []
-  if (terminal.drawerOpen) loadCommands()
+  if (terminal.drawerOpen) { loadCommands(); loadHidden() }
 })
 
 // 抽屉开 → 轮询;关 → 停 + 收起新建表单
@@ -222,11 +250,18 @@ function onClickCommand(cmd: CommandButton) {
               暂无自定义命令 —— 在项目 .code-panel/commands.yaml 里加
             </div>
             <template v-for="[sub, list] in groupedCustomCmds" :key="sub || '__default__'">
-              <div class="subgroup-head">
+              <div class="subgroup-head" :class="{ off: isGroupHidden(sub) }">
                 <span class="subgroup-name">{{ sub || '未分组' }}</span>
                 <span class="subgroup-count">{{ list.length }}</span>
+                <!-- 分组显隐开关:开=显示按钮;关=收起只留标题(每用户每项目,存面板库) -->
+                <button
+                  class="subgroup-toggle"
+                  :class="{ on: !isGroupHidden(sub) }"
+                  :title="isGroupHidden(sub) ? '该分组已收起,点击展开按钮' : '收起该分组按钮(不用此功能时可隐藏)'"
+                  @click="toggleGroup(sub, !isGroupHidden(sub))"
+                />
               </div>
-              <div class="cmd-grid">
+              <div v-if="!isGroupHidden(sub)" class="cmd-grid">
                 <button
                   v-for="cmd in list" :key="cmd.id"
                   class="cmd-btn" :title="cmd.command"
@@ -525,6 +560,9 @@ function onClickCommand(cmd: CommandButton) {
   border-bottom: 1px solid var(--border, #23232a);
 }
 .subgroup-head:first-child { margin-top: 0; }
+/* 收起态:标题整行置暗,提示这组被开关藏了 */
+.subgroup-head.off .subgroup-name,
+.subgroup-head.off .subgroup-count { opacity: 0.4; }
 .subgroup-name {
   font-size: 12px; font-weight: 600;
   color: var(--text, #c8c8d0);
@@ -536,6 +574,23 @@ function onClickCommand(cmd: CommandButton) {
   border-radius: 8px; padding: 0 6px;
   line-height: 16px;
 }
+/* 分组显隐开关(自绘滑块,同 drawer-lock 风格的小号版,靠右)
+   默认隐形 —— hover 到分组行才浮现(常驻太碍眼,2026-09-20 用户拍板) */
+.subgroup-toggle {
+  margin-left: auto;
+  width: 26px; height: 14px; border-radius: 7px; position: relative;
+  background: #3a3a44; border: none; cursor: pointer;
+  transition: background 0.2s, opacity 0.15s; padding: 0; flex-shrink: 0;
+  opacity: 0;                                   /* 默认隐形 */
+}
+.subgroup-head:hover .subgroup-toggle { opacity: 1; }   /* 悬停该行才浮现 */
+.subgroup-toggle.on { background: #67c23a; }
+.subgroup-toggle::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 10px; height: 10px; border-radius: 50%; background: #fff;
+  transition: left 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+.subgroup-toggle.on::after { left: 14px; }
 .cmd-label { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── 底部固定按钮 ─────────────────────────────────────── */

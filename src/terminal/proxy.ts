@@ -196,6 +196,7 @@ export function terminalProxyMiddleware(
   // 绕过名单:这些由真实 API 路由处理,不转发到 ttyd
   if (path === '/api/terminal/status') return next();
   if (path === '/api/terminal/commands' || path.startsWith('/api/terminal/commands/')) return next();
+  if (path === '/api/terminal/subgroup-hidden') return next();
   if (path === '/api/terminal/sessions' || path.startsWith('/api/terminal/sessions/')) return next();
   if (path === '/api/terminal/tmux' || path.startsWith('/api/terminal/tmux')) return next();
   if (path === '/api/terminal/tmux-sessions' || path.startsWith('/api/terminal/tmux-sessions')) return next();
