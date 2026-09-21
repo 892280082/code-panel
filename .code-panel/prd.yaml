@@ -8,5 +8,7 @@
 #   folders:
 #     - { name: 需求中心, dir: PRD/owner }
 #     - { name: 原型稿,   dir: PRD/proto }
-dir: ""
-folders: []
+dir: prd
+folders:
+  # 自举:面板看自己的需求看板(负责人owner);结构照 references/prd-directory-format.md
+  - { name: owner·code-panel, dir: prd }
