@@ -15,4 +15,11 @@
 #     - { id: c1, label: "🚀 全部启动", command: "bash start.sh start all", subgroup: "快速启动", cwd: . }
 #     - { id: c2, label: "🛑 全部停止", command: "bash start.sh stop all", subgroup: "快速启动", cwd: . }
 #     - { id: c3, label: "🚀 启动后端", command: "bash start.sh start main", subgroup: "单模块", cwd: . }
-commands: []
+commands:
+  # 自举:面板管自己。重启/停止走 systemd(start.sh 在 systemd 机器上自动转 restart);
+  # project=4 是本仓库在面板注册表里的 id(重装面板后如变化,改这里)。
+  - { id: cp-restart,  label: "🔄 重启面板", command: "bash start.sh", subgroup: "面板", cwd: . }
+  - { id: cp-stop,     label: "🛑 停止面板", command: "systemctl --user stop code-panel", subgroup: "面板", cwd: . }
+  - { id: cp-status,   label: "🩺 服务状态", command: "systemctl --user status code-panel --no-pager -l | head -20", subgroup: "面板", cwd: . }
+  - { id: cp-inspect,  label: "🔍 inspect 自检", command: "./cp get '/api/inspect?project=4'", subgroup: "面板", cwd: . }
+  - { id: cp-projects, label: "📋 项目列表", command: "./cp get /api/projects", subgroup: "面板", cwd: . }

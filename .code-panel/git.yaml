@@ -6,4 +6,6 @@
 # 示例:
 #   repos:
 #     - { id: myproj, name: myproj, path: ., notes: 本项目仓库 }
-repos: []
+repos:
+  # 自举:本仓库即面板本体(skill 源码),path '.' = 项目根
+  - { id: code-panel, name: code-panel, path: ., notes: 面板本体仓库(自举) }

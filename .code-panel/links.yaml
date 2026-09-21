@@ -27,4 +27,20 @@
 #     - name: 资源
 #       items:
 #         - { name: OSS 控制台, urls: [ { url: "http://dev.example.com/resource" } ] }
-groups: []
+groups:
+  # 自举:面板自己的入口(listen 全接口 → 本机回环 + 局域网 192.0.2.10 都通)
+  - name: 面板
+    items:
+      - name: code-panel 日志台
+        urls:
+          - { label: 本机,   url: "http://127.0.0.1:3008/log" }
+          - { label: 局域网, url: "http://192.0.2.10:3008/log" }
+      - name: SQL 审批
+        urls:
+          - { label: 本机, url: "http://127.0.0.1:3008/sql" }
+      - name: Git 面板
+        urls:
+          - { label: 本机, url: "http://127.0.0.1:3008/git" }
+      - name: PRD 目录
+        urls:
+          - { label: 本机, url: "http://127.0.0.1:3008/prd" }

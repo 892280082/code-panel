@@ -25,4 +25,13 @@
 #                      stop:  "bash .claude/skills/fast-start/start.sh stop trade-hall-vue" } ]
 #     - name: 门户
 #       frontend: [ { name: website-vue, file: .logs/website.log, port: 7165 } ]
-platforms: []
+platforms:
+  # 自举:面板管理它自己。systemd 托管机器上 start.sh 自动转 systemctl --user restart;
+  # 日志经 unit drop-in(StandardOutput=append)落到 .logs/code-panel.log(见根 .gitignore)。
+  - name: 面板本体
+    backend:
+      - name: code-panel
+        file: .logs/code-panel.log
+        port: 3008
+        start: bash start.sh
+        stop: systemctl --user stop code-panel
