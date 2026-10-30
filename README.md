@@ -2,6 +2,19 @@
 
 > **多项目运维控制面板**:JWT 登录 + 每项目 `.code-panel` 配置文件 + 应用服务实时日志与启停 + SQL 评审 + Git + PRD + 命令终端 + tmux 持久会话 + 云文件 + 快捷方式 + 自动备份。Claude Code Skill,位于 `~/.claude/skills/code-panel/`。
 
+## 仓库地址
+
+| 平台 | 地址 |
+|------|------|
+| Gitee | https://gitee.com/woaianqi/code-panel-share |
+| GitHub | https://github.com/892280082/code-panel |
+
+```bash
+# 克隆(任选其一,两边内容一致)
+git clone git@gitee.com:woaianqi/code-panel-share.git
+git clone git@github.com:892280082/code-panel.git
+```
+
 ## 快速上手
 
 ```bash
