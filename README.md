@@ -36,6 +36,28 @@ open http://localhost:3008                      # 登录:demo / change-me(首启
 | 右上常驻:快捷方式 Quick Links + 系统资源圆环 | 各页右上 |
 | 右下 💻 命令终端 + tmux 会话 + ☁ 云文件 + 📂 仓库浏览 | 各页浮动 |
 
+## 模块文档(想二次开发看这里)
+
+这个仓库是项目的**骨架**:每个模块怎么分层、数据存哪、接口长什么样、怎么照着加一个自己的模块,全部写在 [`docs/modules/`](docs/modules/index.md)。
+
+| 文档 | 内容 |
+|------|------|
+| [docs/modules/index.md](docs/modules/index.md) | **总索引**:全貌、模块表、阅读顺序、四件套 |
+| [00-architecture.md](docs/modules/00-architecture.md) | 请求链路、统一信封、权限、项目上下文、存储三层 |
+| [01-auth-security.md](docs/modules/01-auth-security.md) | 登录/JWT/多账号/本机免密/安全模式 |
+| [02-projects-config.md](docs/modules/02-projects-config.md) | 项目注册表、`.code-panel` YAML 约定、巡检 |
+| [03-logs-apps.md](docs/modules/03-logs-apps.md) | 应用日志、SSE、启停与保活脚本 |
+| [04-sql-review.md](docs/modules/04-sql-review.md) | 多库连接、查询、审批队列、历史 |
+| [05-redis.md](docs/modules/05-redis.md) | 连接、SCAN 浏览、键详情、清库审批 |
+| [06-git.md](docs/modules/06-git.md) | 仓库、diff、历史、文件树浏览 |
+| [07-prd.md](docs/modules/07-prd.md) | PRD 目录、Markdown 渲染、原型内嵌 |
+| [08-wiki-capsule.md](docs/modules/08-wiki-capsule.md) | Wiki 克隆/拉取、时空胶囊监听与弹卡 |
+| [09-terminal.md](docs/modules/09-terminal.md) | ttyd 端口池、tmux 会话、命令抽屉、代理 |
+| [10-files-cloud.md](docs/modules/10-files-cloud.md) | 云上传下载、剪贴板图片、路径安全 |
+| [11-ops-modules.md](docs/modules/11-ops-modules.md) | 环境组、模型供应商、nginx、备份 |
+| [12-frontend-shell.md](docs/modules/12-frontend-shell.md) | Vue 路由/Store/组件/样式规范 |
+| [13-how-to-add-a-module.md](docs/modules/13-how-to-add-a-module.md) | **新增模块完整清单 + 可复制示例** |
+
 ## 存储(严格两层)
 
 - **全局唯一库** `~/.code-panel/data.db`(users 账号 / projects 注册表,含中文备注 note / settings 公共配置)+ `jwt.secret`;`CODE_PANEL_HOME` 可覆盖根目录。
@@ -78,5 +100,6 @@ code-panel/
 │   └── routes/
 ├── frontend/src/       # views / stores / components / composables
 ├── templates/prd/      # PRD 目录模板(复制即用)
+├── docs/modules/       # 模块文档:每个模块怎么开发 + 新增模块清单
 └── references/         # PRD 编写规范等
 ```
