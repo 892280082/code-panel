@@ -15,8 +15,8 @@
 #     - { id: main-db, name: 主库, type: mysql, host: 127.0.0.1,
 #         port: 3306, user: root, password: "xxxx", database: app, notes: 开发库 }
 #     - { id: local-sqlite, name: 本地库, type: sqlite, path: code/data/app.db }
-connections:
-  # 自举:面板用 /sql 查它自己的全局库(~/.code-panel/data.db:项目注册表、SQL 历史等)。
-  # ⚠️ 这是面板运行库,查询随便,写操作慎之又慎。~ 会自动展开为当前用户家目录。
-  - { id: panel-db, name: 面板全局库, type: sqlite, path: ~/.code-panel/data.db,
-      notes: 自举自查(projects 表等);运行库,慎写 }
+connections: []
+# 自举示例:查询面板自己的全局库(项目注册表、SQL 历史等)。
+# 新版面板支持 ~ 展开;旧版本请填绝对路径。这是运行库,查询随便,写操作慎之又慎。
+# - { id: panel-db, name: 面板全局库, type: sqlite, path: ~/.code-panel/data.db,
+#     notes: 自举自查(projects 表等);运行库,慎写 }
