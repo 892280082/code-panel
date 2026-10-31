@@ -125,14 +125,14 @@ platforms: []
 connections: []
 `,
   prd: `# ── prd.yaml —— 本项目「PRD 文档目录」(面板 /prd 浏览/渲染) ─────────────────
-# ⚠️ dir/folders 一律写「相对项目根」的相对路径(如 PRD/owner),面板自动补绝对。
+# ⚠️ dir/folders 一律写「相对项目根」的相对路径(如 PRD/team),面板自动补绝对。
 # dir:     PRD 根目录(相对项目根,可空;如 PRD)
 # folders: 面板左侧目录清单,每项一个 { name, dir(相对项目根) }
 #
 # 示例:
 #   dir: PRD
 #   folders:
-#     - { name: 需求中心, dir: PRD/owner }
+#     - { name: 需求中心, dir: PRD/team }
 #     - { name: 原型稿,   dir: PRD/proto }
 dir: ""
 folders: []
@@ -209,7 +209,7 @@ groups: []
 # 示例(去掉注释即生效):
 #   connections:
 #     - { id: hq, name: 总部缓存(db50), host: "\${CODE_PANEL_REDIS_HOST:127.0.0.1}",
-#         port: 6379, password: "your-redis-password", db: 50, notes: 平台 hq }
+#         port: 6379, password: "\${CODE_PANEL_REDIS_PASSWORD:your-redis-password}", db: 50, notes: 平台 hq }
 connections: []
 `,
 };

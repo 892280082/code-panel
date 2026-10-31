@@ -88,6 +88,6 @@ bash ~/.claude/skills/code-panel/cp get "/api/inspect?project=<id>"
 | SQL 查询 / 审批 / 写库 | [references/sql-review.md](references/sql-review.md) |
 | 给用户交付产物 / 收文件 | [references/cloud-files.md](references/cloud-files.md) |
 | 写 / 改 apps.yaml(应用启停) | [references/apps-lifecycle.md](references/apps-lifecycle.md)(**AI 写 apps.yaml 前必读**) |
-| 项目部署 / 部署到服务器 / 部署方案 / 上线部署 | [references/project-deploy.md](references/project-deploy.md)(本地构建直推 + 服务器部署仓范式:一服务一 compose + 宿主 nginx 实体 + 中间件总 compose + 原子替换链;2026-09-20 demo-v2→241 全量实证) |
+| 项目部署 / 部署到服务器 / 部署方案 / 上线部署 | [references/project-deploy.md](references/project-deploy.md)(本地构建直推 + 服务器部署仓范式:一服务一 compose + 宿主 nginx 实体 + 中间件总 compose + 原子替换链;2026-09-20 生产项目全量实证) |
 | 账号 / 授权 / 安全模式 / ai-token 细节 | [references/accounts-security.md](references/accounts-security.md) |
 | 某个 API 的参数细节 | [references/api-reference.md](references/api-reference.md)(全部 API 按模块速查) |

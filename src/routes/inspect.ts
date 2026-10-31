@@ -120,7 +120,7 @@ router.get('/api/inspect', requireProject, route(async (req, res) => {
   }
   for (const f of prdRaw?.folders ?? []) {
     // ⚠ folders.dir 是「相对项目根」的相对路径(yaml.ts 规范)——必须 resolve 到项目根再校验,
-    //   否则相对面板进程 cwd(技能目录)永远误报「不存在」(2026-09-12 实证 proj-ark 三目录全误报)
+    //   否则相对面板进程 cwd(技能目录)永远误报「不存在」(2026-09-12 实证某项目三目录全误报)
     if (f.dir && !fs.existsSync(path.resolve(project.root, f.dir))) errors.push(`prd.yaml: 目录 "${f.name}" 不存在: ${f.dir}`);
   }
 

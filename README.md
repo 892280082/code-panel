@@ -15,11 +15,34 @@ git clone git@gitee.com:woaianqi/code-panel-share.git
 git clone git@github.com:892280082/code-panel.git
 ```
 
+## 首次启动(必读)
+
+首次启动时若 `users` 表为空,面板会用仓库根 `config.json` 的 `credentials` 播种首个超管。
+密码只存 sha256,先在本地生成哈希:
+
+```bash
+printf 'your-password' | sha256sum
+```
+
+把结果填进 `config.json`(把 `your-password` 换成你自己的密码):
+
+```json
+{
+  "reviewMode": false,
+  "credentials": {
+    "username": "admin",
+    "passwordHash": "<上面命令输出的 64 位哈希>"
+  }
+}
+```
+
+> ⚠️ 播种后请尽快登录改密;`credentials` 只在全新安装(users 表为空)时生效,已有 `~/.code-panel/data.db` 不会被覆盖。也可以不写 `credentials`,启动时会提示你配置。
+
 ## 快速上手
 
 ```bash
 bash ~/.claude/skills/code-panel/start.sh      # 安装依赖 + 构建前端 + 启动(3008)
-open http://localhost:3008                      # 登录:demo / change-me(首启由 config.json credentials 播种)
+open http://localhost:3008
 ```
 
 登录后左上 ⚙ 配置「项目」切换/添加项目。每个项目根目录维护 `.code-panel/`(apps.yaml、sql.yaml、prd.yaml、git.yaml、commands.yaml、links.yaml + uploads/downloads + data/),**配置文件提交式随仓库走、可手改、修改即生效**。
@@ -63,7 +86,7 @@ open http://localhost:3008                      # 登录:demo / change-me(首启
 - **全局唯一库** `~/.code-panel/data.db`(users 账号 / projects 注册表,含中文备注 note / settings 公共配置)+ `jwt.secret`;`CODE_PANEL_HOME` 可覆盖根目录。
 - **项目** `<项目根>/.code-panel/`:`apps.yaml`(应用服务,旧 `logs.yaml` 兼容)`sql.yaml` `prd.yaml` `git.yaml` `commands.yaml`(自定义命令)`links.yaml`(快捷方式)→ 配置,提交式;**改文件即生效**;`uploads/` `downloads/`(☁,gitignore)与 `data/`(SQL 历史/队列、PRD 完成态、tmux 备注、cloud-config.json;gitignore)为运行时数据。
 - 加日志/库/命令/快捷方式/PRD/git = 编辑项目里对应 yaml(顶部注释就是字段说明),无需面板配置 API。
-- 旧中央 sqlite 分组(proj/… 等)已废弃;旧数据可从 `backup-*.tar.gz` 查回。
+- 旧中央 sqlite 分组已废弃;旧数据可从 `backup-*.tar.gz` 查回。
 
 ## 认证
 
@@ -80,6 +103,7 @@ open http://localhost:3008                      # 登录:demo / change-me(首启
 
 - 后端 Node + Express 5 + TS(tsx);前端 Vue 3 + Pinia + Vue Router + Vite;sql.js 全局库;js-yaml 配置;MySQL/SQLite 连接。
 - 服务 3008;ttyd 终端 9001 + 页面终端 9002-9011 + tmux 接入 9020-9029。
+- FRP 公网开关脚本默认读 `~/.code-panel/frp-public.sh`,可用环境变量 `CODE_PANEL_FRP_SCRIPT` 指定其他路径。
 
 ## 结构
 
@@ -87,7 +111,7 @@ open http://localhost:3008                      # 登录:demo / change-me(首启
 code-panel/
 ├── SKILL.md            # 元数据 + 存储模型 + API + PRD 规范 + AI 行为
 ├── start.sh            # 一键启动
-├── config.json         # credentials(首启播种账号)+ 默认 reviewMode
+├── config.json         # 默认 reviewMode + 可选 credentials(首启播种账号)
 ├── src/
 │   ├── server.ts       # Express 入口(auth → 代理 → 路由)
 │   ├── auth/           # jwt / lockout / routes-auth

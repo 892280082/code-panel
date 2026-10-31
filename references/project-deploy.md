@@ -1,6 +1,6 @@
 # 项目部署(本地构建直推 + 服务器部署仓)
 
-> 部署范式定稿:**2026-09-20 demo-v2 → 241 全量落地实证**(plan-22)。任何项目上服务器照此复刻,不再逐机发明。
+> 部署范式定稿:**2026-09-20 某项目全量落地实证**(plan-22)。任何项目上服务器照此复刻,不再逐机发明。
 > 触发词:项目部署、部署到服务器、部署方案、上线部署、deploy 仓库、部署架构。
 
 ## 一、方案一句话
@@ -71,5 +71,5 @@ sshpass -p '<密码>' ssh-copy-id -i ~/.ssh/id_ed25519.pub <user>@<服务器>   
 
 ## 五、实证参考
 
-- **demo-v2 → 241**(2026-09-20):后端 9/9、前端 7/9 全量;deploy-demo 仓(目录化全套);踩坑实录见 wiki《某公司/线上服务器241.md》§变更记录(rsync protect-args / LANG 空 / hikari×9 爆连接数 / vite 并行 / nginx home 穿越权 / Flyway 老库回灌)。
-- 部署书:`demo-v2/.code-panel/prd/owner/plan/plan-22-伪代码/`(四件套 + 6 份流程 HTML)。
+- **某项目 → 生产服务器**(2026-09-20):后端 9/9、前端 7/9 全量;deploy-<项目> 仓(目录化全套);踩坑实录见 wiki《线上服务器部署.md》§变更记录(rsync protect-args / LANG 空 / hikari×9 爆连接数 / vite 并行 / nginx home 穿越权 / Flyway 老库回灌)。
+- 部署书:`<项目>/.code-panel/prd/<成员>/plan/plan-22-伪代码/`(四件套 + 6 份流程 HTML)。

@@ -8,7 +8,7 @@
 ```yaml
 dir: .code-panel/prd          # PRD 根(相对项目根)
 folders:                       # 注册要展示的"中心/人名"目录
-  - { name: owner, path: owner }
+  - { name: alice, path: alice }
 ```
 
 **目录结构模板**(复制即用,见 `templates/prd/`):

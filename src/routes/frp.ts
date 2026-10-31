@@ -1,9 +1,11 @@
 // ── FRP 公网开关路由(⚙ →「安全」Tab 首卡 + 🔗 快捷方式)────────
-//   实现:调用 proj-v3 仓库 .code-panel/scripts/frp-public.sh(frpc includes + reload 热切换)
+//   实现:调用外部 frp-public.sh 脚本(frpc includes + reload 热切换)
 //   GET  /api/security/frp          → 状态(登录即可看)
 //   GET  /api/security/frp/:action  → on/off 切换(仅超管;GET 形式供快捷方式链接点开,
 //                                     ?text=1 时回纯文本,浏览器新标签直接显示结果)
 
+import os from 'os';
+import path from 'path';
 import { Router, Request, Response } from 'express';
 import { execFile } from 'child_process';
 import { route, errorMessage } from '../utils/route-utils';
@@ -11,15 +13,16 @@ import { requireSuperadmin } from '../auth/jwt';
 
 export const frpRouter = Router();
 
-// 本机部署约定:开关脚本在 proj-v3 仓库(随 git 走)
-const FRP_SCRIPT = '/home/owner/repository/proj-v3/.code-panel/scripts/frp-public.sh';
+// 开关脚本路径可用 CODE_PANEL_FRP_SCRIPT 覆盖;默认放在全局数据目录
+const FRP_SCRIPT = process.env.CODE_PANEL_FRP_SCRIPT
+  || path.join(os.homedir(), '.code-panel', 'frp-public.sh');
 
 // 公网口 → 服务明细(与脚本 public.ini 保持一致)
 const PORT_TABLE = [
-  { port: 60101, service: '共享入口(nginx:80,按 Host 分流三平台)' },
-  { port: 60111, service: 'proj-ark(nginx:8801)' },
-  { port: 60112, service: 'proj-v3 智策(nginx:8802)' },
-  { port: 60113, service: 'demo-v2(nginx:8803)' },
+  { port: 60101, service: '共享入口(nginx:80,按 Host 分流多平台)' },
+  { port: 60111, service: '平台 A(nginx:8801)' },
+  { port: 60112, service: '平台 B(nginx:8802)' },
+  { port: 60113, service: '平台 C(nginx:8803)' },
 ];
 
 function runScript(args: string[]): Promise<string> {

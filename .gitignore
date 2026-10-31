@@ -9,6 +9,7 @@ frontend/dist/
 # Runtime data (local-only, do not commit)
 sql-history.json
 sql-queue.json
+.code-panel/acc-login.yaml
 
 # Frontend build artifacts
 frontend/*.tsbuildinfo

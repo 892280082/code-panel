@@ -15,7 +15,7 @@ import { errorMessage } from '../utils/route-utils';
 import { execText } from '../utils/exec';
 
 export const MAX_KEEP = 20;
-const DEFAULT_BACKUP_DIR = '/Users/owner/upload/code-panel-db-backup';
+const DEFAULT_BACKUP_DIR = path.join(os.homedir(), 'upload', 'code-panel-db-backup');
 
 function backupConfig(): { path: string } {
   const c = getSetting<{ path?: string }>('backup', { path: DEFAULT_BACKUP_DIR });

@@ -2,6 +2,8 @@
 //   sql.yaml→connections / git.yaml→repos 都是顶层数组,用同一套 upsert/delete;
 //   logs.yaml 的 sections 需要平铺读取;prd 完成状态走 data/prd-status.json。
 
+import os from 'os';
+import path from 'path';
 import type { ProjectRow } from '../db/global-store';
 import type { DbConnection, RedisConnection } from '../types';
 import type {
@@ -58,11 +60,20 @@ export function deleteProjectListItem(
 // 便于调用方直接读写数组(避免触碰上面泛型)
 type ModuleYamlLike = SqlModuleYaml | GitModuleYaml | LogsModuleYaml | PrdModuleYaml;
 
+/** sqlite 路径里的 ~ 展开为当前用户家目录(写盘仍保留原始值) */
+function expandHome<T extends { type?: string; path?: string }>(c: T): T {
+  if (c.type === 'sqlite' && typeof c.path === 'string' && (c.path === '~' || c.path.startsWith('~/'))) {
+    return { ...c, path: path.join(os.homedir(), c.path.slice(2)) };
+  }
+  return c;
+}
+
 /** sql.yaml:本项目连接列表 */
 export function sqlConnections(project: ProjectRow): DbConnection[] {
   const raw = listModuleItems<DbConnection>(project, 'sql');
   // ${VAR:default} 占位符按项目当前环境组插值(仅读入内存;写盘走原始读取,防固化)
-  return interpolateEnvVars(raw, projectEnvVars(project)) as DbConnection[];
+  const list = interpolateEnvVars(raw, projectEnvVars(project)) as DbConnection[];
+  return list.map(expandHome);
 }
 
 /** sql.yaml:按 id 取连接(已插值,连库/展示用) */

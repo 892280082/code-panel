@@ -117,12 +117,12 @@ function parsePlan(md: string, statusDir: string, prdDir: string): PlanRow {
   };
 }
 
-/** spec 链接换算:/demo-v2-specs/{路径}/… → specs/{路径}/spec.md(依赖中心内软链,渲染器才给返回按钮)。
- * 2026-09-11 specs 按人分组两级(specs/{用户名}/{编号}-{短名}),捕完整相对路径(单段旧形态/archive 兼容)。 */
+/** spec 链接换算:/<任意前缀>-specs/{路径}/… → specs/{路径}/spec.md(依赖中心内软链,渲染器才给返回按钮)。
+ * specs 按人分组两级(specs/{用户名}/{编号}-{短名}),捕完整相对路径(单段旧形态/archive 兼容)。 */
 function specCell(specs: string[]): string {
   if (!specs.length) return '—';
   const link = (u: string): string => {
-    const m = u.match(/\/demo-v2-specs\/(.+?)\/?$/);
+    const m = u.match(/\/(?:[^/]+-)?specs\/(.+?)\/?$/);
     return m ? `specs/${m[1]}/spec.md` : u;
   };
   if (specs.length === 1) return `[spec](${link(specs[0])})`;

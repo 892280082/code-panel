@@ -123,7 +123,7 @@ async function saveEdit() {
   <div v-if="showAdd && auth.isSuper" class="add-card">
     <div class="add-title">+ 添加项目</div>
     <div class="add-fields">
-      <input v-model="addName" class="f-input" placeholder="项目名(如 demo)" />
+      <input v-model="addName" class="f-input" placeholder="项目名(如 my-project)" />
       <input v-model="addNote" class="f-input" placeholder="中文备注(可选)" />
       <input v-model="addRoot" class="f-input mono grow" placeholder="项目根目录绝对路径" />
     </div>

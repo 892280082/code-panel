@@ -28,13 +28,14 @@
 #       items:
 #         - { name: OSS 控制台, urls: [ { url: "http://dev.example.com/resource" } ] }
 groups:
-  # 自举:面板自己的入口(listen 全接口 → 本机回环 + 局域网 192.0.2.10 都通)
+  # 自举:面板自己的入口(listen 全接口 → 本机回环可通)
   - name: 面板
     items:
       - name: code-panel 日志台
         urls:
           - { label: 本机,   url: "http://127.0.0.1:3008/log" }
-          - { label: 局域网, url: "http://192.0.2.10:3008/log" }
+          # 局域网访问:取消下行注释,把 <LAN_IP> 换成你自己的内网地址
+          # - { label: 局域网, url: "http://<LAN_IP>:3008/log" }
       - name: SQL 审批
         urls:
           - { label: 本机, url: "http://127.0.0.1:3008/sql" }
